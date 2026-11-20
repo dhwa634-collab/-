@@ -2,7 +2,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-void main()=>runApp(const StudyApp());
+import 'package:shared_preferences/shared_preferences.dart';
+Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 const subjects=<Subject>[
  Subject('التربية الإسلامية',Icons.mosque_rounded,Color(0xFF16866A)),
@@ -15,6 +16,55 @@ const subjects=<Subject>[
  Subject('الفيزياء',Icons.bolt_rounded,Color(0xFFD18A25)),
 ];
 class Subject {final String name; final IconData icon; final Color color; const Subject(this.name,this.icon,this.color);}
+
+class SavedExamsStore {
+  static const String _storageKey = 'saved_exam_sheets_v1';
+  static final ValueNotifier<List<Map<String, String>>> items =
+      ValueNotifier<List<Map<String, String>>>([]);
+
+  static Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_storageKey);
+    if (raw == null) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        items.value = decoded.whereType<Map>()
+            .map((entry) => Map<String, String>.from(entry)).toList();
+      }
+    } catch (_) {
+      items.value = [];
+    }
+  }
+
+  static bool contains(String path) =>
+      items.value.any((item) => item['path'] == path);
+
+  static Future<bool> toggle(Map<String, String> exam) async {
+    final updated = items.value
+        .map((item) => Map<String, String>.from(item)).toList();
+    final index = updated.indexWhere((item) => item['path'] == exam['path']);
+    final saved = index < 0;
+    if (saved) {
+      updated.insert(0, exam);
+    } else {
+      updated.removeAt(index);
+    }
+    items.value = updated;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_storageKey, jsonEncode(updated));
+    return saved;
+  }
+
+  static Future<void> remove(String path) async {
+    final updated = items.value.where((item) => item['path'] != path)
+        .map((item) => Map<String, String>.from(item)).toList();
+    items.value = updated;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_storageKey, jsonEncode(updated));
+  }
+}
+
 class StudyApp extends StatelessWidget {const StudyApp({super.key}); @override Widget build(BuildContext context)=>MaterialApp(debugShowCheckedModeBanner:false,title:'وزاريات الثالث متوسط',theme:ThemeData(useMaterial3:true,scaffoldBackgroundColor:bg,colorScheme:ColorScheme.fromSeed(seedColor:blue),cardTheme:CardThemeData(color:Colors.white,elevation:0,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18)))),home:const Shell());}
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
 class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const About()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Colors.white,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.info_outline),label:'حول')])));}}
@@ -236,7 +286,39 @@ class _SubjectScreenState extends State<SubjectScreen> {
                             Expanded(child: Text(
                               images.length > 1 ? 'ورقة ${entry.key + 1}' : 'ورقة الأسئلة',
                               style: const TextStyle(fontWeight: FontWeight.w800))),
-                            const Icon(Icons.zoom_in, color: Colors.blueGrey),
+                            IconButton(
+                              tooltip: SavedExamsStore.contains(entry.value)
+                                  ? 'إزالة من المحفوظات' : 'حفظ للمراجعة',
+                              onPressed: () async {
+                                try {
+                                  final saved = await SavedExamsStore.toggle({
+                                    'path': entry.value,
+                                    'subject': widget.subject.name,
+                                    'year': academicYear,
+                                    'round': kind,
+                                  });
+                                  if (!mounted) return;
+                                  setState(() {});
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(saved
+                                      ? 'انحفظت الورقة بالمحفوظات'
+                                      : 'انحذفت الورقة من المحفوظات'),
+                                      duration: const Duration(seconds: 2)),
+                                  );
+                                } catch (_) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content:
+                                      Text('تعذر حفظ الورقة على الجهاز')),
+                                  );
+                                }
+                              },
+                              icon: Icon(
+                                SavedExamsStore.contains(entry.value)
+                                  ? Icons.bookmark : Icons.bookmark_border,
+                                color: blue,
+                              ),
+                            ),
                           ]),
                         ),
                         Image.asset(entry.value, fit: BoxFit.contain,
@@ -286,7 +368,88 @@ class _SubjectScreenState extends State<SubjectScreen> {
   }
 }
 
-class Saved extends StatelessWidget{const Saved({super.key});@override Widget build(BuildContext context)=>const Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(Icons.bookmark_border,size:55,color:Colors.blueGrey),SizedBox(height:12),Text('المحفوظات',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900,color:navy)),Text('ستظهر هنا الأسئلة التي تحفظها للمراجعة',style:TextStyle(color:Colors.blueGrey))]));}
+class Saved extends StatelessWidget {
+  const Saved({super.key});
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: ValueListenableBuilder<List<Map<String, String>>>(
+      valueListenable: SavedExamsStore.items,
+      builder: (context, saved, _) {
+        if (saved.isEmpty) {
+          return const Center(child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.bookmark_border, size: 55, color: Colors.blueGrey),
+              SizedBox(height: 12),
+              Text('المحفوظات', style: TextStyle(
+                fontSize: 21, fontWeight: FontWeight.w900, color: navy)),
+              SizedBox(height: 5),
+              Text('احفظ أوراق الامتحانات لتصل إليها بسرعة هنا',
+                style: TextStyle(color: Colors.blueGrey)),
+            ],
+          ));
+        }
+        return ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            const Text('أوراقي المحفوظة', style: TextStyle(
+              fontSize: 23, fontWeight: FontWeight.w900, color: navy)),
+            const SizedBox(height: 5),
+            Text('\${saved.length} ورقة محفوظة للمراجعة',
+              style: const TextStyle(color: Colors.blueGrey)),
+            const SizedBox(height: 14),
+            ...saved.map((exam) => Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 6),
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(9),
+                  child: Image.asset(exam['path'] ?? '',
+                    width: 52, height: 62, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox(
+                      width: 52, height: 62,
+                      child: Icon(Icons.image_not_supported_outlined)),
+                  ),
+                ),
+                title: Text(exam['subject'] ?? 'مادة دراسية',
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text('\${exam['year'] ?? ''} • \${exam['round'] ?? ''}'),
+                onTap: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => Directionality(
+                    textDirection: TextDirection.rtl,
+                    child: Scaffold(
+                      backgroundColor: Colors.black,
+                      appBar: AppBar(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        title: Text(exam['subject'] ?? 'صورة الامتحان'),
+                      ),
+                      body: Center(child: InteractiveViewer(
+                        minScale: 0.8, maxScale: 5,
+                        child: Image.asset(exam['path'] ?? '',
+                          fit: BoxFit.contain),
+                      )),
+                    ),
+                  ),
+                )),
+                trailing: IconButton(
+                  tooltip: 'إزالة من المحفوظات',
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  onPressed: () async {
+                    await SavedExamsStore.remove(exam['path'] ?? '');
+                  },
+                ),
+              ),
+            )),
+          ],
+        );
+      },
+    ),
+  );
+}
 class About extends StatelessWidget{const About({super.key});@override Widget build(BuildContext context)=>const Padding(padding:EdgeInsets.all(22),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[SizedBox(height:20),Text('حول التطبيق',style:TextStyle(fontSize:25,fontWeight:FontWeight.w900,color:navy)),SizedBox(height:16),Text('منصة تعليمية مستقلة لمساعدة طلبة الثالث متوسط في العراق على مراجعة الأسئلة الوزارية والتمهيدية.',style:TextStyle(fontSize:15,height:1.8)),SizedBox(height:12),Text('سيُنسب المحتوى إلى مصدره مع التمييز بين نسخة السؤال الأصلية والحل النموذجي والشرح الإضافي.',style:TextStyle(color:Colors.blueGrey,height:1.8)),SizedBox(height:12),Text('هذا التطبيق غير تابع لوزارة التربية العراقية.',style:TextStyle(fontWeight:FontWeight.w800,color:Colors.blueGrey))]));}
 class Feature extends StatelessWidget{final IconData icon;final String title,desc;const Feature({super.key,required this.icon,required this.title,required this.desc});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.only(bottom:9),child:Container(padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(16)),child:Row(children:[Icon(icon,color:blue,size:25),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontWeight:FontWeight.w800,color:navy)),Text(desc,style:const TextStyle(fontSize:12,color:Colors.blueGrey))]))])));}
 
