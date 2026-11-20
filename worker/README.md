@@ -1,33 +1,30 @@
 # تشغيل المساعد الذكي
 
-## 1) إنشاء Worker
-1. أنشئ حساباً في Cloudflare وافتح Workers & Pages.
-2. من جهازك ثبّت Node.js ثم شغّل:
-   `npm install -g wrangler`
-3. سجّل الدخول:
-   `wrangler login`
-4. ادخل مجلد `worker` داخل هذا المشروع وشغّل:
-   `wrangler deploy`
+## إعداد Cloudflare Worker
+اسم Worker الحالي في المشروع: `third-intermediate-ai`.
+من مجلد `worker` شغّل:
+```bash
+npm install -g wrangler
+wrangler login
+wrangler secret put GEMINI_API_KEY
+wrangler deploy
+```
+ألصق مفتاح Gemini عند طلبه. لا تضع المفتاح في ملفات Flutter أو GitHub أو داخل التطبيق.
 
-## 2) وضع مفتاح Gemini بأمان
-من داخل مجلد `worker` شغّل:
-`wrangler secret put GEMINI_API_KEY`
-ألصق مفتاح Gemini الجديد في الطرفية عند الطلب. لا تضعه في ملفات المشروع أو GitHub أو تطبيق Flutter.
+## عنوان الخدمة
+التطبيق يتصل بعنوان Worker الحالي:
+`https://wispy-union-276e.dhwa634.workers.dev/chat`
+إذا تغيّر اسم Worker أو النطاق، حدّث عنوان endpoint في `lib/main.dart` ثم أعد بناء التطبيق.
 
-## 3) ربط التطبيق بعنوان Worker
-بعد النشر سيظهر عنوان شبيه بـ:
-`https://third-intermediate-ai.<your-account>.workers.dev`
-افتح `lib/main.dart` وابحث عن:
-`https://YOUR-WORKER-NAME.workers.dev/chat`
-واستبدله بعنوان Worker الحقيقي مع إضافة `/chat` في النهاية.
+## بعد تعديل الخادم
+أي commit في GitHub لا ينشر Worker تلقائياً. يجب تنفيذ `wrangler deploy` يدوياً من مجلد `worker` أو إعداد نشر آلي منفصل مع Cloudflare API Token محفوظ كـ Secret.
 
-## 4) بناء التطبيق
-من جذر مشروع Flutter شغّل:
-`flutter pub get`
-ثم:
-`flutter build apk --release`
+## النموذج والحدود
+يستخدم الخادم `gemini-3.5-flash-lite`. راجع حدود الخطة المجانية والأسعار وسياسة الاحتفاظ بالبيانات في Google AI Studio قبل الإطلاق. لا توجد ضمانة لاستخدام مجاني غير محدود.
 
-## ملاحظات
-- يستخدم الخادم نموذج `gemini-3.5-flash-lite`؛ راجع صفحة الأسعار وحدود الخطة المجانية في Google AI Studio قبل الإطلاق.
-- لا يوجد مفتاح API داخل Flutter أو ملفات Git.
-- واجهة المساعد لن تتصل فعلياً قبل نشر Worker ووضع المفتاح وإدخال عنوانه في التطبيق.
+## الخصوصية والأمان
+- مفتاح Gemini يبقى في Cloudflare Secret.
+- لا يطلب التطبيق حساباً أو كلمة مرور.
+- نص السؤال وسياق المحادثة يُرسلان إلى Worker ثم إلى Google Gemini لمعالجة الرد.
+- لا ترسل بيانات شخصية أو كلمات مرور أو معلومات حساسة إلى المساعد.
+- يجب تفعيل حدود طلبات ومراقبة الاستخدام في Cloudflare قبل فتح الخدمة للجمهور.
