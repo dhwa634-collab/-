@@ -78,7 +78,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
   String get academicYear {
     final endYear = int.tryParse(year);
     if (endYear == null) return year;
-    return '\${endYear - 1}–$endYear';
+    return '${endYear - 1}–$endYear';
   }
 
   void openImage(String path) {
@@ -129,7 +129,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
               child: Row(children: [
                 Icon(widget.subject.icon, color: widget.subject.color, size: 35),
                 const SizedBox(width: 12),
-                Expanded(child: Text('أرشيف \${widget.subject.name}',
+                Expanded(child: Text('أرشيف ${widget.subject.name}',
                   style: const TextStyle(fontSize: 18,
                     fontWeight: FontWeight.w900, color: navy))),
               ]),
@@ -150,7 +150,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
               items: years.map((y) => DropdownMenuItem(
                 value: y, child: Text(
                   y == '2025' || y == '2024' || y == '2023' || y == '2022'
-                    ? '\${int.parse(y)-1}–$y' : y),
+                    ? '${int.parse(y)-1}–$y' : y),
               )).toList(),
               onChanged: (v) => setState(() => year = v ?? '2025'),
             ),
@@ -188,7 +188,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
                             const Icon(Icons.description_outlined, color: blue),
                             const SizedBox(width: 8),
                             Expanded(child: Text(
-                              images.length > 1 ? 'ورقة \${entry.key + 1}' : 'ورقة الأسئلة',
+                              images.length > 1 ? 'ورقة ${entry.key + 1}' : 'ورقة الأسئلة',
                               style: const TextStyle(fontWeight: FontWeight.w800))),
                             const Icon(Icons.zoom_in, color: Colors.blueGrey),
                           ]),
