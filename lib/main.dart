@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 void main()=>runApp(const StudyApp());
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 const subjects=<Subject>[
@@ -28,13 +29,182 @@ class Home extends StatelessWidget{final ValueChanged<Subject> onOpen;final Void
  ]);}
 class SubjectTile extends StatelessWidget{final Subject subject;final VoidCallback onTap;const SubjectTile({super.key,required this.subject,required this.onTap});@override Widget build(BuildContext context)=>Material(color:Colors.white,borderRadius:BorderRadius.circular(18),child:InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[Container(width:42,height:42,decoration:BoxDecoration(color:subject.color.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:Icon(subject.icon,color:subject.color)),const SizedBox(width:9),Expanded(child:Text(subject.name,style:const TextStyle(fontWeight:FontWeight.w800,color:navy,fontSize:13))),const Icon(Icons.chevron_left,color:Colors.blueGrey)]))));}
 class Catalog extends StatelessWidget{final ValueChanged<Subject> onOpen;const Catalog({super.key,required this.onOpen});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.all(20),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const SizedBox(height:12),const Text('المواد الدراسية',style:TextStyle(fontSize:25,fontWeight:FontWeight.w900,color:navy)),const SizedBox(height:6),const Text('اختر المادة للوصول إلى أرشيفها'),const SizedBox(height:18),Expanded(child:GridView.builder(itemCount:subjects.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,crossAxisSpacing:11,mainAxisSpacing:11,childAspectRatio:1.55),itemBuilder:(_,i)=>SubjectTile(subject:subjects[i],onTap:()=>onOpen(subjects[i]))))]));}
-class SubjectScreen extends StatefulWidget{final Subject subject;const SubjectScreen({super.key,required this.subject});@override State<SubjectScreen> createState()=>_SubjectScreenState();}
-class _SubjectScreenState extends State<SubjectScreen>{String kind='الوزاري',year='كل السنوات';@override Widget build(BuildContext context){final years=['كل السنوات',for(int y=2026;y>=2000;y--) '$y'];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:Text(widget.subject.name,style:const TextStyle(fontWeight:FontWeight.w800))),body:ListView(padding:const EdgeInsets.all(20),children:[
- Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(color:widget.subject.color.withValues(alpha:.1),borderRadius:BorderRadius.circular(18)),child:Row(children:[Icon(widget.subject.icon,color:widget.subject.color,size:35),const SizedBox(width:12),Expanded(child:Text('أرشيف ${widget.subject.name}',style:const TextStyle(fontSize:18,fontWeight:FontWeight.w900,color:navy)))])),
- const SizedBox(height:22),const Text('نوع الامتحان',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),Wrap(spacing:8,children:['الوزاري','التمهيدي'].map((v)=>ChoiceChip(label:Text(v),selected:kind==v,onSelected:(_)=>setState(()=>kind=v))).toList()),
- const SizedBox(height:18),const Text('السنة',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),DropdownButtonFormField<String>(initialValue:year,decoration:InputDecoration(filled:true,fillColor:Colors.white,border:OutlineInputBorder(borderRadius:BorderRadius.circular(13),borderSide:BorderSide.none)),items:years.map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>setState(()=>year=v??'كل السنوات')),
- const SizedBox(height:22),Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(18)),child:Column(children:[Icon(Icons.inventory_2_outlined,size:42,color:widget.subject.color),const SizedBox(height:12),const Text('الأرشيف قيد التجهيز',style:TextStyle(fontSize:17,fontWeight:FontWeight.w900,color:navy)),const SizedBox(height:8),Text('ستظهر هنا أسئلة $kind ${year=='كل السنوات'?'لكل السنوات المتوفرة':'لسنة $year'} مع الحلول النموذجية بعد إضافة الوثائق والتحقق منها.',textAlign:TextAlign.center,style:const TextStyle(color:Colors.blueGrey,height:1.7)),const SizedBox(height:10),const Chip(avatar:Icon(Icons.verified_outlined,size:17),label:Text('توثيق المصدر قبل النشر'))]))
- ])));}}
+class QuestionSource {
+  final String exam;
+  final String url;
+  const QuestionSource(this.exam, this.url);
+}
+
+const questionSources = <String, Map<String, String>>{
+  'التربية الإسلامية': {
+    'الوزاري': 'https://mlazemna.com/sa25is3/',
+    'التمهيدي': 'https://mlazemna.com/tm25is3/',
+  },
+  'اللغة العربية': {
+    'الوزاري': 'https://mlazemna.com/sa25ar3/',
+    'التمهيدي': 'https://mlazemna.com/tm25ar3/',
+  },
+  'اللغة الإنكليزية': {
+    'الوزاري': 'https://mlazemna.com/sa25en/',
+    'التمهيدي': 'https://mlazemna.com/tm25en3/',
+  },
+  'الرياضيات': {
+    'الوزاري': 'https://mlazemna.com/sa25mt/',
+    'التمهيدي': 'https://mlazemna.com/tm25mt3/',
+  },
+  'الاجتماعيات': {
+    'الوزاري': 'https://mlazemna.com/sa25ga/',
+    'التمهيدي': 'https://mlazemna.com/tm25gt3/',
+  },
+  'الأحياء': {
+    'الوزاري': 'https://mlazemna.com/sa25bi/',
+    'التمهيدي': 'https://mlazemna.com/tm25bi3/',
+  },
+  'الكيمياء': {
+    'الوزاري': 'https://mlazemna.com/sa25km/',
+    'التمهيدي': 'https://mlazemna.com/tm25km3/',
+  },
+  'الفيزياء': {
+    'الوزاري': 'https://mlazemna.com/sa25ph/',
+    'التمهيدي': 'https://mlazemna.com/tm25ph3/',
+  },
+};
+
+class SubjectScreen extends StatefulWidget {
+  final Subject subject;
+  const SubjectScreen({super.key, required this.subject});
+  @override
+  State<SubjectScreen> createState() => _SubjectScreenState();
+}
+
+class _SubjectScreenState extends State<SubjectScreen> {
+  String kind = 'الوزاري';
+  String year = '2025';
+
+  @override
+  Widget build(BuildContext context) {
+    final source = questionSources[widget.subject.name]?[kind];
+    final available = year == '2025' && source != null;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.subject.name,
+              style: const TextStyle(fontWeight: FontWeight.w800)),
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: widget.subject.color.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  Icon(widget.subject.icon,
+                      color: widget.subject.color, size: 35),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text('أرشيف ${widget.subject.name}',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: navy)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+            const Text('نوع الامتحان',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: ['الوزاري', 'التمهيدي']
+                  .map((v) => ChoiceChip(
+                        label: Text(v),
+                        selected: kind == v,
+                        onSelected: (_) => setState(() => kind = v),
+                      ))
+                  .toList(),
+            ),
+            const SizedBox(height: 18),
+            const Text('السنة',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: year,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(13),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: const [
+                DropdownMenuItem(value: '2025', child: Text('2025')),
+              ],
+              onChanged: (v) => setState(() => year = v ?? '2025'),
+            ),
+            const SizedBox(height: 22),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18)),
+              child: Column(
+                children: [
+                  Icon(
+                    available ? Icons.menu_book_rounded : Icons.inventory_2_outlined,
+                    size: 42,
+                    color: widget.subject.color,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    available ? 'أسئلة سنة 2025 متوفرة' : 'هذه السنة قيد الإضافة',
+                    style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: navy),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    available
+                        ? 'اضغط لفتح صور ورقة الأسئلة والحلول المنشورة في المصدر. ستفتح الصفحة الأصلية حتى تبقى نسبة الأسئلة ومصدرها واضحين.'
+                        : 'نعمل على إضافة أسئلة هذه السنة بعد التحقق من توفر نسخة موثوقة.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        color: Colors.blueGrey, height: 1.7),
+                  ),
+                  if (available) ...[
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: () => launchUrl(
+                        Uri.parse(source),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('عرض صور الأسئلة والحلول'),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  const Text('المصدر: ملازمنا',
+                      style: TextStyle(
+                          color: Colors.blueGrey,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 class Saved extends StatelessWidget{const Saved({super.key});@override Widget build(BuildContext context)=>const Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(Icons.bookmark_border,size:55,color:Colors.blueGrey),SizedBox(height:12),Text('المحفوظات',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900,color:navy)),Text('ستظهر هنا الأسئلة التي تحفظها للمراجعة',style:TextStyle(color:Colors.blueGrey))]));}
 class About extends StatelessWidget{const About({super.key});@override Widget build(BuildContext context)=>const Padding(padding:EdgeInsets.all(22),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[SizedBox(height:20),Text('حول التطبيق',style:TextStyle(fontSize:25,fontWeight:FontWeight.w900,color:navy)),SizedBox(height:16),Text('منصة تعليمية مستقلة لمساعدة طلبة الثالث متوسط في العراق على مراجعة الأسئلة الوزارية والتمهيدية.',style:TextStyle(fontSize:15,height:1.8)),SizedBox(height:12),Text('سيُنسب المحتوى إلى مصدره مع التمييز بين نسخة السؤال الأصلية والحل النموذجي والشرح الإضافي.',style:TextStyle(color:Colors.blueGrey,height:1.8)),SizedBox(height:12),Text('هذا التطبيق غير تابع لوزارة التربية العراقية.',style:TextStyle(fontWeight:FontWeight.w800,color:Colors.blueGrey))]));}
 class Feature extends StatelessWidget{final IconData icon;final String title,desc;const Feature({super.key,required this.icon,required this.title,required this.desc});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.only(bottom:9),child:Container(padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(16)),child:Row(children:[Icon(icon,color:blue,size:25),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontWeight:FontWeight.w800,color:navy)),Text(desc,style:const TextStyle(fontSize:12,color:Colors.blueGrey))]))])));}
