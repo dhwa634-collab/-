@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); runApp(const StudyApp()); }
+Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); await AppSettingsStore.load(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 const subjects=<Subject>[
  Subject('التربية الإسلامية',Icons.mosque_rounded,Color(0xFF16866A)),
@@ -66,7 +66,59 @@ class SavedExamsStore {
   }
 }
 
-class StudyApp extends StatelessWidget {const StudyApp({super.key}); @override Widget build(BuildContext context)=>MaterialApp(debugShowCheckedModeBanner:false,title:'وزاريات الثالث متوسط',theme:ThemeData(useMaterial3:true,scaffoldBackgroundColor:bg,colorScheme:ColorScheme.fromSeed(seedColor:blue),cardTheme:CardThemeData(color:Colors.white,elevation:0,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18)))),home:const Shell());}
+class AppSettingsStore {
+  static const String _darkModeKey = 'app_dark_mode_v1';
+  static final ValueNotifier<bool> darkMode = ValueNotifier<bool>(false);
+
+  static Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    darkMode.value = prefs.getBool(_darkModeKey) ?? false;
+  }
+
+  static Future<void> setDarkMode(bool enabled) async {
+    darkMode.value = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_darkModeKey, enabled);
+  }
+}
+
+class StudyApp extends StatelessWidget {
+  const StudyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: AppSettingsStore.darkMode,
+    builder: (context, dark, _) => MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'وزاريات الثالث متوسط',
+      theme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: bg,
+        colorScheme: ColorScheme.fromSeed(seedColor: blue),
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18))),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: blue, brightness: Brightness.dark),
+        scaffoldBackgroundColor: const Color(0xFF101820),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF1B2835),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18))),
+      ),
+      themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+      home: const Shell(),
+    ),
+  );
+}
+
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
 class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const About()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Colors.white,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.info_outline),label:'حول')])));}}
 class Home extends StatelessWidget{final ValueChanged<Subject> onOpen;final VoidCallback onAll;const Home({super.key,required this.onOpen,required this.onAll});@override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(20),children:[
@@ -632,6 +684,19 @@ class About extends StatelessWidget {
         const Text('هذا التطبيق غير تابع لوزارة التربية العراقية.',
           style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blueGrey)),
         const SizedBox(height: 18),
+        ValueListenableBuilder<bool>(
+          valueListenable: AppSettingsStore.darkMode,
+          builder: (context, dark, _) => SwitchListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+            secondary: const Icon(Icons.dark_mode_outlined, color: blue),
+            title: const Text('الوضع الليلي',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: const Text('حفظ اختيارك على هذا الجهاز'),
+            value: dark,
+            onChanged: (value) => AppSettingsStore.setDarkMode(value),
+          ),
+        ),
+        const SizedBox(height: 8),
         Card(
           child: ListTile(
             leading: const Icon(Icons.privacy_tip_outlined, color: blue),
