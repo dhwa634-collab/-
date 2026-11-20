@@ -24,10 +24,10 @@ flutter run
 ```
 
 ## ملفات البناء
-من تبويب Actions افتح آخر تشغيل ناجح ونزّل artifact باسم `third-intermediate-iraq-android-preview`. يحتوي APK للتثبيت وAAB للمعاينة التقنية. ملف AAB الناتج ليس جاهزاً للنشر التجاري قبل توقيعه بمفتاح إصدار خاص بالمطوّر.
+من تبويب Actions افتح آخر تشغيل ناجح ونزّل artifact باسم `third-intermediate-iraq-android-preview`. يحتوي APK للتثبيت وAAB للمعاينة التقنية. ملف AAB الحالي مخصص للمعاينة التقنية ويُبنى بتوقيع debug الافتراضي؛ لا ترفعه إلى Google Play كإصدار إنتاجي. توقيع الإصدار الحقيقي غير مفعّل بعد لأنه يتطلب keystore يملكه المطوّر، ثم إعداد Gradle وGitHub Secrets لاستخدامه.
 
 ## توقيع Google Play
-أنشئ مفتاح رفع Android keystore واحتفظ بنسخة احتياطية آمنة. لا ترفع المفتاح أو كلمات المرور إلى Git. قبل النشر يجب إعداد توقيع إصدار حقيقي في إعدادات GitHub Actions Secrets، ثم بناء AAB موقع والتحقق منه في Play Console.
+أنشئ مفتاح رفع Android keystore واحتفظ بنسخة احتياطية آمنة. لا ترفع المفتاح أو كلمات المرور إلى Git. بعد توفير ملف المفتاح وكلمات المرور، يجب تفعيل إعداد التوقيع في Gradle وتهيئة GitHub Actions Secrets قبل إنشاء AAB إنتاجي موقع والتحقق منه في Play Console.
 
 ## المساعد الذكي
 مفتاح Gemini يجب أن يبقى كـ Secret باسم `GEMINI_API_KEY` في Cloudflare Worker. لا تضعه في Flutter أو GitHub. بعد أي تعديل على `worker/src/index.js` يجب نشر Worker مجدداً حتى تصل التعديلات إلى المستخدمين.
