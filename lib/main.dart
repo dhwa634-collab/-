@@ -47,7 +47,11 @@ class _SubjectScreenState extends State<SubjectScreen> {
   ];
 
   static const Map<String, List<String>> chemistryExams = {
-    '2025': ['assets/exams/chemistry/2024_2025_first.jpg'],
+    '2025': [
+      'assets/exams/chemistry/2024_2025_first.jpg',
+      'assets/exams/chemistry/2024_2025_second_1.jpg',
+      'assets/exams/chemistry/2024_2025_second_2.jpg',
+    ],
     '2024': [
       'assets/exams/chemistry/2023_2024_first.jpg',
       'assets/exams/chemistry/2023_2024_third.jpg',
