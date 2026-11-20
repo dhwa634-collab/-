@@ -70,7 +70,7 @@ class StudyApp extends StatelessWidget {const StudyApp({super.key}); @override W
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
 class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const About()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Colors.white,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.info_outline),label:'حول')])));}}
 class Home extends StatelessWidget{final ValueChanged<Subject> onOpen;final VoidCallback onAll;const Home({super.key,required this.onOpen,required this.onAll});@override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(20),children:[
- Row(children:[Container(width:48,height:48,decoration:BoxDecoration(color:blue,borderRadius:BorderRadius.circular(15)),child:const Icon(Icons.school,color:Colors.white,size:28)),const SizedBox(width:12),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('دليلك للنجاح',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900,color:navy)),Text('الثالث متوسط • العراق',style:TextStyle(color:Colors.blueGrey))])),const Icon(Icons.notifications_none,color:navy)]),
+ Row(children:[Container(width:48,height:48,decoration:BoxDecoration(color:blue,borderRadius:BorderRadius.circular(15)),child:const Icon(Icons.school,color:Colors.white,size:28)),const SizedBox(width:12),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('دليلك للنجاح',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900,color:navy)),Text('الثالث متوسط • العراق',style:TextStyle(color:Colors.blueGrey))])),IconButton(tooltip:'البحث في الأرشيف',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const ArchiveSearchScreen())),icon:const Icon(Icons.search,color:navy))]),
  const SizedBox(height:22),
  Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(gradient:const LinearGradient(colors:[Color(0xFF173D78),Color(0xFF2675E8)]),borderRadius:BorderRadius.circular(25)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('منصة المراجعة الشاملة',style:TextStyle(color:Colors.white70)),const SizedBox(height:12),const Text('استعد للوزاري\nبخطوات واثقة',style:TextStyle(color:Colors.white,fontSize:28,fontWeight:FontWeight.w900,height:1.35)),const SizedBox(height:8),const Text('الأسئلة الوزارية والتمهيدية مع الحلول النموذجية',style:TextStyle(color:Colors.white70,height:1.6)),const SizedBox(height:15),FilledButton.icon(onPressed:onAll,style:FilledButton.styleFrom(backgroundColor:Colors.white,foregroundColor:navy),icon:const Icon(Icons.arrow_back),label:const Text('تصفح المواد'))])),
  const SizedBox(height:18),
@@ -83,16 +83,172 @@ class Home extends StatelessWidget{final ValueChanged<Subject> onOpen;final Void
  ]);}
 class SubjectTile extends StatelessWidget{final Subject subject;final VoidCallback onTap;const SubjectTile({super.key,required this.subject,required this.onTap});@override Widget build(BuildContext context)=>Material(color:Colors.white,borderRadius:BorderRadius.circular(18),child:InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[Container(width:42,height:42,decoration:BoxDecoration(color:subject.color.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:Icon(subject.icon,color:subject.color)),const SizedBox(width:9),Expanded(child:Text(subject.name,style:const TextStyle(fontWeight:FontWeight.w800,color:navy,fontSize:13))),const Icon(Icons.chevron_left,color:Colors.blueGrey)]))));}
 class Catalog extends StatelessWidget{final ValueChanged<Subject> onOpen;const Catalog({super.key,required this.onOpen});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.all(20),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const SizedBox(height:12),const Text('المواد الدراسية',style:TextStyle(fontSize:25,fontWeight:FontWeight.w900,color:navy)),const SizedBox(height:6),const Text('اختر المادة للوصول إلى أرشيفها'),const SizedBox(height:18),Expanded(child:GridView.builder(itemCount:subjects.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,crossAxisSpacing:11,mainAxisSpacing:11,childAspectRatio:1.55),itemBuilder:(_,i)=>SubjectTile(subject:subjects[i],onTap:()=>onOpen(subjects[i]))))]));}
+
+class ArchiveSearchScreen extends StatefulWidget {
+  const ArchiveSearchScreen({super.key});
+
+  @override
+  State<ArchiveSearchScreen> createState() => _ArchiveSearchScreenState();
+}
+
+class _ArchiveSearchScreenState extends State<ArchiveSearchScreen> {
+  final TextEditingController queryController = TextEditingController();
+  String subjectFilter = 'كل المواد';
+  String yearFilter = 'كل السنوات';
+  String roundFilter = 'كل الأدوار';
+
+  List<_ArchiveSearchItem> get allItems {
+    final result = <_ArchiveSearchItem>[];
+    for (final entry in _SubjectScreenState.arabicExams.entries) {
+      for (final round in entry.value.entries) {
+        for (final path in round.value) {
+          result.add(_ArchiveSearchItem(subjects[1], entry.key, round.key, path));
+        }
+      }
+    }
+    for (final entry in _SubjectScreenState.chemistryExams.entries) {
+      for (final round in entry.value.entries) {
+        for (final path in round.value) {
+          result.add(_ArchiveSearchItem(subjects[6], entry.key, round.key, path));
+        }
+      }
+    }
+    return result;
+  }
+
+  List<_ArchiveSearchItem> get filteredItems {
+    final query = queryController.text.trim().toLowerCase();
+    return allItems.where((item) {
+      final matchesQuery = query.isEmpty ||
+          '${item.subject.name} ${item.academicYear} ${item.round}'.toLowerCase().contains(query);
+      return matchesQuery &&
+          (subjectFilter == 'كل المواد' || item.subject.name == subjectFilter) &&
+          (yearFilter == 'كل السنوات' || item.year == yearFilter) &&
+          (roundFilter == 'كل الأدوار' || item.round == roundFilter);
+    }).toList();
+  }
+
+  @override
+  void dispose() {
+    queryController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = filteredItems;
+    final years = allItems.map((item) => item.year).toSet().toList()
+      ..sort((a, b) => b.compareTo(a));
+    const rounds = ['التمهيدي', 'الدور الأول', 'الدور الثاني', 'الدور الثالث'];
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('البحث في الأرشيف',
+          style: TextStyle(fontWeight: FontWeight.w900))),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextField(
+              controller: queryController,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'ابحث باسم المادة أو السنة أو الدور',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: subjectFilter,
+              decoration: const InputDecoration(labelText: 'المادة'),
+              items: ['كل المواد', ...subjects.map((s) => s.name)]
+                .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+              onChanged: (v) => setState(() => subjectFilter = v ?? 'كل المواد'),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: yearFilter,
+              decoration: const InputDecoration(labelText: 'السنة'),
+              items: ['كل السنوات', ...years]
+                .map((v) => DropdownMenuItem(value: v, child: Text(v == 'كل السنوات' ? v : '${int.parse(v)-1}–$v'))).toList(),
+              onChanged: (v) => setState(() => yearFilter = v ?? 'كل السنوات'),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: roundFilter,
+              decoration: const InputDecoration(labelText: 'الدور'),
+              items: ['كل الأدوار', ...rounds]
+                .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+              onChanged: (v) => setState(() => roundFilter = v ?? 'كل الأدوار'),
+            ),
+            const SizedBox(height: 16),
+            Text('النتائج: ${items.length}',
+              style: const TextStyle(fontWeight: FontWeight.w900, color: navy)),
+            const SizedBox(height: 8),
+            if (items.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(28),
+                child: Text('ماكو أوراق مطابقة حالياً. الأرشيف يُحدّث تدريجياً.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.blueGrey, height: 1.7)),
+              )
+            else
+              ...items.map((item) => Card(
+                child: ListTile(
+                  leading: const Icon(Icons.description_outlined, color: blue),
+                  title: Text(item.subject.name,
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text('${item.academicYear} • ${item.round}'),
+                  trailing: const Icon(Icons.chevron_left),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => SubjectScreen(
+                      subject: item.subject,
+                      initialYear: item.year,
+                      initialKind: item.round,
+                    ),
+                  )),
+                ),
+              )),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ArchiveSearchItem {
+  final Subject subject;
+  final String year;
+  final String round;
+  final String path;
+  const _ArchiveSearchItem(this.subject, this.year, this.round, this.path);
+  String get academicYear => '${int.parse(year)-1}–$year';
+}
+
 class SubjectScreen extends StatefulWidget {
   final Subject subject;
-  const SubjectScreen({super.key, required this.subject});
+  final String initialYear;
+  final String initialKind;
+  const SubjectScreen({super.key, required this.subject, this.initialYear = '2025', this.initialKind = 'الدور الأول'});
   @override
   State<SubjectScreen> createState() => _SubjectScreenState();
 }
 
 class _SubjectScreenState extends State<SubjectScreen> {
-  String kind = 'الدور الأول';
-  String year = '2025';
+  late String kind;
+  late String year;
+
+  @override
+  void initState() {
+    super.initState();
+    year = years.contains(widget.initialYear) ? widget.initialYear : '2025';
+    kind = rounds.contains(widget.initialKind) ? widget.initialKind : 'الدور الأول';
+  }
   static const years = <String>[
     '2025','2024','2023','2022','2021','2020','2019','2018',
     '2017','2016','2015','2014','2013','2012'
