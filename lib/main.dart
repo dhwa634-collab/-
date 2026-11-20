@@ -296,68 +296,296 @@ class AiAssistantScreen extends StatefulWidget {
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
 }
+
 class _AiAssistantScreenState extends State<AiAssistantScreen> {
   static const String endpoint = 'https://wispy-union-276e.dhwa634.workers.dev/chat';
-  final controller = TextEditingController();
-  final scrollController = ScrollController();
-  final messages = <Map<String, String>>[
-    {'role':'assistant','text':'هلا بيك! آني مساعدك الدراسي. اسألني عن مواد الثالث المتوسط، وأشرحلك الحل خطوة بخطوة.'}
+  final TextEditingController controller = TextEditingController();
+  final ScrollController scrollController = ScrollController();
+  final List<Map<String, dynamic>> messages = [
+    {'role': 'assistant', 'text': 'هلا بيك! آني مساعدك الدراسي. اسألني عن مواد الثالث المتوسط، وأشرحلك الحل خطوة بخطوة. وتكدر تسأل سؤال متابعة عن نفس الموضوع.'},
   ];
   bool loading = false;
+
   Future<void> send() async {
     final question = controller.text.trim();
     if (question.isEmpty || loading) return;
     controller.clear();
-    setState(() { messages.add({'role':'user','text':question}); loading = true; });
+    setState(() {
+      messages.add({'role': 'user', 'text': question});
+      loading = true;
+    });
     _scrollDown();
+    await _requestAnswer(question);
+  }
+
+  Future<void> _requestAnswer(String question) async {
     try {
-      final response = await http.post(Uri.parse(endpoint),
-        headers: {'Content-Type':'application/json'},
-        body: jsonEncode({'message':question})).timeout(const Duration(seconds:60));
-      if (response.statusCode != 200) throw Exception('تعذر إكمال الطلب (${response.statusCode})');
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final answer = (data['reply'] ?? '').toString();
-      if (answer.isEmpty) throw Exception('وصل رد فارغ من المساعد');
-      setState(() => messages.add({'role':'assistant','text':answer}));
-    } catch (e) {
-      setState(() => messages.add({'role':'assistant','text':'ما كدرت أتصل بالمساعد حالياً. تأكد من نشر الخادم ووضع رابطه داخل التطبيق.\nالتفاصيل: $e'}));
+      final previous = messages.where((item) =>
+        (item['role'] == 'user' || item['role'] == 'assistant') &&
+        item['failed'] != true).toList();
+      if (previous.isNotEmpty && previous.first['role'] == 'assistant' &&
+          previous.first['text'].toString().startsWith('هلا بيك!')) {
+        previous.removeAt(0);
+      }
+      if (previous.isNotEmpty && previous.last['role'] == 'user' &&
+          previous.last['text'] == question) {
+        previous.removeLast();
+      }
+      final history = previous.reversed.take(10).toList().reversed
+          .map((item) => {'role': item['role'], 'text': item['text']}).toList();
+
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'message': question, 'history': history}),
+      ).timeout(const Duration(seconds: 55));
+
+      Map<String, dynamic> data = {};
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) data = decoded;
+      } catch (_) {}
+
+      if (response.statusCode != 200) {
+        final serverMessage = (data['error'] ?? '').toString();
+        throw Exception(serverMessage.isNotEmpty
+          ? serverMessage
+          : 'الخادم لم يكمل الطلب (\${response.statusCode})');
+      }
+      final answer = (data['reply'] ?? '').toString().trim();
+      if (answer.isEmpty) throw Exception('وصل رد فارغ. جرّب مرة ثانية.');
+      if (!mounted) return;
+      setState(() => messages.add({'role': 'assistant', 'text': answer}));
+    } catch (error) {
+      if (!mounted) return;
+      final details = error.toString().replaceFirst('Exception: ', '');
+      setState(() => messages.add({
+        'role': 'assistant',
+        'text': 'ما كدرت أجيب الإجابة هالمرة. تأكد من اتصال الإنترنت وجرب مرة ثانية.',
+        'failed': true,
+        'question': question,
+        'details': details,
+      }));
     } finally {
-      if (mounted) { setState(() => loading = false); _scrollDown(); }
+      if (mounted) {
+        setState(() => loading = false);
+        _scrollDown();
+      }
     }
   }
+
+  Future<void> _retry(String question) async {
+    if (loading) return;
+    setState(() {
+      final index = messages.lastIndexWhere(
+        (item) => item['failed'] == true && item['question'] == question);
+      if (index >= 0) messages.removeAt(index);
+      loading = true;
+    });
+    await _requestAnswer(question);
+  }
+
+  void _clearChat() {
+    if (loading) return;
+    setState(() {
+      messages
+        ..clear()
+        ..add({
+          'role': 'assistant',
+          'text': 'بدأنا محادثة جديدة. اكتب سؤالك، وآني أساعدك بالشرح خطوة بخطوة.',
+        });
+    });
+  }
+
   void _scrollDown() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scrollController.hasClients) {
         scrollController.animateTo(
           scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds:250), curve: Curves.easeOut);
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
+        );
       }
     });
   }
+
   @override
-  void dispose() { controller.dispose(); scrollController.dispose(); super.dispose(); }
+  void dispose() {
+    controller.dispose();
+    scrollController.dispose();
+    super.dispose();
+  }
+
   @override
-  Widget build(BuildContext context) => Directionality(textDirection:TextDirection.rtl,
-    child:Scaffold(appBar:AppBar(title:const Text('المساعد الذكي',style:TextStyle(fontWeight:FontWeight.w900))),
-      body:Column(children:[
-        Expanded(child:ListView.builder(controller:scrollController,padding:const EdgeInsets.all(16),
-          itemCount:messages.length+(loading?1:0),itemBuilder:(context,index){
-            if(loading&&index==messages.length) return const Align(alignment:Alignment.centerRight,child:Padding(padding:EdgeInsets.all(12),child:CircularProgressIndicator()));
-            final item=messages[index]; final isUser=item['role']=='user';
-            return Align(alignment:isUser?Alignment.centerLeft:Alignment.centerRight,
-              child:Container(constraints:BoxConstraints(maxWidth:MediaQuery.of(context).size.width*.84),
-                margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(14),
-                decoration:BoxDecoration(color:isUser?blue:Colors.white,borderRadius:BorderRadius.circular(17)),
-                child:SelectableText(item['text']??'',style:TextStyle(color:isUser?Colors.white:navy,height:1.65,fontSize:15))));
-          })),
-        SafeArea(top:false,child:Padding(padding:const EdgeInsets.fromLTRB(12,8,12,12),
-          child:Row(children:[
-            Expanded(child:TextField(controller:controller,minLines:1,maxLines:5,
-              textInputAction:TextInputAction.send,onSubmitted:(_)=>send(),
-              decoration:InputDecoration(hintText:'اكتب سؤالك هنا...',filled:true,fillColor:Colors.white,
-                border:OutlineInputBorder(borderRadius:BorderRadius.circular(16),borderSide:BorderSide.none),
-                contentPadding:const EdgeInsets.symmetric(horizontal:15,vertical:13)))),
-            const SizedBox(width:8),IconButton.filled(onPressed:loading?null:send,icon:const Icon(Icons.send_rounded))
-          ])))
-      ])));
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('المساعد الذكي', style: TextStyle(fontWeight: FontWeight.w900)),
+            Text('مساعدك لمواد الثالث المتوسط',
+              style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'محادثة جديدة',
+            onPressed: loading ? null : _clearChat,
+            icon: const Icon(Icons.add_comment_outlined),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF1FF),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.auto_awesome, color: blue),
+                SizedBox(width: 9),
+                Expanded(child: Text(
+                  'اسأل، تابع بنفس المحادثة، واطلب توضيح أي خطوة ما فهمتها.',
+                  style: TextStyle(color: navy, fontSize: 12, height: 1.5),
+                )),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+              itemCount: messages.length + (loading ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (loading && index == messages.length) {
+                  return const Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(width: 17, height: 17,
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                          SizedBox(width: 9),
+                          Text('جاري التفكير...',
+                            style: TextStyle(color: Colors.blueGrey)),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                final item = messages[index];
+                final isUser = item['role'] == 'user';
+                final failed = item['failed'] == true;
+                final messageText = (item['text'] ?? '').toString();
+                return Align(
+                  alignment: isUser ? Alignment.centerLeft : Alignment.centerRight,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * .88),
+                    margin: const EdgeInsets.only(bottom: 11),
+                    padding: const EdgeInsets.fromLTRB(14, 11, 14, 9),
+                    decoration: BoxDecoration(
+                      color: isUser ? blue : Colors.white,
+                      border: failed ? Border.all(color: Colors.orange.shade300) : null,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(18),
+                        topRight: const Radius.circular(18),
+                        bottomLeft: Radius.circular(isUser ? 5 : 18),
+                        bottomRight: Radius.circular(isUser ? 18 : 5),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SelectableText(messageText, style: TextStyle(
+                          color: isUser ? Colors.white : navy,
+                          height: 1.7, fontSize: 14.5)),
+                        if (!isUser) ...[
+                          const SizedBox(height: 5),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (failed)
+                                TextButton.icon(
+                                  onPressed: loading ? null : () => _retry(
+                                    (item['question'] ?? '').toString()),
+                                  icon: const Icon(Icons.refresh, size: 17),
+                                  label: const Text('إعادة المحاولة'),
+                                )
+                              else
+                                IconButton(
+                                  tooltip: 'نسخ الإجابة',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(text: messageText));
+                                    ScaffoldMessenger.of(context)
+                                      ..hideCurrentSnackBar()
+                                      ..showSnackBar(const SnackBar(
+                                        content: Text('تم نسخ الإجابة'),
+                                        duration: Duration(seconds: 2),
+                                      ));
+                                  },
+                                  icon: const Icon(Icons.copy_rounded,
+                                    size: 17, color: Colors.blueGrey),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                boxShadow: [BoxShadow(
+                  color: Color(0x0D142D50), blurRadius: 12,
+                  offset: Offset(0, -3))],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(child: TextField(
+                    controller: controller,
+                    minLines: 1, maxLines: 5,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => send(),
+                    decoration: InputDecoration(
+                      hintText: 'اكتب سؤالك الدراسي هنا...',
+                      filled: true, fillColor: bg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(17),
+                        borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 15, vertical: 13),
+                    ),
+                  )),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 48, height: 48, child: IconButton.filled(
+                    tooltip: 'إرسال السؤال',
+                    onPressed: loading ? null : send,
+                    icon: const Icon(Icons.send_rounded),
+                  )),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
