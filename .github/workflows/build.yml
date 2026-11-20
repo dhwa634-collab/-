@@ -31,7 +31,7 @@ jobs:
               marker = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
               if marker not in content:
                   raise SystemExit("Android manifest format was not recognized")
-              content = content.replace(marker, marker + "\\n    " + permission, 1)
+              content = content.replace(marker, marker + chr(10) + "    " + permission, 1)
               manifest.write_text(content)
           PY
       - name: Install dependencies
