@@ -177,7 +177,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
                     const SizedBox(height: 16),
                     FilledButton.icon(
                       onPressed: () => launchUrl(
-                        Uri.parse(source!),
+                        Uri.parse(source),
                         mode: LaunchMode.externalApplication,
                       ),
                       icon: const Icon(Icons.open_in_new),
