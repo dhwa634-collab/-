@@ -46,8 +46,70 @@ class _SubjectScreenState extends State<SubjectScreen> {
     'التمهيدي','الدور الأول','الدور الثاني','الدور الثالث'
   ];
 
+  static const Map<String, List<String>> chemistryExams = {
+    '2025': ['assets/exams/chemistry/2024_2025_first.jpg'],
+    '2024': [
+      'assets/exams/chemistry/2023_2024_first.jpg',
+      'assets/exams/chemistry/2023_2024_third.jpg',
+    ],
+    '2023': [
+      'assets/exams/chemistry/2022_2023_preparatory.jpg',
+      'assets/exams/chemistry/2022_2023_second.jpg',
+    ],
+    '2022': [
+      'assets/exams/chemistry/2021_2022_preparatory.jpg',
+      'assets/exams/chemistry/2021_2022_third.jpg',
+    ],
+  };
+
+  List<String> get selectedImages {
+    if (widget.subject.name != 'الكيمياء') return const [];
+    final files = chemistryExams[year] ?? const <String>[];
+    return files.where((path) {
+      final name = path.split('/').last;
+      if (kind == 'التمهيدي') return name.contains('preparatory');
+      if (kind == 'الدور الأول') return name.contains('_first.');
+      if (kind == 'الدور الثاني') return name.contains('_second');
+      if (kind == 'الدور الثالث') return name.contains('_third.');
+      return false;
+    }).toList();
+  }
+
+  String get academicYear {
+    final endYear = int.tryParse(year);
+    if (endYear == null) return year;
+    return '\${endYear - 1}–$endYear';
+  }
+
+  void openImage(String path) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            title: const Text('صورة الامتحان'),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 5,
+              child: Image.asset(path, fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Text(
+                  'تعذر تحميل الصورة', style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final images = selectedImages;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -67,13 +129,14 @@ class _SubjectScreenState extends State<SubjectScreen> {
               child: Row(children: [
                 Icon(widget.subject.icon, color: widget.subject.color, size: 35),
                 const SizedBox(width: 12),
-                Expanded(child: Text('أرشيف ${widget.subject.name}',
+                Expanded(child: Text('أرشيف \${widget.subject.name}',
                   style: const TextStyle(fontSize: 18,
                     fontWeight: FontWeight.w900, color: navy))),
               ]),
             ),
             const SizedBox(height: 22),
-            const Text('السنة', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text('السنة الدراسية',
+                style: TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               initialValue: year,
@@ -84,11 +147,16 @@ class _SubjectScreenState extends State<SubjectScreen> {
                   borderSide: BorderSide.none,
                 ),
               ),
-              items: years.map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
+              items: years.map((y) => DropdownMenuItem(
+                value: y, child: Text(
+                  y == '2025' || y == '2024' || y == '2023' || y == '2022'
+                    ? '\${int.parse(y)-1}–$y' : y),
+              )).toList(),
               onChanged: (v) => setState(() => year = v ?? '2025'),
             ),
             const SizedBox(height: 18),
-            const Text('الدور الامتحاني', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text('الدور الامتحاني',
+                style: TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8, runSpacing: 8,
@@ -98,39 +166,80 @@ class _SubjectScreenState extends State<SubjectScreen> {
               )).toList(),
             ),
             const SizedBox(height: 22),
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(18)),
-              child: Column(children: [
-                Icon(Icons.photo_library_outlined, size: 48, color: widget.subject.color),
-                const SizedBox(height: 12),
-                const Text('الأرشيف المحلي للصور',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: navy)),
-                const SizedBox(height: 8),
-                Text('اختيارك: ${widget.subject.name} • $year • $kind',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.blueGrey)),
-                const SizedBox(height: 12),
-                const Text(
-                  'تم تجهيز التطبيق لعرض صور الأسئلة من داخل الجهاز دون فتح مواقع خارجية. لكن ملفات صور الامتحانات الأصلية لم تُضمّن بعد؛ لذلك لن نعرض صوراً وهمية أو ندّعي أن الأرشيف مكتمل.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.blueGrey, height: 1.8),
+            if (widget.subject.name == 'الكيمياء' && images.isNotEmpty) ...[
+              Text('أسئلة الكيمياء • $academicYear • $kind',
+                style: const TextStyle(fontSize: 17,
+                  fontWeight: FontWeight.w900, color: navy)),
+              const SizedBox(height: 12),
+              ...images.asMap().entries.map((entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => openImage(entry.value),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(children: [
+                            const Icon(Icons.description_outlined, color: blue),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(
+                              images.length > 1 ? 'ورقة \${entry.key + 1}' : 'ورقة الأسئلة',
+                              style: const TextStyle(fontWeight: FontWeight.w800))),
+                            const Icon(Icons.zoom_in, color: Colors.blueGrey),
+                          ]),
+                        ),
+                        Image.asset(entry.value, fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Text('تعذر تحميل الصورة من ملفات التطبيق'),
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Text('اضغط على الصورة للتكبير',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 12),
-                const Text(
-                  'مصادر الأرشيف التي تم التحقق من وجودها تشمل سنوات 2021–2025، وتوجد مجموعات وزارية أقدم لبعض المواد. يجب إضافة ملفات الصور الأصلية لكل مادة وسنة ودور قبل إظهارها هنا.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.blueGrey, height: 1.7),
-                ),
-              ]),
-            ),
+              )),
+            ] else
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.white, borderRadius: BorderRadius.circular(18)),
+                child: Column(children: [
+                  Icon(Icons.photo_library_outlined, size: 48,
+                      color: widget.subject.color),
+                  const SizedBox(height: 12),
+                  const Text('لا توجد صورة مصنفة لهذا الاختيار حالياً',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 17,
+                      fontWeight: FontWeight.w900, color: navy)),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.subject.name == 'الكيمياء'
+                      ? 'الصور المرفوعة التي لم يُتحقق بعد من سنتها ودورها لم نضعها في تصنيف عشوائي.'
+                      : 'سيُضاف أرشيف هذه المادة عند توفر أوراقها الأصلية.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.blueGrey, height: 1.8),
+                  ),
+                ]),
+              ),
           ],
         ),
       ),
     );
   }
 }
+
 class Saved extends StatelessWidget{const Saved({super.key});@override Widget build(BuildContext context)=>const Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(Icons.bookmark_border,size:55,color:Colors.blueGrey),SizedBox(height:12),Text('المحفوظات',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900,color:navy)),Text('ستظهر هنا الأسئلة التي تحفظها للمراجعة',style:TextStyle(color:Colors.blueGrey))]));}
 class About extends StatelessWidget{const About({super.key});@override Widget build(BuildContext context)=>const Padding(padding:EdgeInsets.all(22),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[SizedBox(height:20),Text('حول التطبيق',style:TextStyle(fontSize:25,fontWeight:FontWeight.w900,color:navy)),SizedBox(height:16),Text('منصة تعليمية مستقلة لمساعدة طلبة الثالث متوسط في العراق على مراجعة الأسئلة الوزارية والتمهيدية.',style:TextStyle(fontSize:15,height:1.8)),SizedBox(height:12),Text('سيُنسب المحتوى إلى مصدره مع التمييز بين نسخة السؤال الأصلية والحل النموذجي والشرح الإضافي.',style:TextStyle(color:Colors.blueGrey,height:1.8)),SizedBox(height:12),Text('هذا التطبيق غير تابع لوزارة التربية العراقية.',style:TextStyle(fontWeight:FontWeight.w800,color:Colors.blueGrey))]));}
 class Feature extends StatelessWidget{final IconData icon;final String title,desc;const Feature({super.key,required this.icon,required this.title,required this.desc});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.only(bottom:9),child:Container(padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(16)),child:Row(children:[Icon(icon,color:blue,size:25),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontWeight:FontWeight.w800,color:navy)),Text(desc,style:const TextStyle(fontSize:12,color:Colors.blueGrey))]))])));}
