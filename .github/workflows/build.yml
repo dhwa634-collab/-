@@ -1,4 +1,4 @@
-name: Build Third Intermediate APK
+name: Build Third Intermediate Android Releases
 on:
   push:
     branches: [main, master]
@@ -20,10 +20,11 @@ jobs:
           cache: true
       - name: Generate Android project
         run: flutter create --platforms=android --project-name third_intermediate_iraq --org com.iraqedu .
-      - name: Add Android internet permission
+      - name: Configure Android app for release
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           manifest = Path("android/app/src/main/AndroidManifest.xml")
           content = manifest.read_text()
           permission = '<uses-permission android:name="android.permission.INTERNET"/>'
@@ -32,19 +33,38 @@ jobs:
               if marker not in content:
                   raise SystemExit("Android manifest format was not recognized")
               content = content.replace(marker, marker + chr(10) + "    " + permission, 1)
-              manifest.write_text(content)
+          content = re.sub(r'android:label="[^"]*"', 'android:label="وزاريات الثالث متوسط"', content, count=1)
+          manifest.write_text(content)
+          gradle_kts = Path("android/app/build.gradle.kts")
+          gradle_groovy = Path("android/app/build.gradle")
+          if gradle_kts.exists():
+              gradle = gradle_kts.read_text()
+              gradle = re.sub(r'compileSdk\s*=\s*flutter\.compileSdkVersion', 'compileSdk = 36', gradle)
+              gradle = re.sub(r'targetSdk\s*=\s*flutter\.targetSdkVersion', 'targetSdk = 36', gradle)
+              gradle_kts.write_text(gradle)
+          elif gradle_groovy.exists():
+              gradle = gradle_groovy.read_text()
+              gradle = re.sub(r'compileSdkVersion\s+flutter\.compileSdkVersion', 'compileSdkVersion 36', gradle)
+              gradle = re.sub(r'targetSdkVersion\s+flutter\.targetSdkVersion', 'targetSdkVersion 36', gradle)
+              gradle_groovy.write_text(gradle)
+          else:
+              raise SystemExit("Android app Gradle file was not generated")
           PY
       - name: Install dependencies
         run: flutter pub get
       - name: Analyze
-        run: flutter analyze
+        run: flutter analyze --fatal-infos
       - name: Test
         run: flutter test
       - name: Build release APK
         run: flutter build apk --release
+      - name: Build release Android App Bundle
+        run: flutter build appbundle --release
       - uses: actions/upload-artifact@v4
         with:
-          name: third-intermediate-iraq-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: third-intermediate-iraq-android-preview
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
