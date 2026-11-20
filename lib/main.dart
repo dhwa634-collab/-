@@ -46,37 +46,41 @@ class _SubjectScreenState extends State<SubjectScreen> {
     'التمهيدي','الدور الأول','الدور الثاني','الدور الثالث'
   ];
 
-  static const Map<String, List<String>> chemistryExams = {
-    '2025': [
-      'assets/exams/chemistry/2024_2025_first.jpg',
-      'assets/exams/chemistry/2024_2025_second_1.jpg',
-      'assets/exams/chemistry/2024_2025_second_2.jpg',
-    ],
-    '2024': [
-      'assets/exams/chemistry/2023_2024_first.jpg',
-      'assets/exams/chemistry/2023_2024_third.jpg',
-    ],
-    '2023': [
-      'assets/exams/chemistry/2022_2023_preparatory.jpg',
-      'assets/exams/chemistry/2022_2023_second.jpg',
-    ],
-    '2022': [
-      'assets/exams/chemistry/2021_2022_preparatory.jpg',
-      'assets/exams/chemistry/2021_2022_third.jpg',
-    ],
+  // All chemistry exam images, classified by the year and round printed on each paper.
+  static const Map<String, Map<String, List<String>>> chemistryExams = {
+    '2025': {
+      'التمهيدي': ['assets/exams/chemistry/FB_IMG_1795016739318.jpg'],
+      'الدور الأول': ['assets/exams/chemistry/2024_2025_first.jpg', 'assets/exams/chemistry/FB_IMG_1795016765951.jpg'],
+      'الدور الثاني': ['assets/exams/chemistry/2024_2025_second_1.jpg', 'assets/exams/chemistry/2024_2025_second_2.jpg', 'assets/exams/chemistry/FB_IMG_1795016764120.jpg'],
+      'الدور الثالث': ['assets/exams/chemistry/FB_IMG_1795016750316.jpg'],
+    },
+    '2024': {
+      'التمهيدي': ['assets/exams/chemistry/FB_IMG_1795016734474.jpg'],
+      'الدور الأول': ['assets/exams/chemistry/2023_2024_first.jpg'],
+      'الدور الثاني': ['assets/exams/chemistry/FB_IMG_1795016771316.jpg'],
+      'الدور الثالث': ['assets/exams/chemistry/2023_2024_third.jpg', 'assets/exams/chemistry/FB_IMG_1795016768326.jpg'],
+    },
+    '2023': {
+      'التمهيدي': ['assets/exams/chemistry/2022_2023_preparatory.jpg', 'assets/exams/chemistry/FB_IMG_1795016741729.jpg'],
+      'الدور الأول': ['assets/exams/chemistry/FB_IMG_1795016744285.jpg', 'assets/exams/chemistry/FB_IMG_1795016770035.jpg'],
+      'الدور الثاني': ['assets/exams/chemistry/2022_2023_second.jpg', 'assets/exams/chemistry/FB_IMG_1795016746673.jpg', 'assets/exams/chemistry/FB_IMG_1795016762267.jpg'],
+      'الدور الثالث': ['assets/exams/chemistry/FB_IMG_1795016752643.jpg'],
+    },
+    '2022': {
+      'التمهيدي': ['assets/exams/chemistry/2021_2022_preparatory.jpg', 'assets/exams/chemistry/FB_IMG_1795016758333.jpg'],
+      'الدور الأول': ['assets/exams/chemistry/FB_IMG_1795016748472.jpg'],
+      'الدور الثاني': ['assets/exams/chemistry/FB_IMG_1795016754509.jpg'],
+      'الدور الثالث': ['assets/exams/chemistry/2021_2022_third.jpg', 'assets/exams/chemistry/FB_IMG_1795016760064.jpg'],
+    },
+    '2021': {
+      'التمهيدي': ['assets/exams/chemistry/FB_IMG_1795016756344.jpg'],
+      'الدور الأول': ['assets/exams/chemistry/FB_IMG_1795016737295.jpg'],
+    },
   };
 
   List<String> get selectedImages {
     if (widget.subject.name != 'الكيمياء') return const [];
-    final files = chemistryExams[year] ?? const <String>[];
-    return files.where((path) {
-      final name = path.split('/').last;
-      if (kind == 'التمهيدي') return name.contains('preparatory');
-      if (kind == 'الدور الأول') return name.contains('_first.');
-      if (kind == 'الدور الثاني') return name.contains('_second');
-      if (kind == 'الدور الثالث') return name.contains('_third.');
-      return false;
-    }).toList();
+    return chemistryExams[year]?[kind] ?? const <String>[];
   }
 
   String get academicYear {
