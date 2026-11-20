@@ -397,7 +397,7 @@ class Saved extends StatelessWidget {
             const Text('أوراقي المحفوظة', style: TextStyle(
               fontSize: 23, fontWeight: FontWeight.w900, color: navy)),
             const SizedBox(height: 5),
-            Text('\${saved.length} ورقة محفوظة للمراجعة',
+            Text('${saved.length} ورقة محفوظة للمراجعة',
               style: const TextStyle(color: Colors.blueGrey)),
             const SizedBox(height: 14),
             ...saved.map((exam) => Card(
@@ -416,7 +416,7 @@ class Saved extends StatelessWidget {
                 ),
                 title: Text(exam['subject'] ?? 'مادة دراسية',
                   style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text('\${exam['year'] ?? ''} • \${exam['round'] ?? ''}'),
+                subtitle: Text("${exam['year'] ?? ''} • ${exam['round'] ?? ''}"),
                 onTap: () => Navigator.push(context, MaterialPageRoute(
                   builder: (_) => Directionality(
                     textDirection: TextDirection.rtl,
