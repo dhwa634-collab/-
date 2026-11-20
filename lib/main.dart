@@ -10,7 +10,6 @@ const subjects=<Subject>[
  Subject('الاجتماعيات',Icons.public_rounded,Color(0xFFB65C69)),
  Subject('الأحياء',Icons.biotech_rounded,Color(0xFF269B75)),
  Subject('الكيمياء',Icons.science_rounded,Color(0xFF2787B8)),
- Subject('اللغة العربية',Icons.menu_book_rounded,Color(0xFF8B5E9E)),
  Subject('الفيزياء',Icons.bolt_rounded,Color(0xFFD18A25)),
 ];
 class Subject {final String name; final IconData icon; final Color color; const Subject(this.name,this.icon,this.color);}
