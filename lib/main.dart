@@ -10,6 +10,7 @@ const subjects=<Subject>[
  Subject('الاجتماعيات',Icons.public_rounded,Color(0xFFB65C69)),
  Subject('الأحياء',Icons.biotech_rounded,Color(0xFF269B75)),
  Subject('الكيمياء',Icons.science_rounded,Color(0xFF2787B8)),
+ Subject('اللغة العربية',Icons.menu_book_rounded,Color(0xFF8B5E9E)),
  Subject('الفيزياء',Icons.bolt_rounded,Color(0xFFD18A25)),
 ];
 class Subject {final String name; final IconData icon; final Color color; const Subject(this.name,this.icon,this.color);}
@@ -78,9 +79,41 @@ class _SubjectScreenState extends State<SubjectScreen> {
     },
   };
 
+  // Arabic exam images classified by the printed academic year and exam round.
+  static const Map<String, Map<String, List<String>>> arabicExams = {
+    '2025': {
+      'التمهيدي': ['assets/exams/arabic/FB_IMG_1792869997603.jpg'],
+      'الدور الأول': ['assets/exams/arabic/FB_IMG_1792870030332.jpg'],
+      'الدور الثاني': ['assets/exams/arabic/FB_IMG_1792870002244.jpg'],
+      'الدور الثالث': ['assets/exams/arabic/FB_IMG_1792869993721.jpg', 'assets/exams/arabic/FB_IMG_1792870000103.jpg'],
+    },
+    '2024': {
+      'التمهيدي': ['assets/exams/arabic/FB_IMG_1792869964620.jpg'],
+      'الدور الأول': ['assets/exams/arabic/FB_IMG_1792870013556.jpg'],
+      'الدور الثاني': ['assets/exams/arabic/FB_IMG_1792870004467.jpg'],
+      'الدور الثالث': ['assets/exams/arabic/FB_IMG_1792870006365.jpg', 'assets/exams/arabic/FB_IMG_1792870008323.jpg', 'assets/exams/arabic/FB_IMG_1792870010077.jpg', 'assets/exams/arabic/FB_IMG_1792870011765.jpg'],
+    },
+    '2023': {
+      'التمهيدي': ['assets/exams/arabic/FB_IMG_1792870021692.jpg'],
+      'الدور الأول': ['assets/exams/arabic/FB_IMG_1792870017997.jpg'],
+    },
+    '2022': {
+      'الدور الثاني': ['assets/exams/arabic/FB_IMG_1792870023756.jpg'],
+    },
+    '2021': {
+      'الدور الأول': ['assets/exams/arabic/FB_IMG_1792870025323.jpg', 'assets/exams/arabic/FB_IMG_1792870027167.jpg'],
+      'التمهيدي': ['assets/exams/arabic/FB_IMG_1792870028788.jpg'],
+    },
+  };
+
   List<String> get selectedImages {
-    if (widget.subject.name != 'الكيمياء') return const [];
-    return chemistryExams[year]?[kind] ?? const <String>[];
+    if (widget.subject.name == 'الكيمياء') {
+      return chemistryExams[year]?[kind] ?? const <String>[];
+    }
+    if (widget.subject.name == 'اللغة العربية') {
+      return arabicExams[year]?[kind] ?? const <String>[];
+    }
+    return const <String>[];
   }
 
   String get academicYear {
@@ -174,8 +207,8 @@ class _SubjectScreenState extends State<SubjectScreen> {
               )).toList(),
             ),
             const SizedBox(height: 22),
-            if (widget.subject.name == 'الكيمياء' && images.isNotEmpty) ...[
-              Text('أسئلة الكيمياء • $academicYear • $kind',
+            if ((widget.subject.name == 'الكيمياء' || widget.subject.name == 'اللغة العربية') && images.isNotEmpty) ...[
+              Text('أسئلة ${widget.subject.name} • $academicYear • $kind',
                 style: const TextStyle(fontSize: 17,
                   fontWeight: FontWeight.w900, color: navy)),
               const SizedBox(height: 12),
@@ -233,8 +266,8 @@ class _SubjectScreenState extends State<SubjectScreen> {
                       fontWeight: FontWeight.w900, color: navy)),
                   const SizedBox(height: 8),
                   Text(
-                    widget.subject.name == 'الكيمياء'
-                      ? 'الصور المرفوعة التي لم يُتحقق بعد من سنتها ودورها لم نضعها في تصنيف عشوائي.'
+                    (widget.subject.name == 'الكيمياء' || widget.subject.name == 'اللغة العربية')
+                      ? 'الصور التي لم يُتحقق بعد من سنتها ودورها لم نضعها في تصنيف عشوائي.'
                       : 'سيُضاف أرشيف هذه المادة عند توفر أوراقها الأصلية.',
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.blueGrey, height: 1.8),
