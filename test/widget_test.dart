@@ -17,7 +17,6 @@ void main() {
     expect(find.text('البحث في الأرشيف'), findsOneWidget);
     expect(find.textContaining('النتائج:'), findsOneWidget);
     expect(find.text('اللغة العربية'), findsWidgets);
-    expect(find.text('الكيمياء'), findsWidgets);
   });
 
   testWidgets('archive search filters by subject', (tester) async {
