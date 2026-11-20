@@ -291,6 +291,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
                               tooltip: SavedExamsStore.contains(entry.value)
                                   ? 'إزالة من المحفوظات' : 'حفظ للمراجعة',
                               onPressed: () async {
+                                final messenger = ScaffoldMessenger.of(context);
                                 try {
                                   final saved = await SavedExamsStore.toggle({
                                     'path': entry.value,
@@ -298,17 +299,17 @@ class _SubjectScreenState extends State<SubjectScreen> {
                                     'year': academicYear,
                                     'round': kind,
                                   });
-                                  if (!mounted) return;
+                                  if (!mounted || !messenger.mounted) return;
                                   setState(() {});
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  messenger.showSnackBar(
                                     SnackBar(content: Text(saved
                                       ? 'انحفظت الورقة بالمحفوظات'
                                       : 'انحذفت الورقة من المحفوظات'),
                                       duration: const Duration(seconds: 2)),
                                   );
                                 } catch (_) {
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  if (!messenger.mounted) return;
+                                  messenger.showSnackBar(
                                     const SnackBar(content:
                                       Text('تعذر حفظ الورقة على الجهاز')),
                                   );
