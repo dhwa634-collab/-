@@ -94,14 +94,16 @@ class _SubjectScreenState extends State<SubjectScreen> {
       'الدور الثالث': ['assets/exams/arabic/FB_IMG_1792870006365.jpg', 'assets/exams/arabic/FB_IMG_1792870008323.jpg', 'assets/exams/arabic/FB_IMG_1792870010077.jpg', 'assets/exams/arabic/FB_IMG_1792870011765.jpg'],
     },
     '2023': {
-      'التمهيدي': ['assets/exams/arabic/FB_IMG_1792870021692.jpg'],
+      'التمهيدي': ['assets/exams/arabic/FB_IMG_1792870015879.jpg'],
       'الدور الأول': ['assets/exams/arabic/FB_IMG_1792870017997.jpg'],
     },
     '2022': {
       'الدور الثاني': ['assets/exams/arabic/FB_IMG_1792870023756.jpg'],
+      'الدور الثالث': ['assets/exams/arabic/FB_IMG_1792870021692.jpg'],
     },
     '2021': {
-      'الدور الأول': ['assets/exams/arabic/FB_IMG_1792870025323.jpg', 'assets/exams/arabic/FB_IMG_1792870027167.jpg'],
+      'الدور الثاني': ['assets/exams/arabic/FB_IMG_1792870025323.jpg'],
+      'الدور الأول': ['assets/exams/arabic/FB_IMG_1792870027167.jpg'],
       'التمهيدي': ['assets/exams/arabic/FB_IMG_1792870028788.jpg'],
     },
   };
