@@ -29,41 +29,6 @@ class Home extends StatelessWidget{final ValueChanged<Subject> onOpen;final Void
  ]);}
 class SubjectTile extends StatelessWidget{final Subject subject;final VoidCallback onTap;const SubjectTile({super.key,required this.subject,required this.onTap});@override Widget build(BuildContext context)=>Material(color:Colors.white,borderRadius:BorderRadius.circular(18),child:InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[Container(width:42,height:42,decoration:BoxDecoration(color:subject.color.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:Icon(subject.icon,color:subject.color)),const SizedBox(width:9),Expanded(child:Text(subject.name,style:const TextStyle(fontWeight:FontWeight.w800,color:navy,fontSize:13))),const Icon(Icons.chevron_left,color:Colors.blueGrey)]))));}
 class Catalog extends StatelessWidget{final ValueChanged<Subject> onOpen;const Catalog({super.key,required this.onOpen});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.all(20),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const SizedBox(height:12),const Text('المواد الدراسية',style:TextStyle(fontSize:25,fontWeight:FontWeight.w900,color:navy)),const SizedBox(height:6),const Text('اختر المادة للوصول إلى أرشيفها'),const SizedBox(height:18),Expanded(child:GridView.builder(itemCount:subjects.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,crossAxisSpacing:11,mainAxisSpacing:11,childAspectRatio:1.55),itemBuilder:(_,i)=>SubjectTile(subject:subjects[i],onTap:()=>onOpen(subjects[i]))))]));}
-const questionSources = <String, Map<String, String>>{
-  'التربية الإسلامية': {
-    'الوزاري': 'https://mlazemna.com/sa25is3/',
-    'التمهيدي': 'https://mlazemna.com/tm25is3/',
-  },
-  'اللغة العربية': {
-    'الوزاري': 'https://mlazemna.com/sa25ar3/',
-    'التمهيدي': 'https://mlazemna.com/tm25ar3/',
-  },
-  'اللغة الإنكليزية': {
-    'الوزاري': 'https://mlazemna.com/sa25en/',
-    'التمهيدي': 'https://mlazemna.com/tm25en3/',
-  },
-  'الرياضيات': {
-    'الوزاري': 'https://mlazemna.com/sa25mt/',
-    'التمهيدي': 'https://mlazemna.com/tm25mt3/',
-  },
-  'الاجتماعيات': {
-    'الوزاري': 'https://mlazemna.com/sa25ga/',
-    'التمهيدي': 'https://mlazemna.com/tm25gt3/',
-  },
-  'الأحياء': {
-    'الوزاري': 'https://mlazemna.com/sa25bi/',
-    'التمهيدي': 'https://mlazemna.com/tm25bi3/',
-  },
-  'الكيمياء': {
-    'الوزاري': 'https://mlazemna.com/sa25km/',
-    'التمهيدي': 'https://mlazemna.com/tm25km3/',
-  },
-  'الفيزياء': {
-    'الوزاري': 'https://mlazemna.com/sa25ph/',
-    'التمهيدي': 'https://mlazemna.com/tm25ph3/',
-  },
-};
-
 class SubjectScreen extends StatefulWidget {
   final Subject subject;
   const SubjectScreen({super.key, required this.subject});
@@ -72,13 +37,18 @@ class SubjectScreen extends StatefulWidget {
 }
 
 class _SubjectScreenState extends State<SubjectScreen> {
-  String kind = 'الوزاري';
+  String kind = 'الدور الأول';
   String year = '2025';
+  static const years = <String>[
+    '2025','2024','2023','2022','2021','2020','2019','2018',
+    '2017','2016','2015','2014','2013','2012'
+  ];
+  static const rounds = <String>[
+    'التمهيدي','الدور الأول','الدور الثاني','الدور الثالث'
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final source = questionSources[widget.subject.name]?[kind];
-    final available = year == '2025' && source != null;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -95,103 +65,66 @@ class _SubjectScreenState extends State<SubjectScreen> {
                 color: widget.subject.color.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Row(
-                children: [
-                  Icon(widget.subject.icon,
-                      color: widget.subject.color, size: 35),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text('أرشيف ${widget.subject.name}',
-                        style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: navy)),
-                  ),
-                ],
-              ),
+              child: Row(children: [
+                Icon(widget.subject.icon, color: widget.subject.color, size: 35),
+                const SizedBox(width: 12),
+                Expanded(child: Text('أرشيف ${widget.subject.name}',
+                  style: const TextStyle(fontSize: 18,
+                    fontWeight: FontWeight.w900, color: navy))),
+              ]),
             ),
             const SizedBox(height: 22),
-            const Text('نوع الامتحان',
-                style: TextStyle(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: ['الوزاري', 'التمهيدي']
-                  .map((v) => ChoiceChip(
-                        label: Text(v),
-                        selected: kind == v,
-                        onSelected: (_) => setState(() => kind = v),
-                      ))
-                  .toList(),
-            ),
-            const SizedBox(height: 18),
-            const Text('السنة',
-                style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text('السنة', style: TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               initialValue: year,
               decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.white,
+                filled: true, fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(13),
                   borderSide: BorderSide.none,
                 ),
               ),
-              items: const [
-                DropdownMenuItem(value: '2025', child: Text('2025')),
-              ],
+              items: years.map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
               onChanged: (v) => setState(() => year = v ?? '2025'),
+            ),
+            const SizedBox(height: 18),
+            const Text('الدور الامتحاني', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8, runSpacing: 8,
+              children: rounds.map((v) => ChoiceChip(
+                label: Text(v), selected: kind == v,
+                onSelected: (_) => setState(() => kind = v),
+              )).toList(),
             ),
             const SizedBox(height: 22),
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18)),
-              child: Column(
-                children: [
-                  Icon(
-                    available ? Icons.menu_book_rounded : Icons.inventory_2_outlined,
-                    size: 42,
-                    color: widget.subject.color,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    available ? 'أسئلة سنة 2025 متوفرة' : 'هذه السنة قيد الإضافة',
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        color: navy),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    available
-                        ? 'اضغط لفتح صور ورقة الأسئلة والحلول المنشورة في المصدر. ستفتح الصفحة الأصلية حتى تبقى نسبة الأسئلة ومصدرها واضحين.'
-                        : 'نعمل على إضافة أسئلة هذه السنة بعد التحقق من توفر نسخة موثوقة.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: Colors.blueGrey, height: 1.7),
-                  ),
-                  if (available) ...[
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: () => launchUrl(
-                        Uri.parse(source),
-                        mode: LaunchMode.externalApplication,
-                      ),
-                      icon: const Icon(Icons.open_in_new),
-                      label: const Text('عرض صور الأسئلة والحلول'),
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-                  const Text('المصدر: ملازمنا',
-                      style: TextStyle(
-                          color: Colors.blueGrey,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
-                ],
-              ),
+                color: Colors.white, borderRadius: BorderRadius.circular(18)),
+              child: Column(children: [
+                Icon(Icons.photo_library_outlined, size: 48, color: widget.subject.color),
+                const SizedBox(height: 12),
+                const Text('الأرشيف المحلي للصور',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: navy)),
+                const SizedBox(height: 8),
+                Text('اختيارك: ${widget.subject.name} • $year • $kind',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.blueGrey)),
+                const SizedBox(height: 12),
+                const Text(
+                  'تم تجهيز التطبيق لعرض صور الأسئلة من داخل الجهاز دون فتح مواقع خارجية. لكن ملفات صور الامتحانات الأصلية لم تُضمّن بعد؛ لذلك لن نعرض صوراً وهمية أو ندّعي أن الأرشيف مكتمل.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.blueGrey, height: 1.8),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'مصادر الأرشيف التي تم التحقق من وجودها تشمل سنوات 2021–2025، وتوجد مجموعات وزارية أقدم لبعض المواد. يجب إضافة ملفات الصور الأصلية لكل مادة وسنة ودور قبل إظهارها هنا.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.blueGrey, height: 1.7),
+                ),
+              ]),
             ),
           ],
         ),
