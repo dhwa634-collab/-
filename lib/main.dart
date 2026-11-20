@@ -297,7 +297,7 @@ class AiAssistantScreen extends StatefulWidget {
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
 }
 class _AiAssistantScreenState extends State<AiAssistantScreen> {
-  static const String endpoint = 'https://YOUR-WORKER-NAME.workers.dev/chat';
+  static const String endpoint = 'https://wispy-union-276e.dhwa634.workers.dev/chat';
   final controller = TextEditingController();
   final scrollController = ScrollController();
   final messages = <Map<String, String>>[
