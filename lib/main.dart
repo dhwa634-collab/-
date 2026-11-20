@@ -1,5 +1,7 @@
 // ignore_for_file: deprecated_member_use
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 void main()=>runApp(const StudyApp());
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 const subjects=<Subject>[
@@ -20,6 +22,8 @@ class Home extends StatelessWidget{final ValueChanged<Subject> onOpen;final Void
  Row(children:[Container(width:48,height:48,decoration:BoxDecoration(color:blue,borderRadius:BorderRadius.circular(15)),child:const Icon(Icons.school,color:Colors.white,size:28)),const SizedBox(width:12),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('دليلك للنجاح',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900,color:navy)),Text('الثالث متوسط • العراق',style:TextStyle(color:Colors.blueGrey))])),const Icon(Icons.notifications_none,color:navy)]),
  const SizedBox(height:22),
  Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(gradient:const LinearGradient(colors:[Color(0xFF173D78),Color(0xFF2675E8)]),borderRadius:BorderRadius.circular(25)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('منصة المراجعة الشاملة',style:TextStyle(color:Colors.white70)),const SizedBox(height:12),const Text('استعد للوزاري\nبخطوات واثقة',style:TextStyle(color:Colors.white,fontSize:28,fontWeight:FontWeight.w900,height:1.35)),const SizedBox(height:8),const Text('الأسئلة الوزارية والتمهيدية مع الحلول النموذجية',style:TextStyle(color:Colors.white70,height:1.6)),const SizedBox(height:15),FilledButton.icon(onPressed:onAll,style:FilledButton.styleFrom(backgroundColor:Colors.white,foregroundColor:navy),icon:const Icon(Icons.arrow_back),label:const Text('تصفح المواد'))])),
+ const SizedBox(height:18),
+ Container(padding:const EdgeInsets.all(16),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(18)),child:Row(children:[Container(width:46,height:46,decoration:BoxDecoration(color:blue.withValues(alpha:.10),borderRadius:BorderRadius.circular(14)),child:const Icon(Icons.auto_awesome,color:blue)),const SizedBox(width:12),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('المساعد الذكي',style:TextStyle(fontWeight:FontWeight.w900,color:navy,fontSize:16)),Text('اسأل عن أي مادة واحصل على شرح خطوة بخطوة',style:TextStyle(color:Colors.blueGrey,fontSize:12))])),FilledButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const AiAssistantScreen())),child:const Text('افتح'))])),
  const SizedBox(height:24),Row(children:[const Expanded(child:Text('المواد الدراسية',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900,color:navy))),TextButton(onPressed:onAll,child:const Text('عرض الكل'))]),const SizedBox(height:8),
  GridView.builder(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),itemCount:subjects.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,crossAxisSpacing:11,mainAxisSpacing:11,childAspectRatio:1.65),itemBuilder:(_,i)=>SubjectTile(subject:subjects[i],onTap:()=>onOpen(subjects[i]))),
  const SizedBox(height:24),const Text('مميزات التطبيق',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900,color:navy)),const SizedBox(height:12),
@@ -285,3 +289,73 @@ class _SubjectScreenState extends State<SubjectScreen> {
 class Saved extends StatelessWidget{const Saved({super.key});@override Widget build(BuildContext context)=>const Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Icon(Icons.bookmark_border,size:55,color:Colors.blueGrey),SizedBox(height:12),Text('المحفوظات',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900,color:navy)),Text('ستظهر هنا الأسئلة التي تحفظها للمراجعة',style:TextStyle(color:Colors.blueGrey))]));}
 class About extends StatelessWidget{const About({super.key});@override Widget build(BuildContext context)=>const Padding(padding:EdgeInsets.all(22),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[SizedBox(height:20),Text('حول التطبيق',style:TextStyle(fontSize:25,fontWeight:FontWeight.w900,color:navy)),SizedBox(height:16),Text('منصة تعليمية مستقلة لمساعدة طلبة الثالث متوسط في العراق على مراجعة الأسئلة الوزارية والتمهيدية.',style:TextStyle(fontSize:15,height:1.8)),SizedBox(height:12),Text('سيُنسب المحتوى إلى مصدره مع التمييز بين نسخة السؤال الأصلية والحل النموذجي والشرح الإضافي.',style:TextStyle(color:Colors.blueGrey,height:1.8)),SizedBox(height:12),Text('هذا التطبيق غير تابع لوزارة التربية العراقية.',style:TextStyle(fontWeight:FontWeight.w800,color:Colors.blueGrey))]));}
 class Feature extends StatelessWidget{final IconData icon;final String title,desc;const Feature({super.key,required this.icon,required this.title,required this.desc});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.only(bottom:9),child:Container(padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(16)),child:Row(children:[Icon(icon,color:blue,size:25),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontWeight:FontWeight.w800,color:navy)),Text(desc,style:const TextStyle(fontSize:12,color:Colors.blueGrey))]))])));}
+
+
+class AiAssistantScreen extends StatefulWidget {
+  const AiAssistantScreen({super.key});
+  @override
+  State<AiAssistantScreen> createState() => _AiAssistantScreenState();
+}
+class _AiAssistantScreenState extends State<AiAssistantScreen> {
+  static const String endpoint = 'https://YOUR-WORKER-NAME.workers.dev/chat';
+  final controller = TextEditingController();
+  final scrollController = ScrollController();
+  final messages = <Map<String, String>>[
+    {'role':'assistant','text':'هلا بيك! آني مساعدك الدراسي. اسألني عن مواد الثالث المتوسط، وأشرحلك الحل خطوة بخطوة.'}
+  ];
+  bool loading = false;
+  Future<void> send() async {
+    final question = controller.text.trim();
+    if (question.isEmpty || loading) return;
+    controller.clear();
+    setState(() { messages.add({'role':'user','text':question}); loading = true; });
+    _scrollDown();
+    try {
+      final response = await http.post(Uri.parse(endpoint),
+        headers: {'Content-Type':'application/json'},
+        body: jsonEncode({'message':question})).timeout(const Duration(seconds:60));
+      if (response.statusCode != 200) throw Exception('تعذر إكمال الطلب (' + response.statusCode.toString() + ')');
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final answer = (data['reply'] ?? '').toString();
+      if (answer.isEmpty) throw Exception('وصل رد فارغ من المساعد');
+      setState(() => messages.add({'role':'assistant','text':answer}));
+    } catch (e) {
+      setState(() => messages.add({'role':'assistant','text':'ما كدرت أتصل بالمساعد حالياً. تأكد من نشر الخادم ووضع رابطه داخل التطبيق.\nالتفاصيل: ' + e.toString()}));
+    } finally {
+      if (mounted) { setState(() => loading = false); _scrollDown(); }
+    }
+  }
+  void _scrollDown() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (scrollController.hasClients) scrollController.animateTo(
+        scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds:250), curve: Curves.easeOut);
+    });
+  }
+  @override
+  void dispose() { controller.dispose(); scrollController.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection:TextDirection.rtl,
+    child:Scaffold(appBar:AppBar(title:const Text('المساعد الذكي',style:TextStyle(fontWeight:FontWeight.w900))),
+      body:Column(children:[
+        Expanded(child:ListView.builder(controller:scrollController,padding:const EdgeInsets.all(16),
+          itemCount:messages.length+(loading?1:0),itemBuilder:(context,index){
+            if(loading&&index==messages.length) return const Align(alignment:Alignment.centerRight,child:Padding(padding:EdgeInsets.all(12),child:CircularProgressIndicator()));
+            final item=messages[index]; final isUser=item['role']=='user';
+            return Align(alignment:isUser?Alignment.centerLeft:Alignment.centerRight,
+              child:Container(constraints:BoxConstraints(maxWidth:MediaQuery.of(context).size.width*.84),
+                margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(14),
+                decoration:BoxDecoration(color:isUser?blue:Colors.white,borderRadius:BorderRadius.circular(17)),
+                child:SelectableText(item['text']??'',style:TextStyle(color:isUser?Colors.white:navy,height:1.65,fontSize:15))));
+          })),
+        SafeArea(top:false,child:Padding(padding:const EdgeInsets.fromLTRB(12,8,12,12),
+          child:Row(children:[
+            Expanded(child:TextField(controller:controller,minLines:1,maxLines:5,
+              textInputAction:TextInputAction.send,onSubmitted:(_)=>send(),
+              decoration:InputDecoration(hintText:'اكتب سؤالك هنا...',filled:true,fillColor:Colors.white,
+                border:OutlineInputBorder(borderRadius:BorderRadius.circular(16),borderSide:BorderSide.none),
+                contentPadding:const EdgeInsets.symmetric(horizontal:15,vertical:13)))),
+            const SizedBox(width:8),IconButton.filled(onPressed:loading?null:send,icon:const Icon(Icons.send_rounded))
+          ])))
+      ])));
+}
