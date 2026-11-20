@@ -608,7 +608,89 @@ class Saved extends StatelessWidget {
     ),
   );
 }
-class About extends StatelessWidget{const About({super.key});@override Widget build(BuildContext context)=>const Padding(padding:EdgeInsets.all(22),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[SizedBox(height:20),Text('حول التطبيق',style:TextStyle(fontSize:25,fontWeight:FontWeight.w900,color:navy)),SizedBox(height:16),Text('منصة تعليمية مستقلة لمساعدة طلبة الثالث متوسط في العراق على مراجعة الأسئلة الوزارية والتمهيدية.',style:TextStyle(fontSize:15,height:1.8)),SizedBox(height:12),Text('سيُنسب المحتوى إلى مصدره مع التمييز بين نسخة السؤال الأصلية والحل النموذجي والشرح الإضافي.',style:TextStyle(color:Colors.blueGrey,height:1.8)),SizedBox(height:12),Text('هذا التطبيق غير تابع لوزارة التربية العراقية.',style:TextStyle(fontWeight:FontWeight.w800,color:Colors.blueGrey))]));}
+class About extends StatelessWidget {
+  const About({super.key});
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: ListView(
+      padding: const EdgeInsets.all(22),
+      children: [
+        const SizedBox(height: 12),
+        const Text('حول التطبيق', style: TextStyle(
+          fontSize: 25, fontWeight: FontWeight.w900, color: navy)),
+        const SizedBox(height: 16),
+        const Text(
+          'منصة تعليمية مستقلة لمساعدة طلبة الثالث متوسط في العراق على مراجعة أوراق الامتحانات والاستفادة من المساعد الذكي.',
+          style: TextStyle(fontSize: 15, height: 1.8)),
+        const SizedBox(height: 12),
+        const Text(
+          'الأرشيف المتاح يُصنّف حسب المادة والسنة والدور بعد التحقق من بيانات الورقة. لا ننسب أي سؤال إلى امتحان وزاري دون دليل.',
+          style: TextStyle(color: Colors.blueGrey, height: 1.8)),
+        const SizedBox(height: 12),
+        const Text('هذا التطبيق غير تابع لوزارة التربية العراقية.',
+          style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blueGrey)),
+        const SizedBox(height: 18),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined, color: blue),
+            title: const Text('سياسة الخصوصية',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: const Text('كيف يتعامل التطبيق مع الأسئلة والمحفوظات'),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const PrivacyScreen())),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text('الإصدار 1.0.1',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
+      ],
+    ),
+  );
+}
+
+class PrivacyScreen extends StatelessWidget {
+  const PrivacyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('سياسة الخصوصية')),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: const [
+          Text('البيانات التي يعالجها التطبيق',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
+          SizedBox(height: 8),
+          Text('يحفظ التطبيق قائمة أوراق الامتحانات المختارة محلياً على جهازك. لا يتطلب إنشاء حساب ولا يطلب الاسم أو رقم الهاتف أو الموقع.'),
+          SizedBox(height: 18),
+          Text('المساعد الذكي',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
+          SizedBox(height: 8),
+          Text('عند إرسال سؤال إلى المساعد، يُرسل نص السؤال وجزء من سياق المحادثة إلى خادم التطبيق على Cloudflare ثم إلى Google Gemini لمعالجة الطلب وإنتاج الإجابة. لا ترسل معلومات شخصية أو كلمات مرور.'),
+          SizedBox(height: 18),
+          Text('التخزين والمشاركة',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
+          SizedBox(height: 8),
+          Text('لا يحفظ التطبيق سجل محادثة المساعد بشكل دائم في النسخة الحالية. تتم مشاركة نص السؤال مع مزودي الخدمة المذكورين فقط لتقديم وظيفة المساعد.'),
+          SizedBox(height: 18),
+          Text('التنويه',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
+          SizedBox(height: 8),
+          Text('التطبيق مستقل وغير تابع لوزارة التربية العراقية. قد يخطئ المساعد الذكي، لذا راجع الحلول مع الكتاب المدرسي أو المدرس.'),
+          SizedBox(height: 20),
+          Text('آخر تحديث: 21 نوفمبر 2026',
+            style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
+        ],
+      ),
+    ),
+  );
+}
+
 class Feature extends StatelessWidget{final IconData icon;final String title,desc;const Feature({super.key,required this.icon,required this.title,required this.desc});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.only(bottom:9),child:Container(padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(16)),child:Row(children:[Icon(icon,color:blue,size:25),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontWeight:FontWeight.w800,color:navy)),Text(desc,style:const TextStyle(fontSize:12,color:Colors.blueGrey))]))])));}
 
 
