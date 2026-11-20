@@ -29,12 +29,6 @@ class Home extends StatelessWidget{final ValueChanged<Subject> onOpen;final Void
  ]);}
 class SubjectTile extends StatelessWidget{final Subject subject;final VoidCallback onTap;const SubjectTile({super.key,required this.subject,required this.onTap});@override Widget build(BuildContext context)=>Material(color:Colors.white,borderRadius:BorderRadius.circular(18),child:InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[Container(width:42,height:42,decoration:BoxDecoration(color:subject.color.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:Icon(subject.icon,color:subject.color)),const SizedBox(width:9),Expanded(child:Text(subject.name,style:const TextStyle(fontWeight:FontWeight.w800,color:navy,fontSize:13))),const Icon(Icons.chevron_left,color:Colors.blueGrey)]))));}
 class Catalog extends StatelessWidget{final ValueChanged<Subject> onOpen;const Catalog({super.key,required this.onOpen});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.all(20),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const SizedBox(height:12),const Text('المواد الدراسية',style:TextStyle(fontSize:25,fontWeight:FontWeight.w900,color:navy)),const SizedBox(height:6),const Text('اختر المادة للوصول إلى أرشيفها'),const SizedBox(height:18),Expanded(child:GridView.builder(itemCount:subjects.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,crossAxisSpacing:11,mainAxisSpacing:11,childAspectRatio:1.55),itemBuilder:(_,i)=>SubjectTile(subject:subjects[i],onTap:()=>onOpen(subjects[i]))))]));}
-class QuestionSource {
-  final String exam;
-  final String url;
-  const QuestionSource(this.exam, this.url);
-}
-
 const questionSources = <String, Map<String, String>>{
   'التربية الإسلامية': {
     'الوزاري': 'https://mlazemna.com/sa25is3/',
@@ -183,7 +177,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
                     const SizedBox(height: 16),
                     FilledButton.icon(
                       onPressed: () => launchUrl(
-                        Uri.parse(source),
+                        Uri.parse(source!),
                         mode: LaunchMode.externalApplication,
                       ),
                       icon: const Icon(Icons.open_in_new),
