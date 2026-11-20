@@ -320,7 +320,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       if (answer.isEmpty) throw Exception('وصل رد فارغ من المساعد');
       setState(() => messages.add({'role':'assistant','text':answer}));
     } catch (e) {
-      setState(() => messages.add({'role':'assistant','text':'ما كدرت أتصل بالمساعد حالياً. تأكد من نشر الخادم ووضع رابطه داخل التطبيق.\nالتفاصيل: ' + e.toString()}));
+      setState(() => messages.add({'role':'assistant','text':'ما كدرت أتصل بالمساعد حالياً. تأكد من نشر الخادم ووضع رابطه داخل التطبيق.\nالتفاصيل: $e'}));
     } finally {
       if (mounted) { setState(() => loading = false); _scrollDown(); }
     }
