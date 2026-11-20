@@ -314,7 +314,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       final response = await http.post(Uri.parse(endpoint),
         headers: {'Content-Type':'application/json'},
         body: jsonEncode({'message':question})).timeout(const Duration(seconds:60));
-      if (response.statusCode != 200) throw Exception('تعذر إكمال الطلب (' + response.statusCode.toString() + ')');
+      if (response.statusCode != 200) throw Exception('تعذر إكمال الطلب (${response.statusCode})');
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final answer = (data['reply'] ?? '').toString();
       if (answer.isEmpty) throw Exception('وصل رد فارغ من المساعد');
@@ -327,9 +327,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   }
   void _scrollDown() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (scrollController.hasClients) scrollController.animateTo(
-        scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds:250), curve: Curves.easeOut);
+      if (scrollController.hasClients) {
+        scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds:250), curve: Curves.easeOut);
+      }
     });
   }
   @override
