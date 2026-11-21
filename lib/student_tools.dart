@@ -247,6 +247,9 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
 
 /// عدّل هذه التواريخ فقط عند صدور الجدول المعتمد.
 class ExamDates {
+  // عدد الأيام المعروض للتمهيدي إلى حين تثبيت الموعد الرسمي.
+  // غيّر هذه القيمة وحدها لتحديث العدّاد مؤقتاً.
+  static const int preparatoryDaysRemaining = 76;
   static const DateTime? preparatory = null;
   static const DateTime? ministerial = null;
 }
@@ -277,8 +280,8 @@ class _ExamCountdownSectionState extends State<ExamCountdownSection> {
       const SizedBox(height: 9),
       Row(children: [
         Expanded(child: _CountdownTile(title: 'الامتحانات التمهيدية',
-          date: ExamDates.preparatory, icon: Icons.edit_calendar_rounded,
-          tint: const Color(0xFF16866A))),
+          date: ExamDates.preparatory, daysOverride: ExamDates.preparatoryDaysRemaining,
+          icon: Icons.edit_calendar_rounded, tint: const Color(0xFF16866A))),
         const SizedBox(width: 10),
         Expanded(child: _CountdownTile(title: 'الامتحانات الوزارية',
           date: ExamDates.ministerial, icon: Icons.school_rounded,
@@ -294,16 +297,20 @@ class _ExamCountdownSectionState extends State<ExamCountdownSection> {
 class _CountdownTile extends StatelessWidget {
   final String title;
   final DateTime? date;
+  final int? daysOverride;
   final IconData icon;
   final Color tint;
   const _CountdownTile({required this.title, required this.date,
-    required this.icon, required this.tint});
+    this.daysOverride, required this.icon, required this.tint});
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     String value;
     String detail;
-    if (date == null) {
+    if (daysOverride != null) {
+      value = '$daysOverride يوم';
+      detail = 'متبقية تقريباً';
+    } else if (date == null) {
       value = 'لم يُعلن';
       detail = 'بانتظار الموعد المعتمد';
     } else {
