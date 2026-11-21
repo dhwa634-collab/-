@@ -137,16 +137,40 @@ class StudyApp extends StatelessWidget {
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF101827),
           surfaceTintColor: Colors.transparent),
         inputDecorationTheme: InputDecorationTheme(
-          filled: true, fillColor: const Color(0xFF1B2A40),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)))),
+          filled: true,
+          fillColor: const Color(0xFF1B2A40),
+          hintStyle: const TextStyle(color: Color(0xFFB8C7DA), fontSize: 14),
+          labelStyle: const TextStyle(color: Color(0xFFD0DCEE)),
+          floatingLabelStyle: const TextStyle(color: Color(0xFF9FC2FF)),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFF40536D)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFF79A9FF), width: 1.6),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFFF7777)),
+          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        )),
       home: const Shell()));
 }
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
 class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const About()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Theme.of(context).colorScheme.surface,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.info_outline),label:'حول')])));}}
-class Home extends StatelessWidget {
+class Home extends StatefulWidget {
   final ValueChanged<Subject> onOpen;
   final VoidCallback onAll;
   const Home({super.key, required this.onOpen, required this.onAll});
+  @override
+  State<Home> createState() => _HomeState();
+}
+
+class _HomeState extends State<Home> {
+  bool _showWelcome = true;
+
   @override
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
@@ -178,6 +202,61 @@ class Home extends StatelessWidget {
             icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded)),
         ),
       ]),
+      if (_showWelcome) ...[
+        Container(
+          margin: const EdgeInsets.only(top: 16),
+          padding: const EdgeInsets.fromLTRB(15, 14, 10, 14),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF203A5B)
+                : const Color(0xFFE8F1FF),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF36577F)
+                  : const Color(0xFFD1E1FA),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.waving_hand_rounded,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFFFFD27A)
+                    : const Color(0xFF2868D7),
+                size: 25),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('أهلاً بك في وزاريات الثالث متوسط',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      )),
+                    const SizedBox(height: 5),
+                    Text(
+                      'نتمنى لك دراسة موفقة ونجاحاً قريباً. راجع الأسئلة والحلول بهدوء، وتأكد دائماً من مطابقتها للكتاب المدرسي وتوجيهات مدرسك.',
+                      style: TextStyle(
+                        height: 1.55,
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'إغلاق رسالة الترحيب',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => setState(() => _showWelcome = false),
+                icon: const Icon(Icons.close_rounded, size: 19),
+              ),
+            ],
+          ),
+        ),
+      ],
       const SizedBox(height: 20),
       Container(padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
@@ -196,7 +275,7 @@ class Home extends StatelessWidget {
           const Text('الأسئلة الوزارية والتمهيدية مع الحلول النموذجية',
             style: TextStyle(color: Colors.white70, height: 1.6)),
           const SizedBox(height: 15),
-          FilledButton.icon(onPressed: onAll,
+          FilledButton.icon(onPressed: widget.onAll,
             style: FilledButton.styleFrom(backgroundColor: Colors.white,
               foregroundColor: navy),
             icon: const Icon(Icons.arrow_back_rounded),
@@ -228,7 +307,7 @@ class Home extends StatelessWidget {
       Row(children: [
         Expanded(child: Text('المواد الدراسية', style: TextStyle(fontSize: 19,
           fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface))),
-        TextButton(onPressed: onAll, child: const Text('عرض الكل')),
+        TextButton(onPressed: widget.onAll, child: const Text('عرض الكل')),
       ]),
       const SizedBox(height: 9),
       GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
@@ -237,7 +316,7 @@ class Home extends StatelessWidget {
           crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11,
           childAspectRatio: 1.48),
         itemBuilder: (_, i) => SubjectTile(subject: subjects[i],
-          onTap: () => onOpen(subjects[i]))),
+          onTap: () => widget.onOpen(subjects[i]))),
       const SizedBox(height: 22),
       Text('مميزات التطبيق', style: TextStyle(fontSize: 18,
         fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface)),
@@ -1503,11 +1582,24 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             top: false,
             child: Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF172337)
+                    : Colors.white,
+                border: Border(
+                  top: BorderSide(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF2B3D56)
+                        : const Color(0xFFE5EAF2),
+                  ),
+                ),
                 boxShadow: [BoxShadow(
-                  color: Color(0x0D142D50), blurRadius: 12,
-                  offset: Offset(0, -3))],
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0x40000000)
+                      : const Color(0x0D142D50),
+                  blurRadius: 12,
+                  offset: const Offset(0, -3),
+                )],
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -1517,9 +1609,45 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     minLines: 1, maxLines: 5,
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => send(),
+                    cursorColor: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF9FC2FF)
+                        : blue,
+                    style: TextStyle(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFFF5F8FF)
+                          : const Color(0xFF172337),
+                      fontSize: 15,
+                      height: 1.45,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'اكتب سؤالك الدراسي هنا...',
-                      filled: true, fillColor: bg,
+                      hintStyle: TextStyle(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFFB8C7DA)
+                            : const Color(0xFF68778D),
+                        fontSize: 14,
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF1B2A40)
+                          : bg,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(17),
+                        borderSide: BorderSide(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF40536D)
+                              : const Color(0xFFDCE4F0),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(17),
+                        borderSide: BorderSide(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF79A9FF)
+                              : blue,
+                          width: 1.6,
+                        ),
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(17),
                         borderSide: BorderSide.none),
@@ -1531,6 +1659,19 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                   SizedBox(width: 48, height: 48, child: IconButton.filled(
                     tooltip: 'إرسال السؤال',
                     onPressed: loading ? null : send,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF79A9FF)
+                          : blue,
+                      foregroundColor: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF10213A)
+                          : Colors.white,
+                      disabledBackgroundColor:
+                          Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF34445A)
+                              : const Color(0xFFB8C5D8),
+                      disabledForegroundColor: Colors.white70,
+                    ),
                     icon: const Icon(Icons.send_rounded),
                   )),
                 ],
