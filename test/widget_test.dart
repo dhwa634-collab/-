@@ -9,7 +9,17 @@ void main() {
     await tester.pumpWidget(const StudyApp());
     expect(find.text('دليلك للنجاح'), findsOneWidget);
     expect(find.text('الثالث متوسط • العراق'), findsOneWidget);
-    expect(find.text('المواد الدراسية'), findsWidgets);
+
+    // The welcome card and hero content push the subjects section below
+    // the initial viewport, so scroll the home list before asserting it.
+    final subjectsHeading = find.text('المواد الدراسية');
+    await tester.scrollUntilVisible(
+      subjectsHeading,
+      350,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(subjectsHeading, findsOneWidget);
   });
 
   testWidgets('archive search screen loads and shows available archive results', (tester) async {
