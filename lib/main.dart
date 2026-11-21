@@ -613,10 +613,6 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
         ),
       ),
       const SizedBox(height: 12),
-      Feature(icon: Icons.timer_rounded, title: 'مؤقت الدراسة والاستراحة',
-        desc: 'جلسات 25/5 أو 45/10 مع متابعة إنجازك اليومي',
-        onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => const PomodoroScreen()))),
       const SizedBox(height: 20),
       Text('أدوات المراجعة والأسئلة', style: TextStyle(fontSize: 18,
         fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface)),
@@ -2127,6 +2123,13 @@ class NewsScreen extends StatefulWidget {
   @override State<NewsScreen> createState() => _NewsScreenState();
 }
 class _NewsScreenState extends State<NewsScreen> {
+  // Change this UI access code here when needed. Server-side validation is
+  // also enforced by NEWS_ADMIN_PIN in the Cloudflare Worker environment.
+  static const String _adminPin = '123@123@';
+  static final Uri _workerNewsUri = Uri.parse(
+    'https://wispy-union-276e.dhwa634.workers.dev/news');
+  static final Uri _workerAdminUri = Uri.parse(
+    'https://wispy-union-276e.dhwa634.workers.dev/news/admin');
   static final Uri _feedUri = Uri.parse(
     'https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json');
   static const Map<String, String> _categories = {
@@ -2155,9 +2158,21 @@ class _NewsScreenState extends State<NewsScreen> {
     if (!mounted) return;
     setState(() => _loading = true);
     try {
-      final response = await http.get(_feedUri,
-        headers: const {'Accept':'application/json', 'Cache-Control':'no-cache'})
-        .timeout(const Duration(seconds: 12));
+      http.Response response;
+      try {
+        response = await http.get(_workerNewsUri,
+          headers: const {'Accept':'application/json', 'Cache-Control':'no-cache'})
+          .timeout(const Duration(seconds: 10));
+        if (response.statusCode != 200) throw Exception('Worker news unavailable');
+        final workerDecoded = jsonDecode(utf8.decode(response.bodyBytes));
+        if (workerDecoded is! Map || workerDecoded['posts'] is! List) {
+          throw const FormatException('Invalid Worker news feed');
+        }
+      } catch (_) {
+        response = await http.get(_feedUri,
+          headers: const {'Accept':'application/json', 'Cache-Control':'no-cache'})
+          .timeout(const Duration(seconds: 12));
+      }
       if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
       if (decoded is! Map || decoded['posts'] is! List) throw const FormatException('Invalid news feed');
@@ -2177,19 +2192,23 @@ class _NewsScreenState extends State<NewsScreen> {
     }
   }
   Future<void> _openDeveloperTools() async {
-    const expectedPin = String.fromEnvironment('NEWS_ADMIN_PIN');
-    if (expectedPin.isEmpty) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('واجهة المطوّر غير مفعّلة بعد. أضف NEWS_ADMIN_PIN إلى أسرار GitHub ثم أعد البناء.')));
-      return;
-    }
     final controller = TextEditingController();
     final entered = await showDialog<String>(
       context: context,
       builder: (dialogContext) => Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
         title: const Text('دخول أدوات المطوّر'),
-        content: TextField(controller: controller, autofocus: true, obscureText: true, keyboardType: TextInputType.number, maxLength: 12,
-          decoration: const InputDecoration(labelText: 'رمز المطوّر', prefixIcon: Icon(Icons.lock_outline_rounded)),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          obscureText: true,
+          keyboardType: TextInputType.visiblePassword,
+          maxLength: 24,
+          decoration: const InputDecoration(
+            labelText: 'رمز المطوّر',
+            prefixIcon: Icon(Icons.lock_outline_rounded),
+          ),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
           FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('دخول')),
@@ -2197,11 +2216,17 @@ class _NewsScreenState extends State<NewsScreen> {
       )),
     );
     controller.dispose();
-    if (!mounted || entered != expectedPin) {
-      if (mounted && entered != null) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('رمز المطوّر غير صحيح.')));
+    if (!mounted || entered == null) return;
+    if (entered != _adminPin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('رمز المطوّر غير صحيح.')),
+      );
       return;
     }
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => const NewsAdminScreen()));
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => const NewsAdminScreen(),
+    ));
+    if (mounted) await _loadNews();
   }
   Future<void> _share(NewsPost post) async {
     final text = '${post.title}\n\n${post.body}\n\nمن تطبيق دليلك للنجاح — الثالث متوسط • العراق';
@@ -2217,7 +2242,7 @@ class _NewsScreenState extends State<NewsScreen> {
     return Directionality(textDirection:TextDirection.rtl, child:Scaffold(
       appBar:AppBar(title:GestureDetector(
         onLongPress: _openDeveloperTools,
-        child: const Text('نبض دليلك'),
+        child: const Text('الأخبار'),
       ), actions:[
         IconButton(tooltip:'تحديث الأخبار', onPressed:_loading ? null : _loadNews,
           icon:const Icon(Icons.refresh_rounded))
@@ -2288,80 +2313,281 @@ class NewsAdminScreen extends StatefulWidget {
 }
 
 class _NewsAdminScreenState extends State<NewsAdminScreen> {
-  static final Uri _feedUri = Uri.parse('https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json');
+  static final Uri _workerNewsUri = Uri.parse(
+    'https://wispy-union-276e.dhwa634.workers.dev/news');
+  static final Uri _workerAdminUri = Uri.parse(
+    'https://wispy-union-276e.dhwa634.workers.dev/news/admin');
+  static const String _adminPin = '123@123@';
+  static final Uri _fallbackFeedUri = Uri.parse(
+    'https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json');
+
   final _title = TextEditingController();
   final _body = TextEditingController();
   String _category = 'updates';
   bool _pinned = false, _loading = true, _working = false;
   List<Map<String,dynamic>> _existing = [];
+
   @override void initState() { super.initState(); _loadExisting(); }
+
+  Future<Map<String,dynamic>?> _readFeed(Uri uri) async {
+    final response = await http.get(uri,
+      headers: const {'Accept':'application/json', 'Cache-Control':'no-cache'})
+      .timeout(const Duration(seconds: 12));
+    if (response.statusCode != 200) return null;
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is! Map || decoded['posts'] is! List) return null;
+    return Map<String,dynamic>.from(decoded);
+  }
 
   Future<void> _loadExisting() async {
     try {
-      final response = await http.get(_feedUri).timeout(const Duration(seconds: 12));
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        if (decoded is Map && decoded['posts'] is List) _existing = (decoded['posts'] as List).whereType<Map>().map((e) => Map<String,dynamic>.from(e)).toList();
+      var feed = await _readFeed(_workerNewsUri);
+      feed ??= await _readFeed(_fallbackFeedUri);
+      if (feed != null) {
+        _existing = (feed['posts'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String,dynamic>.from(e))
+          .toList();
       }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _copyFeed() async {
+  Future<Map<String,dynamic>> _sendAdminAction(
+    Map<String,dynamic> payload,
+  ) async {
+    final response = await http.post(
+      _workerAdminUri,
+      headers: const {'Content-Type':'application/json', 'Accept':'application/json'},
+      body: jsonEncode({...payload, 'pin': _adminPin}),
+    ).timeout(const Duration(seconds: 18));
+    Map<String,dynamic> decoded = {};
+    try {
+      final value = jsonDecode(utf8.decode(response.bodyBytes));
+      if (value is Map) decoded = Map<String,dynamic>.from(value);
+    } catch (_) {}
+    if (response.statusCode != 200 || decoded['success'] != true) {
+      throw Exception((decoded['error'] ?? 'تعذر تنفيذ العملية على خادم الأخبار').toString());
+    }
+    return decoded;
+  }
+
+  Future<void> _publish() async {
     final title = _title.text.trim(), body = _body.text.trim();
     if (title.isEmpty || body.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اكتب عنوان الخبر ونصه أولاً.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اكتب عنوان الخبر ونصه أولاً.')),
+      );
       return;
     }
     setState(() => _working = true);
     try {
-      final now = DateTime.now();
-      final date = '${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}';
-      final post = <String,dynamic>{'id':'post-${now.microsecondsSinceEpoch}','title':title,'category':_category,'date':date,'pinned':_pinned,'body':body};
-      final all = <Map<String,dynamic>>[post, ..._existing];
-      all.sort((a,b) { final ap=a['pinned']==true, bp=b['pinned']==true; if(ap!=bp) return ap?-1:1; return (b['date']??'').toString().compareTo((a['date']??'').toString()); });
-      final output = const JsonEncoder.withIndent('  ').convert({'version':1,'updatedAt':date,'posts':all});
-      await Clipboard.setData(ClipboardData(text: output));
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ ملف الأخبار JSON كاملاً. الصقه في news.json بمستودع الأخبار ثم احفظ التعديل.'), duration: Duration(seconds:4)));
+      final result = await _sendAdminAction({
+        'action':'publish',
+        'post': {
+          'title': title,
+          'body': body,
+          'category': _category,
+          'pinned': _pinned,
+        },
+      });
+      final feed = result['feed'];
+      if (feed is Map && feed['posts'] is List) {
+        _existing = (feed['posts'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String,dynamic>.from(e))
+          .toList();
+      }
+      _title.clear();
+      _body.clear();
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم نشر الخبر بنجاح وتحديث قائمة الأخبار.')),
+        );
+      }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تجهيز JSON: $error')));
-    } finally { if (mounted) setState(() => _working = false); }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر نشر الخبر: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
   }
 
-  @override void dispose() { _title.dispose(); _body.dispose(); super.dispose(); }
+  Future<void> _deletePost(Map<String,dynamic> post) async {
+    final id = (post['id'] ?? '').toString();
+    if (id.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('تأكيد حذف الخبر'),
+          content: Text('هل تريد حذف الخبر «${post['title'] ?? ''}» نهائياً من قائمة الأخبار؟'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Theme.of(dialogContext).colorScheme.error),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('حذف الخبر'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _working = true);
+    try {
+      final result = await _sendAdminAction({'action':'delete', 'id':id});
+      final feed = result['feed'];
+      if (feed is Map && feed['posts'] is List) {
+        _existing = (feed['posts'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String,dynamic>.from(e))
+          .toList();
+      } else {
+        _existing.removeWhere((item) => item['id'] == id);
+      }
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حذف الخبر بنجاح.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر حذف الخبر: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  @override void dispose() {
+    _title.dispose();
+    _body.dispose();
+    super.dispose();
+  }
+
   @override Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Directionality(textDirection:TextDirection.rtl, child:Scaffold(
-      appBar:AppBar(title:const Text('استوديو أخبار دليلك')),
-      body:ListView(physics:const BouncingScrollPhysics(),padding:const EdgeInsets.all(16),children:[
-        Card(child:Padding(padding:const EdgeInsets.all(14),child:Row(children:[
-          Icon(Icons.admin_panel_settings_rounded,color:colors.primary,size:28),
-          const SizedBox(width:10),
-          Expanded(child:Text('هذه الأداة تُنشئ ملف الأخبار وتنسخه فقط. النشر النهائي يتم من حساب مالك مستودع GitHub، ولا توجد مفاتيح نشر داخل التطبيق.',style:TextStyle(height:1.55,color:colors.onSurfaceVariant))),
-        ]))),
-        const SizedBox(height:14),
-        TextField(controller:_title,maxLength:100,decoration:const InputDecoration(labelText:'عنوان الخبر',border:OutlineInputBorder())),
-        const SizedBox(height:12),
-        DropdownButtonFormField<String>(value:_category,decoration:const InputDecoration(labelText:'تصنيف الخبر',border:OutlineInputBorder()),items:const [
-          DropdownMenuItem(value:'updates',child:Text('المستجدات')),
-          DropdownMenuItem(value:'tips',child:Text('نصائح دراسية')),
-          DropdownMenuItem(value:'students',child:Text('تنويهات الطلبة / الخارجي')),
-          DropdownMenuItem(value:'app',child:Text('إرشادات التطبيق')),
-        ],onChanged:(value)=>setState(()=>_category=value??'updates')),
-        const SizedBox(height:12),
-        TextField(controller:_body,minLines:5,maxLines:9,maxLength:2000,decoration:const InputDecoration(labelText:'نص الخبر',hintText:'اكتب الخبر أو التنويه هنا...',alignLabelWithHint:true,border:OutlineInputBorder())),
-        SwitchListTile(contentPadding:EdgeInsets.zero,value:_pinned,onChanged:(value)=>setState(()=>_pinned=value),title:const Text('تثبيت الخبر في أعلى القائمة')),
-        const SizedBox(height:12),
-        FilledButton.icon(onPressed:_working?null:_copyFeed,icon:_working?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.copy_all_rounded),label:Text(_working?'جارٍ تجهيز الملف...':'توليد ونسخ ملف JSON كاملاً')),
-        const SizedBox(height:12),
-        Text(_loading?'جارٍ قراءة المنشورات الحالية...':'عدد المنشورات الحالية المقروءة: ${_existing.length}',style:TextStyle(fontSize:12,color:colors.onSurfaceVariant)),
-        OutlinedButton.icon(onPressed:()=>launchUrl(Uri.parse('https://github.com/dhwa634-collab/wizariyat-privacy/blob/main/news.json'),mode:LaunchMode.externalApplication),icon:const Icon(Icons.open_in_new_rounded),label:const Text('فتح ملف الأخبار على GitHub')),
-        Text('بعد النسخ: افتح news.json، اختر Edit، الصق الملف كاملاً، ثم Commit changes. سيظهر الخبر للطلاب بعد تحديث المصدر.',style:TextStyle(fontSize:12,height:1.6,color:colors.onSurfaceVariant)),
-      ]),
-    ));
+    return Directionality(
+      textDirection:TextDirection.rtl,
+      child:Scaffold(
+        appBar:AppBar(title:const Text('استوديو أخبار دليلك')),
+        body:ListView(
+          physics:const BouncingScrollPhysics(),
+          padding:const EdgeInsets.all(16),
+          children:[
+            Card(
+              child:Padding(
+                padding:const EdgeInsets.all(14),
+                child:Row(children:[
+                  Icon(Icons.admin_panel_settings_rounded,color:colors.primary,size:28),
+                  const SizedBox(width:10),
+                  Expanded(child:Text(
+                    'لوحة المطوّر متصلة بخادم الأخبار. النشر والحذف يُحفظان في KV على Cloudflare وتظهر التغييرات للطلاب بعد تحديث الصفحة.',
+                    style:TextStyle(height:1.55,color:colors.onSurfaceVariant),
+                  )),
+                ]),
+              ),
+            ),
+            const SizedBox(height:14),
+            TextField(
+              controller:_title,
+              maxLength:100,
+              decoration:const InputDecoration(
+                labelText:'عنوان الخبر',
+                border:OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height:12),
+            DropdownButtonFormField<String>(
+              value:_category,
+              decoration:const InputDecoration(labelText:'تصنيف الخبر',border:OutlineInputBorder()),
+              items:const [
+                DropdownMenuItem(value:'updates',child:Text('المستجدات')),
+                DropdownMenuItem(value:'tips',child:Text('نصائح دراسية')),
+                DropdownMenuItem(value:'students',child:Text('تنويهات الطلبة / الخارجي')),
+                DropdownMenuItem(value:'app',child:Text('إرشادات التطبيق')),
+              ],
+              onChanged:(value)=>setState(()=>_category=value??'updates'),
+            ),
+            const SizedBox(height:12),
+            TextField(
+              controller:_body,
+              minLines:5,
+              maxLines:9,
+              maxLength:2000,
+              decoration:const InputDecoration(
+                labelText:'نص الخبر',
+                hintText:'اكتب الخبر أو التنويه هنا...',
+                alignLabelWithHint:true,
+                border:OutlineInputBorder(),
+              ),
+            ),
+            SwitchListTile(
+              contentPadding:EdgeInsets.zero,
+              value:_pinned,
+              onChanged:(value)=>setState(()=>_pinned=value),
+              title:const Text('تثبيت الخبر في أعلى القائمة'),
+            ),
+            const SizedBox(height:12),
+            FilledButton.icon(
+              onPressed:_working?null:_publish,
+              icon:_working
+                ? const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2))
+                : const Icon(Icons.publish_rounded),
+              label:Text(_working?'جارٍ النشر...':'نشر الخبر'),
+            ),
+            const SizedBox(height:20),
+            Row(children:[
+              Expanded(child:Text(
+                'المنشورات الحالية',
+                style:TextStyle(fontSize:18,fontWeight:FontWeight.w900,color:colors.onSurface),
+              )),
+              IconButton(
+                tooltip:'تحديث القائمة',
+                onPressed:_working?null:() async {
+                  setState(()=>_loading=true);
+                  await _loadExisting();
+                },
+                icon:const Icon(Icons.refresh_rounded),
+              ),
+            ]),
+            if (_loading) const LinearProgressIndicator(),
+            if (!_loading && _existing.isEmpty)
+              Padding(
+                padding:const EdgeInsets.all(18),
+                child:Text('لا توجد أخبار محفوظة في المصدر الحالي.',
+                  textAlign:TextAlign.center,
+                  style:TextStyle(color:colors.onSurfaceVariant)),
+              ),
+            ..._existing.map((post)=>Card(
+              margin:const EdgeInsets.only(bottom:9),
+              child:ListTile(
+                title:Text((post['title'] ?? 'خبر بلا عنوان').toString(),
+                  maxLines:2,overflow:TextOverflow.ellipsis,
+                  style:const TextStyle(fontWeight:FontWeight.w800)),
+                subtitle:Text('${post['date'] ?? ''} • ${post['category'] ?? ''}'),
+                trailing:IconButton(
+                  tooltip:'حذف الخبر',
+                  onPressed:_working?null:()=>_deletePost(post),
+                  icon:const Icon(Icons.delete_outline_rounded,color:Colors.redAccent),
+                ),
+              ),
+            )),
+          ],
+        ),
+      ),
+    );
   }
 }
+
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
