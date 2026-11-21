@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); await ThemeController.load(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
@@ -64,6 +65,12 @@ class SavedExamsStore {
     items.value = updated;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_storageKey, jsonEncode(updated));
+  }
+
+  static Future<void> clearAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_storageKey);
+    items.value = [];
   }
 }
 
@@ -904,6 +911,11 @@ class Saved extends StatelessWidget {
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
+  static const String _appName = 'وزاريات الثالث متوسط';
+  static const String _packageName = 'com.fitna.game';
+  static const String _storeUrl =
+      'https://play.google.com/store/apps/details?id=com.fitna.game';
+
   Future<void> _sendSuggestion(BuildContext context) async {
     final controller = TextEditingController();
     final message = await showDialog<String>(
@@ -918,6 +930,7 @@ class MoreScreen extends StatelessWidget {
             minLines: 3,
             maxLines: 6,
             maxLength: 500,
+            textInputAction: TextInputAction.newline,
             decoration: const InputDecoration(
               hintText: 'اكتب ملاحظتك أو اقتراحك لتحسين التطبيق...',
               border: OutlineInputBorder(),
@@ -929,7 +942,8 @@ class MoreScreen extends StatelessWidget {
               child: const Text('إلغاء'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+              onPressed: () => Navigator.pop(
+                dialogContext, controller.text.trim()),
               child: const Text('متابعة'),
             ),
           ],
@@ -944,7 +958,7 @@ class MoreScreen extends StatelessWidget {
       scheme: 'mailto',
       path: 'dhwalfqar666@gmail.com',
       queryParameters: {
-        'subject': 'ملاحظة أو اقتراح - وزاريات الثالث متوسط',
+        'subject': 'ملاحظة أو اقتراح - $_appName',
         'body': note,
       },
     );
@@ -952,157 +966,345 @@ class MoreScreen extends StatelessWidget {
       final opened = await launchUrl(emailUri);
       if (!opened && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('لم نعثر على تطبيق بريد لإرسال الملاحظة. يمكنك مراسلتنا على dhwalfqar666@gmail.com'),
+          content: Text(
+            'لم نعثر على تطبيق بريد. يمكنك مراسلتنا على '
+            'dhwalfqar666@gmail.com'),
         ));
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('تعذر فتح تطبيق البريد. راسلنا على dhwalfqar666@gmail.com'),
+          content: Text('تعذر فتح تطبيق البريد. راسلنا على '
+              'dhwalfqar666@gmail.com'),
         ));
       }
     }
   }
 
+  Future<void> _shareApp(BuildContext context) async {
+    const shareText = 'جرّب تطبيق وزاريات الثالث متوسط لمراجعة المواد '
+        'والأوراق الامتحانية والاستفادة من المساعد الدراسي.\n'
+        'رابط التطبيق على Google Play: $_storeUrl';
+    try {
+      await Share.share(shareText, subject: _appName);
+    } catch (_) {
+      await Clipboard.setData(const ClipboardData(text: shareText));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('تعذرت المشاركة المباشرة؛ نُسخ رابط التطبيق لتتمكن من إرساله.'),
+        ));
+      }
+    }
+  }
+
+  Future<void> _rateApp(BuildContext context) async {
+    final marketUri = Uri.parse('market://details?id=$_packageName');
+    final webUri = Uri.parse(_storeUrl);
+    try {
+      final opened = await launchUrl(marketUri);
+      if (!opened) {
+        final webOpened = await launchUrl(
+          webUri, mode: LaunchMode.externalApplication);
+        if (!webOpened && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('سيظهر خيار التقييم بعد نشر التطبيق على Google Play.'),
+          ));
+        }
+      }
+    } catch (_) {
+      try {
+        await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('تعذر فتح صفحة Google Play حالياً.'),
+          ));
+        }
+      }
+    }
+  }
+
+  Future<void> _clearSaved(BuildContext context) async {
+    final count = SavedExamsStore.items.value.length;
+    if (count == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('لا توجد محفوظات لمسحها.'),
+      ));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          icon: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent),
+          title: const Text('مسح جميع المحفوظات؟'),
+          content: Text(
+            'سيتم حذف $count من العناصر المحفوظة من هذا الجهاز نهائياً. '
+            'لا يمكن التراجع عن هذه العملية.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('مسح الكل'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await SavedExamsStore.clearAll();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('تم مسح جميع المحفوظات بنجاح.'),
+      ));
+    }
+  }
+
   Widget _sectionTitle(BuildContext context, String title, IconData icon) =>
       Padding(
-        padding: const EdgeInsets.fromLTRB(4, 18, 4, 9),
+        padding: const EdgeInsets.fromLTRB(4, 20, 4, 9),
         child: Row(children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
-          const SizedBox(width: 8),
+          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 21),
+          const SizedBox(width: 9),
           Text(title, style: TextStyle(
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: FontWeight.w900,
             color: Theme.of(context).colorScheme.onSurface,
           )),
         ]),
       );
 
+  Widget _actionTile({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    Color? iconColor,
+    Widget? trailing,
+  }) => Card(
+    margin: const EdgeInsets.only(bottom: 8),
+    child: ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      minLeadingWidth: 28,
+      leading: Icon(icon, size: 25,
+        color: iconColor ?? Theme.of(context).colorScheme.primary),
+      title: Text(title, style: const TextStyle(
+        fontWeight: FontWeight.w800, fontSize: 14)),
+      subtitle: Text(subtitle, style: const TextStyle(height: 1.4, fontSize: 12)),
+      trailing: trailing ?? const Icon(Icons.chevron_left_rounded),
+      onTap: onTap,
+    ),
+  );
+
+  Widget _infoBlock(BuildContext context, String title, String body,
+      {IconData? icon, Color? iconColor}) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 20, color: iconColor ?? colors.primary),
+            const SizedBox(width: 10),
+          ],
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(
+                fontWeight: FontWeight.w900, color: colors.onSurface)),
+              const SizedBox(height: 5),
+              Text(body, style: TextStyle(
+                height: 1.65, color: colors.onSurfaceVariant, fontSize: 13)),
+            ],
+          )),
+        ],
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => Directionality(
-    textDirection: TextDirection.rtl,
-    child: ListView(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topRight,
-              end: Alignment.bottomLeft,
-              colors: [Color(0xFF173D78), Color(0xFF2675E8)],
-            ),
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: const Row(children: [
-            Icon(Icons.school_rounded, color: Colors.white, size: 34),
-            SizedBox(width: 13),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('وزاريات الثالث متوسط', style: TextStyle(
-                  color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900,
-                )),
-                SizedBox(height: 5),
-                Text('كل ما تحتاجه من معلومات ومساعدة', style: TextStyle(
-                  color: Colors.white70, fontSize: 12,
-                )),
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: ListView(
+        key: const PageStorageKey<String>('more_screen'),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(19),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: [Color(0xFF173D78), Color(0xFF2675E8)],
+              ),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF173D78).withValues(alpha: 0.16),
+                  blurRadius: 18,
+                  offset: const Offset(0, 7),
+                ),
               ],
-            )),
-          ]),
-        ),
-        _sectionTitle(context, 'الدعم والخصوصية', Icons.support_agent_rounded),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.privacy_tip_outlined, color: blue),
-            title: const Text('سياسة الخصوصية',
-              style: TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: const Text('البيانات والمساعد الذكي والبلاغات'),
-            trailing: const Icon(Icons.chevron_left),
+            ),
+            child: const Row(children: [
+              CircleAvatar(
+                radius: 27,
+                backgroundColor: Colors.white24,
+                child: Icon(Icons.school_rounded, color: Colors.white, size: 30),
+              ),
+              SizedBox(width: 13),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_appName, style: TextStyle(
+                    color: Colors.white, fontSize: 18,
+                    fontWeight: FontWeight.w900)),
+                  SizedBox(height: 5),
+                  Text('رفيقك في المراجعة والاستعداد للامتحانات',
+                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
+              )),
+            ]),
+          ),
+
+          _sectionTitle(context, 'الدعم والمجتمع', Icons.favorite_outline_rounded),
+          _actionTile(
+            context: context,
+            icon: Icons.edit_note_rounded,
+            title: 'إرسال ملاحظة أو اقتراح',
+            subtitle: 'شاركنا رأيك وأفكارك لتطوير التطبيق',
+            onTap: () => _sendSuggestion(context),
+          ),
+          _actionTile(
+            context: context,
+            icon: Icons.share_rounded,
+            title: 'مشاركة التطبيق',
+            subtitle: 'أرسل رابط التطبيق إلى أصدقائك',
+            onTap: () => _shareApp(context),
+          ),
+          _actionTile(
+            context: context,
+            icon: Icons.star_outline_rounded,
+            title: 'تقييم التطبيق ودعم التطوير',
+            subtitle: 'افتح صفحة التطبيق على Google Play',
+            onTap: () => _rateApp(context),
+          ),
+
+          _sectionTitle(context, 'الخصوصية والبيانات', Icons.shield_outlined),
+          _actionTile(
+            context: context,
+            icon: Icons.privacy_tip_outlined,
+            title: 'سياسة الخصوصية',
+            subtitle: 'تفاصيل البيانات والمساعد الذكي والبلاغات',
             onTap: () => Navigator.push(context, MaterialPageRoute(
               builder: (_) => const PrivacyScreen())),
           ),
-        ),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.rate_review_outlined, color: blue),
-            title: const Text('إرسال ملاحظة أو اقتراح',
-              style: TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: const Text('ساعدنا على تطوير التطبيق وتحسينه'),
-            trailing: const Icon(Icons.chevron_left),
-            onTap: () => _sendSuggestion(context),
-          ),
-        ),
-        _sectionTitle(context, 'معلومات التطبيق والتنويهات', Icons.info_outline_rounded),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('نبذة عن التطبيق', style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: Theme.of(context).colorScheme.onSurface,
-                )),
-                const SizedBox(height: 7),
-                Text(
-                  'منصة تعليمية مستقلة تساعد طلبة الثالث متوسط في العراق على مراجعة المواد والأوراق الامتحانية والاستفادة من المساعد الذكي.',
-                  style: TextStyle(
-                    height: 1.7,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+          ValueListenableBuilder<List<Map<String, String>>>(
+            valueListenable: SavedExamsStore.items,
+            builder: (context, saved, _) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: Column(children: [
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 5),
+                  leading: Icon(Icons.bookmarks_outlined,
+                    color: colors.primary, size: 25),
+                  title: const Text('المحفوظات',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text('لديك ${saved.length} عنصر محفوظ على هذا الجهاز'),
+                  trailing: const Icon(Icons.chevron_left_rounded),
+                  onTap: () {
+                    // The bottom navigation's Saved tab remains the full manager.
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('عدد العناصر المحفوظة: ${saved.length}'),
+                    ));
+                  },
                 ),
-                const Divider(height: 24),
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Icon(Icons.info_outline, color: Colors.orange, size: 20),
-                  const SizedBox(width: 9),
-                  Expanded(child: Text(
-                    'هذا التطبيق مستقل وغير تابع لوزارة التربية العراقية أو أي جهة حكومية.',
-                    style: TextStyle(
-                      height: 1.65,
-                      fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  )),
-                ]),
-                const SizedBox(height: 13),
-                Text('ضوابط الأرشيف', style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: Theme.of(context).colorScheme.onSurface,
-                )),
-                const SizedBox(height: 6),
-                Text(
-                  'تُصنّف الأوراق المتاحة حسب المادة والسنة والدور وفق المعلومات المتوفرة. لا يُنسب سؤال إلى امتحان وزاري دون دليل، وقد تكون بعض المواد أو السنوات قيد التجهيز والتحقق. يُرجى مطابقة الأسئلة والحلول مع الكتاب المدرسي والمدرس.',
-                  style: TextStyle(
-                    height: 1.7,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 2),
+                  leading: const Icon(Icons.delete_outline_rounded,
+                    color: Colors.redAccent),
+                  title: const Text('مسح جميع المحفوظات',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  trailing: const Icon(Icons.chevron_left_rounded, size: 20),
+                  onTap: () => _clearSaved(context),
                 ),
-              ],
+              ]),
             ),
           ),
-        ),
-        const SizedBox(height: 14),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.verified_outlined, color: blue),
-            title: const Text('إصدار التطبيق',
-              style: TextStyle(fontWeight: FontWeight.w800)),
-            trailing: const Text('1.0.3',
-              style: TextStyle(fontWeight: FontWeight.w900)),
+
+          _sectionTitle(context, 'المعلومات والشفافية', Icons.info_outline_rounded),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(17),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _infoBlock(context, 'نبذة عن التطبيق',
+                    'منصة تعليمية مستقلة تساعد طلبة الثالث متوسط في العراق '
+                    'على مراجعة المواد والأوراق الامتحانية والاستفادة من '
+                    'المساعد الدراسي.'),
+                  _infoBlock(context, 'استقلالية التطبيق',
+                    'هذا التطبيق مستقل وغير تابع لوزارة التربية العراقية '
+                    'أو لأي جهة حكومية، ولا يمثلها أو يتحدث باسمها.',
+                    icon: Icons.info_outline_rounded,
+                    iconColor: Colors.orange),
+                  _infoBlock(context, 'شروط الاستخدام وإخلاء المسؤولية التعليمية',
+                    'يُقدَّم المحتوى لأغراض المراجعة والمساعدة التعليمية فقط. '
+                    'قد تحدث أخطاء أو نواقص في الأرشيف أو الإجابات المولدة '
+                    'آلياً؛ لذلك لا يُعد التطبيق بديلاً عن الكتاب المدرسي '
+                    'أو المدرس أو التعليمات الرسمية، وعلى الطالب التحقق من '
+                    'المعلومات قبل اعتمادها.'),
+                  _infoBlock(context, 'ضوابط الأرشيف',
+                    'تُصنّف الأوراق حسب المادة والسنة والدور استناداً إلى '
+                    'المعلومات المتاحة. لا يُنسب سؤال إلى امتحان وزاري دون '
+                    'قرينة مناسبة، وقد تكون بعض المواد أو السنوات قيد '
+                    'التجهيز والتحقق. يُرجى مطابقة الأسئلة والحلول مع '
+                    'المصادر الدراسية الموثوقة.',
+                    icon: Icons.fact_check_outlined),
+                ],
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Center(child: Text(
-          'صُنع لمساندة رحلتك الدراسية',
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+
+          const SizedBox(height: 15),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 16),
+              child: Column(children: [
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.verified_outlined, color: colors.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text('إصدار التطبيق  1.0.3',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900, color: colors.onSurface)),
+                ]),
+                const SizedBox(height: 8),
+                Text('صُنع لمساندة رحلتك الدراسية',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12, color: colors.onSurfaceVariant)),
+              ]),
+            ),
           ),
-        )),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class PrivacyScreen extends StatelessWidget {
