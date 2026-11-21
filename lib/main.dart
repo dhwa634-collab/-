@@ -405,7 +405,7 @@ class Catalog extends StatelessWidget {
       Expanded(child: GridView.builder(itemCount: subjects.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11,
-          childAspectRatio: 1.48),
+          childAspectRatio: 1.34),
         itemBuilder: (_, i) => SubjectTile(subject: subjects[i],
           onTap: () => onOpen(subjects[i])))),
     ]));
