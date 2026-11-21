@@ -104,7 +104,10 @@ class BookResource {
   final String title;
   final String? url;
   const BookResource(this.subject, this.title, {this.url});
-  bool get isAvailable {\n    final uri = Uri.tryParse(url ?? '');\n    return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty;\n  }
+  bool get isAvailable {
+    final uri = Uri.tryParse(url ?? '');
+    return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty;
+  }
 }
 /// أضف رابط HTTPS موثوقاً في url عند توفره.
 const List<BookResource> studyBooks = [
