@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'student_tools.dart';
 Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); await ThemeController.load(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 const subjects=<Subject>[
@@ -121,7 +122,7 @@ class StudyApp extends StatelessWidget {
     valueListenable: ThemeController.isDark,
     builder: (context, isDark, _) => MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'وزاريات الثالث متوسط',
+      title: 'دليلك للنجاح — الثالث متوسط • العراق',
       themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(useMaterial3: true, brightness: Brightness.light,
         scaffoldBackgroundColor: bg,
@@ -288,6 +289,17 @@ class _HomeState extends State<Home> {
             icon: const Icon(Icons.arrow_back_rounded),
             label: const Text('تصفح المواد')),
         ])),
+      const SizedBox(height: 18),
+      const ExamCountdownSection(),
+      const SizedBox(height: 16),
+      Feature(icon: Icons.picture_as_pdf_rounded, title: 'الكتب المنهجية PDF',
+        desc: 'مكتبة الكتب حسب المادة وحالة توفر كل كتاب',
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => const BooksLibraryScreen()))),
+      Feature(icon: Icons.timer_rounded, title: 'مؤقت الدراسة والاستراحة',
+        desc: 'جلسات 25/5 أو 45/10 مع متابعة إنجازك اليومي',
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => const PomodoroScreen()))),
       const SizedBox(height: 16),
       Material(color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(18),
@@ -391,6 +403,16 @@ class Catalog extends StatelessWidget {
       Text('اختر المادة للوصول إلى أرشيفها',
         style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
       const SizedBox(height: 18),
+      Feature(icon: Icons.picture_as_pdf_rounded, title: 'مكتبة الكتب PDF',
+        desc: 'افتح الكتب المنهجية حسب المادة',
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => const BooksLibraryScreen()))),
+      const SizedBox(height: 8),
+      Feature(icon: Icons.timer_rounded, title: 'مؤقت الدراسة',
+        desc: 'نظّم وقت القراءة والاستراحة',
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => const PomodoroScreen()))),
+      const SizedBox(height: 8),
       Expanded(child: GridView.builder(itemCount: subjects.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11,
