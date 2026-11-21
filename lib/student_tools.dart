@@ -104,7 +104,7 @@ class BookResource {
   final String title;
   final String? url;
   const BookResource(this.subject, this.title, {this.url});
-  bool get isAvailable => url != null && url!.trim().isNotEmpty;
+  bool get isAvailable {\n    final uri = Uri.tryParse(url ?? '');\n    return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty;\n  }
 }
 /// أضف رابط HTTPS موثوقاً في url عند توفره.
 const List<BookResource> studyBooks = [
@@ -170,7 +170,7 @@ class BooksLibraryScreen extends StatelessWidget {
             return Card(child: ListTile(
               leading: const CircleAvatar(child: Icon(Icons.picture_as_pdf_rounded)),
               title: Text(book.title, style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text(ready ? 'يتطلب اتصال إنترنت • PDF' : 'قيد التجهيز'),
+              subtitle: Text(ready ? 'جاهز للعرض • يتطلب اتصال إنترنت' : 'قيد التجهيز'),
               trailing: Icon(ready ? Icons.open_in_new_rounded : Icons.hourglass_top_rounded,
                 color: ready ? colors.primary : colors.onSurfaceVariant),
               onTap: () => _openBook(context, book),
