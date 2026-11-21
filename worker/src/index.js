@@ -5,6 +5,14 @@ const corsHeaders = {
   "Cache-Control": "no-store",
 };
 
+
+function sanitizeStudentText(value, maxLength) {
+  return String(value || "")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, "[بريد محذوف]")
+    .replace(/(?:\\+?964|0)7[0-9]{9}/g, "[رقم هاتف محذوف]")
+    .slice(0, maxLength);
+}
+
 function json(data, status = 200) {
   return Response.json(data, { status, headers: corsHeaders });
 }
@@ -23,7 +31,7 @@ export default {
 
     try {
       const body = await request.json();
-      const message = String(body.message || "").trim();
+      const message = sanitizeStudentText(body.message, 8000).trim();
       if (!message) return json({ error: "اكتب سؤالك أولاً." }, 400);
       if (message.length > 8000) {
         return json({ error: "السؤال طويل جداً. اختصره وحاول مرة ثانية." }, 413);
@@ -36,7 +44,7 @@ export default {
         const role = item.role === "assistant" || item.role === "model"
           ? "model"
           : item.role === "user" ? "user" : null;
-        const text = String(item.text || "").trim().slice(0, 3000);
+        const text = sanitizeStudentText(item.text, 3000).trim();
         if (role && text) contents.push({ role, parts: [{ text }] });
       }
       contents.push({ role: "user", parts: [{ text: message }] });
