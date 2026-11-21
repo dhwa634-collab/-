@@ -531,16 +531,10 @@ const List<Subject> subjects = [
 ];
 
 class BooksLibraryScreen extends StatefulWidget {
-  const BooksLibraryScreen({super.key});
-
-  @override
-  State<BooksLibraryScreen> createState() => _BooksLibraryScreenState();
-}
-
-class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
   final Subject? subject;
   final int cardStyle;
   final Color accentColor;
+
   const BooksLibraryScreen({
     super.key,
     this.subject,
@@ -548,6 +542,11 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
     this.accentColor = const Color(0xFF2868D7),
   });
 
+  @override
+  State<BooksLibraryScreen> createState() => _BooksLibraryScreenState();
+}
+
+class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
   final Map<String, double> _progress = {};
   final Set<String> _downloading = {};
   final Set<String> _downloaded = {};
@@ -725,12 +724,12 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final visibleBooks = subject == null ? subjects : <Subject>[subject!];
+    final visibleBooks = widget.subject == null ? subjects : <Subject>[widget.subject!];
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: Text(subject == null
-          ? 'الكتب الثالث متوسط' : 'كتاب ${subject!.name}')),
+        appBar: AppBar(title: Text(widget.subject == null
+          ? 'الكتب الثالث متوسط' : 'كتاب ${widget.subject!.name}')),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -783,10 +782,10 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
                   margin: EdgeInsets.zero,
                   clipBehavior: Clip.antiAlias,
                   elevation: 0,
-                  color: cardStyle == 1
+                  color: widget.cardStyle == 1
                       ? Color.alphaBlend(book.color.withValues(alpha: .10), colors.surface)
-                      : cardStyle == 2
-                          ? Color.alphaBlend(accentColor.withValues(alpha: .13), colors.surface)
+                      : widget.cardStyle == 2
+                          ? Color.alphaBlend(widget.accentColor.withValues(alpha: .13), colors.surface)
                           : colors.surfaceContainerLow,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
