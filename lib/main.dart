@@ -1152,7 +1152,7 @@ class MoreScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(22),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF173D78).withValues(alpha: 0.16),
+                  color: const Color(0x29173D78),
                   blurRadius: 18,
                   offset: const Offset(0, 7),
                 ),
