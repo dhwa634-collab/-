@@ -159,7 +159,7 @@ class StudyApp extends StatelessWidget {
       home: const Shell()));
 }
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
-class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const About()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Theme.of(context).colorScheme.surface,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.info_outline),label:'حول')])));}}
+class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const MoreScreen()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Theme.of(context).colorScheme.surface,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.more_horiz_rounded),label:'المزيد')])));}}
 class Home extends StatefulWidget {
   final ValueChanged<Subject> onOpen;
   final VoidCallback onAll;
@@ -901,55 +901,205 @@ class Saved extends StatelessWidget {
     ),
   );
 }
-class About extends StatelessWidget {
-  const About({super.key});
+class MoreScreen extends StatelessWidget {
+  const MoreScreen({super.key});
+
+  Future<void> _sendSuggestion(BuildContext context) async {
+    final controller = TextEditingController();
+    final message = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('ملاحظة أو اقتراح'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 3,
+            maxLines: 6,
+            maxLength: 500,
+            decoration: const InputDecoration(
+              hintText: 'اكتب ملاحظتك أو اقتراحك لتحسين التطبيق...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+              child: const Text('متابعة'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final note = message?.trim() ?? '';
+    controller.dispose();
+    if (note.isEmpty || !context.mounted) return;
+
+    final emailUri = Uri(
+      scheme: 'mailto',
+      path: 'dhwalfqar666@gmail.com',
+      queryParameters: {
+        'subject': 'ملاحظة أو اقتراح - وزاريات الثالث متوسط',
+        'body': note,
+      },
+    );
+    try {
+      final opened = await launchUrl(emailUri);
+      if (!opened && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('لم نعثر على تطبيق بريد لإرسال الملاحظة. يمكنك مراسلتنا على dhwalfqar666@gmail.com'),
+        ));
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('تعذر فتح تطبيق البريد. راسلنا على dhwalfqar666@gmail.com'),
+        ));
+      }
+    }
+  }
+
+  Widget _sectionTitle(BuildContext context, String title, IconData icon) =>
+      Padding(
+        padding: const EdgeInsets.fromLTRB(4, 18, 4, 9),
+        child: Row(children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
+          const SizedBox(width: 8),
+          Text(title, style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: Theme.of(context).colorScheme.onSurface,
+          )),
+        ]),
+      );
 
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
     child: ListView(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
       children: [
-        const SizedBox(height: 12),
-        const Text('حول التطبيق', style: TextStyle(
-          fontSize: 25, fontWeight: FontWeight.w900, )),
-        const SizedBox(height: 16),
-        const Text(
-          'منصة تعليمية مستقلة لمساعدة طلبة الثالث متوسط في العراق على مراجعة أوراق الامتحانات والاستفادة من المساعد الذكي.',
-          style: TextStyle(fontSize: 15, height: 1.8)),
-        const SizedBox(height: 12),
-        const Text(
-          'الأرشيف المتاح يُصنّف حسب المادة والسنة والدور بعد التحقق من بيانات الورقة. لا ننسب أي سؤال إلى امتحان وزاري دون دليل.',
-          style: TextStyle( height: 1.8)),
-        const SizedBox(height: 12),
-        const Text('هذا التطبيق غير تابع لوزارة التربية العراقية.',
-          style: TextStyle(fontWeight: FontWeight.w800,)),
-        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topRight,
+              end: Alignment.bottomLeft,
+              colors: [Color(0xFF173D78), Color(0xFF2675E8)],
+            ),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: const Row(children: [
+            Icon(Icons.school_rounded, color: Colors.white, size: 34),
+            SizedBox(width: 13),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('وزاريات الثالث متوسط', style: TextStyle(
+                  color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900,
+                )),
+                SizedBox(height: 5),
+                Text('كل ما تحتاجه من معلومات ومساعدة', style: TextStyle(
+                  color: Colors.white70, fontSize: 12,
+                )),
+              ],
+            )),
+          ]),
+        ),
+        _sectionTitle(context, 'الدعم والخصوصية', Icons.support_agent_rounded),
         Card(
           child: ListTile(
             leading: const Icon(Icons.privacy_tip_outlined, color: blue),
             title: const Text('سياسة الخصوصية',
               style: TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: const Text('كيف يتعامل التطبيق مع الأسئلة والمحفوظات'),
+            subtitle: const Text('البيانات والمساعد الذكي والبلاغات'),
             trailing: const Icon(Icons.chevron_left),
             onTap: () => Navigator.push(context, MaterialPageRoute(
               builder: (_) => const PrivacyScreen())),
           ),
         ),
-        const SizedBox(height: 8),
-        ValueListenableBuilder<bool>(
-          valueListenable: ThemeController.isDark,
-          builder: (context, isDark, _) => SwitchListTile(
-            secondary: Icon(isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded),
-            title: const Text('الوضع الليلي'),
-            subtitle: const Text('حفظ اختيارك على هذا الجهاز'),
-            value: isDark,
-            onChanged: ThemeController.toggle,
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.rate_review_outlined, color: blue),
+            title: const Text('إرسال ملاحظة أو اقتراح',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: const Text('ساعدنا على تطوير التطبيق وتحسينه'),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => _sendSuggestion(context),
           ),
         ),
-        const Text('الإصدار 1.0.3',
-          textAlign: TextAlign.center,
-          style: TextStyle( fontSize: 12)),
+        _sectionTitle(context, 'معلومات التطبيق والتنويهات', Icons.info_outline_rounded),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('نبذة عن التطبيق', style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: Theme.of(context).colorScheme.onSurface,
+                )),
+                const SizedBox(height: 7),
+                Text(
+                  'منصة تعليمية مستقلة تساعد طلبة الثالث متوسط في العراق على مراجعة المواد والأوراق الامتحانية والاستفادة من المساعد الذكي.',
+                  style: TextStyle(
+                    height: 1.7,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const Divider(height: 24),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                  const SizedBox(width: 9),
+                  Expanded(child: Text(
+                    'هذا التطبيق مستقل وغير تابع لوزارة التربية العراقية أو أي جهة حكومية.',
+                    style: TextStyle(
+                      height: 1.65,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  )),
+                ]),
+                const SizedBox(height: 13),
+                Text('ضوابط الأرشيف', style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: Theme.of(context).colorScheme.onSurface,
+                )),
+                const SizedBox(height: 6),
+                Text(
+                  'تُصنّف الأوراق المتاحة حسب المادة والسنة والدور وفق المعلومات المتوفرة. لا يُنسب سؤال إلى امتحان وزاري دون دليل، وقد تكون بعض المواد أو السنوات قيد التجهيز والتحقق. يُرجى مطابقة الأسئلة والحلول مع الكتاب المدرسي والمدرس.',
+                  style: TextStyle(
+                    height: 1.7,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.verified_outlined, color: blue),
+            title: const Text('إصدار التطبيق',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+            trailing: const Text('1.0.3',
+              style: TextStyle(fontWeight: FontWeight.w900)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Center(child: Text(
+          'صُنع لمساندة رحلتك الدراسية',
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        )),
       ],
     ),
   );
