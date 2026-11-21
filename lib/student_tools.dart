@@ -13,6 +13,237 @@ class PomodoroScreen extends StatefulWidget {
   @override
   State<PomodoroScreen> createState() => _PomodoroScreenState();
 }
+class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObserver {
+  static const _prefix = 'study_pomodoro_v1_';
+  Timer? _ticker;
+  int _studyMinutes = 25, _breakMinutes = 5, _remainingSeconds = 1500;
+  int _completedToday = 0;
+  bool _isBreak = false, _isRunning = false;
+  int? _deadlineMs;
+  static String _todayKey() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month}-${now.day}';
+  }
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _restore();
+  }
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _ticker?.cancel();
+    super.dispose();
+  }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _tick();
+  }
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final today = _todayKey();
+    final sameDay = (prefs.getString('${_prefix}date') ?? today) == today;
+    setState(() {
+      _studyMinutes = prefs.getInt('${_prefix}study') ?? 25;
+      _breakMinutes = prefs.getInt('${_prefix}break') ?? 5;
+      _isBreak = prefs.getBool('${_prefix}breakMode') ?? false;
+      _isRunning = prefs.getBool('${_prefix}running') ?? false;
+      _deadlineMs = prefs.getInt('${_prefix}deadline');
+      _remainingSeconds = prefs.getInt('${_prefix}remaining') ?? _studyMinutes * 60;
+      _completedToday = sameDay ? (prefs.getInt('${_prefix}count') ?? 0) : 0;
+    });
+    if (_isRunning && _deadlineMs != null) {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+      _tick();
+    } else {
+      _remainingSeconds = _remainingSeconds.clamp(0, 7200);
+    }
+  }
+  Future<void> _persist() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('${_prefix}study', _studyMinutes);
+    await prefs.setInt('${_prefix}break', _breakMinutes);
+    await prefs.setBool('${_prefix}breakMode', _isBreak);
+    await prefs.setBool('${_prefix}running', _isRunning);
+    await prefs.setInt('${_prefix}remaining', _remainingSeconds);
+    await prefs.setString('${_prefix}date', _todayKey());
+    await prefs.setInt('${_prefix}count', _completedToday);
+    if (_deadlineMs == null) {
+      await prefs.remove('${_prefix}deadline');
+    } else {
+      await prefs.setInt('${_prefix}deadline', _deadlineMs!);
+    }
+  }
+  void _tick() {
+    if (!_isRunning || _deadlineMs == null || !mounted) return;
+    final left = ((_deadlineMs! - DateTime.now().millisecondsSinceEpoch) / 1000).ceil();
+    if (left > 0) {
+      if (_remainingSeconds != left) setState(() => _remainingSeconds = left);
+      return;
+    }
+    _ticker?.cancel();
+    if (_isBreak) {
+      setState(() {
+        _isBreak = false; _isRunning = false; _deadlineMs = null;
+        _remainingSeconds = _studyMinutes * 60;
+      });
+    } else {
+      setState(() {
+        _completedToday++; _isBreak = true; _isRunning = true;
+        _remainingSeconds = _breakMinutes * 60;
+        _deadlineMs = DateTime.now().add(Duration(minutes: _breakMinutes)).millisecondsSinceEpoch;
+      });
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+    }
+    _persist();
+  }
+  Future<void> _startPause() async {
+    if (_isRunning) {
+      final left = _deadlineMs == null ? _remainingSeconds :
+        ((_deadlineMs! - DateTime.now().millisecondsSinceEpoch) / 1000).ceil();
+      _ticker?.cancel();
+      setState(() {
+        _remainingSeconds = left.clamp(0, 7200);
+        _isRunning = false; _deadlineMs = null;
+      });
+    } else {
+      setState(() {
+        _isRunning = true;
+        _deadlineMs = DateTime.now().add(Duration(seconds: _remainingSeconds)).millisecondsSinceEpoch;
+      });
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+    }
+    await _persist();
+  }
+  Future<void> _reset() async {
+    _ticker?.cancel();
+    setState(() {
+      _isRunning = false; _deadlineMs = null;
+      _remainingSeconds = (_isBreak ? _breakMinutes : _studyMinutes) * 60;
+    });
+    await _persist();
+  }
+  Future<void> _switchMode() async {
+    _ticker?.cancel();
+    setState(() {
+      _isBreak = !_isBreak; _isRunning = false; _deadlineMs = null;
+      _remainingSeconds = (_isBreak ? _breakMinutes : _studyMinutes) * 60;
+    });
+    await _persist();
+  }
+  Future<void> _selectPreset(int study, int rest) async {
+    _ticker?.cancel();
+    setState(() {
+      _studyMinutes = study; _breakMinutes = rest; _isBreak = false;
+      _isRunning = false; _deadlineMs = null; _remainingSeconds = study * 60;
+    });
+    await _persist();
+  }
+  Future<void> _customDurations() async {
+    final study = TextEditingController(text: '30');
+    final rest = TextEditingController(text: '7');
+    final values = await showDialog<List<int>>(context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تخصيص وقت الجلسة'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: study, keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'الدراسة بالدقائق (5–120)')),
+          const SizedBox(height: 8),
+          TextField(controller: rest, keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'الاستراحة بالدقائق (1–30)')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+          FilledButton(onPressed: () {
+            final a = int.tryParse(study.text), b = int.tryParse(rest.text);
+            if (a == null || b == null || a < 5 || a > 120 || b < 1 || b > 30) return;
+            Navigator.pop(dialogContext, [a, b]);
+          }, child: const Text('حفظ')),
+        ],
+      ));
+    study.dispose(); rest.dispose();
+    if (values != null) await _selectPreset(values[0], values[1]);
+  }
+  String get _timeText {
+    final minutes = _remainingSeconds ~/ 60, seconds = _remainingSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final total = (_isBreak ? _breakMinutes : _studyMinutes) * 60;
+    final progress = total == 0 ? 0.0 : (1 - (_remainingSeconds / total)).clamp(0.0, 1.0);
+    return Directionality(textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('مؤقت الدراسة والاستراحة')),
+        body: ListView(padding: const EdgeInsets.all(18), children: [
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: '25', label: Text('25 / 5 دقيقة')),
+              ButtonSegment(value: '45', label: Text('45 / 10 دقيقة')),
+              ButtonSegment(value: 'custom', label: Text('تخصيص')),
+            ],
+            selected: {_studyMinutes == 25 && _breakMinutes == 5 ? '25' :
+              _studyMinutes == 45 && _breakMinutes == 10 ? '45' : 'custom'},
+            onSelectionChanged: (selection) {
+              final value = selection.first;
+              if (value == '25') _selectPreset(25, 5);
+              if (value == '45') _selectPreset(45, 10);
+              if (value == 'custom') _customDurations();
+            },
+          ),
+          const SizedBox(height: 22),
+          Card(child: Padding(padding: const EdgeInsets.all(22),
+            child: Column(children: [
+              Text(_isBreak ? 'وقت الاستراحة' : 'وقت الدراسة',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800,
+                  color: colors.onSurfaceVariant)),
+              const SizedBox(height: 20),
+              SizedBox(width: 220, height: 220,
+                child: Stack(alignment: Alignment.center, children: [
+                  SizedBox.expand(child: CircularProgressIndicator(
+                    value: progress, strokeWidth: 12,
+                    backgroundColor: colors.surfaceContainerHighest,
+                    strokeCap: StrokeCap.round,
+                    color: _isBreak ? const Color(0xFF16866A) : colors.primary)),
+                  Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(_timeText, style: const TextStyle(fontSize: 43, fontWeight: FontWeight.w900)),
+                    Text(_isRunning ? 'الجلسة تعمل' : 'متوقف مؤقتاً',
+                      style: TextStyle(color: colors.onSurfaceVariant)),
+                  ]),
+                ]),
+              ),
+              const SizedBox(height: 22),
+              Wrap(alignment: WrapAlignment.center, spacing: 9, runSpacing: 9,
+                children: [
+                  FilledButton.icon(onPressed: _startPause,
+                    icon: Icon(_isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                    label: Text(_isRunning ? 'إيقاف مؤقت' : 'ابدأ')),
+                  OutlinedButton.icon(onPressed: _reset,
+                    icon: const Icon(Icons.restart_alt_rounded), label: const Text('إعادة ضبط')),
+                  OutlinedButton.icon(onPressed: _switchMode,
+                    icon: const Icon(Icons.swap_horiz_rounded),
+                    label: Text(_isBreak ? 'العودة للدراسة' : 'ابدأ استراحة')),
+                ]),
+            ]),
+          )),
+          const SizedBox(height: 14),
+          Card(child: ListTile(
+            leading: const Icon(Icons.check_circle_rounded, color: Color(0xFF16866A)),
+            title: const Text('الجلسات المكتملة اليوم', style: TextStyle(fontWeight: FontWeight.w800)),
+            trailing: Text('$_completedToday', style: TextStyle(fontSize: 24,
+              fontWeight: FontWeight.w900, color: colors.primary)),
+          )),
+          const SizedBox(height: 8),
+          Text('عند انتهاء جلسة الدراسة ينتقل المؤقت تلقائياً إلى الاستراحة. عند انتهاء الاستراحة يتوقف بانتظار بدء جلسة جديدة. تُحفظ حالة المؤقت وعدد الجلسات على هذا الجهاز.',
+            style: TextStyle(fontSize: 12, height: 1.65, color: colors.onSurfaceVariant)),
+        ]),
+      ),
+    );
+  }
+}
 
 /// عدّل هذه التواريخ فقط عند صدور الجدول المعتمد.
 class ExamDates {
