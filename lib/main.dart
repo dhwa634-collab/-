@@ -2326,7 +2326,6 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     'https://wispy-union-276e.dhwa634.workers.dev/news');
   static final Uri _workerAdminUri = Uri.parse(
     'https://wispy-union-276e.dhwa634.workers.dev/news/admin');
-  static const String _adminPin = '123@123@';
   static final Uri _fallbackFeedUri = Uri.parse(
     'https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json');
 
