@@ -744,7 +744,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         .replaceAll(RegExp(r'(?:\+?964|0)7[0-9]{9}'), '[رقم هاتف محذوف]');
   }
 
-  Future<void> _reportAnswer() async {
+  Future<void> _reportAnswer({required String reportedAnswer}) async {
     const reasons = ['إجابة غير دقيقة', 'محتوى غير مناسب', 'مشكلة تقنية'];
     String selected = reasons.first;
     final noteController = TextEditingController();
@@ -805,6 +805,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         body: jsonEncode({
           'category': result['category'] ?? reasons.first,
           'note': result['note'] ?? '',
+          'reportedAnswer': _sanitizeStudentText(reportedAnswer).length > 5000
+              ? _sanitizeStudentText(reportedAnswer).substring(0, 5000)
+              : _sanitizeStudentText(reportedAnswer),
         }),
       ).timeout(const Duration(seconds: 15));
       Map<String, dynamic> data = {};
@@ -1069,7 +1072,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                                     size: 17, color: Colors.blueGrey),
                                 ),
                                 TextButton.icon(
-                                  onPressed: _reportAnswer,
+                                  onPressed: () => _reportAnswer(reportedAnswer: messageText),
                                   icon: const Icon(Icons.flag_outlined, size: 17),
                                   label: const Text('إبلاغ'),
                                   style: TextButton.styleFrom(
