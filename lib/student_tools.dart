@@ -325,6 +325,9 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
     final colors = Theme.of(context).colorScheme;
     final total = (_isBreak ? _breakMinutes : _studyMinutes) * 60;
     final progress = total == 0 ? 0.0 : (1 - (_remainingSeconds / total)).clamp(0.0, 1.0).toDouble();
+    const dailySessionGoal = 4;
+    final dailyGoalProgress =
+        (_completedToday / dailySessionGoal).clamp(0.0, 1.0).toDouble();
     return Directionality(textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(title: const Text('مؤقت الدراسة والاستراحة')),
@@ -477,6 +480,55 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
               title: const Text('دقائق الدراسة المنجزة اليوم', style: TextStyle(fontWeight: FontWeight.w800)),
               trailing: Text('$_completedStudyMinutesToday د', style: TextStyle(fontSize: 22,
                 fontWeight: FontWeight.w900, color: colors.primary)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text('هدفك اليومي • 4 جلسات',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: colors.onSurface,
+                          )),
+                      ),
+                      Text('$_completedToday / $dailySessionGoal',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: colors.primary,
+                        )),
+                    ],
+                  ),
+                  const SizedBox(height: 9),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(end: dailyGoalProgress),
+                      duration: const Duration(milliseconds: 450),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, _) => LinearProgressIndicator(
+                        value: value,
+                        minHeight: 9,
+                        backgroundColor: colors.surfaceContainerHighest,
+                        color: colors.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _completedToday >= dailySessionGoal
+                        ? 'أحسنت! حققت هدف المراجعة اليومي.'
+                        : 'باقي لك ${dailySessionGoal - _completedToday} جلسة حتى تحقق هدفك.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ])),
           const SizedBox(height: 8),
