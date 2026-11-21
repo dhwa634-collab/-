@@ -1367,7 +1367,7 @@ class NewsScreen extends StatefulWidget {
 }
 class _NewsScreenState extends State<NewsScreen> {
   static final Uri _feedUri = Uri.parse(
-    'https://dhwa634-collab.github.io/wizariyat-privacy/news.json');
+    'https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json');
   static const Map<String, String> _categories = {
     'all': 'الكل', 'updates': 'المستجدات', 'tips': 'نصائح دراسية',
     'students': 'تنويهات الطلبة / الخارجي', 'app': 'إرشادات التطبيق',
