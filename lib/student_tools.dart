@@ -100,38 +100,40 @@ class _CountdownTile extends StatelessWidget {
   }
 }
 
-class BookResource {
-  final String subject;
-  final String title;
-  final String? url;
-  const BookResource(this.subject, this.title, {this.url});
-  bool get isAvailable {
-    final uri = Uri.tryParse(url ?? '');
+/// مصدر موحد للمواد وبطاقات الوزاريات وروابط كتب PDF.
+class Subject {
+  final String name;
+  final IconData icon;
+  final Color color;
+  final String? pdfUrl;
+  const Subject(this.name, this.icon, this.color, {this.pdfUrl});
+  String get bookTitle => 'كتاب $name';
+  bool get hasPdf {
+    final uri = Uri.tryParse(pdfUrl ?? '');
     return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty;
   }
 }
-/// أضف رابط HTTPS موثوقاً في url عند توفره.
-// مصدر بيانات موحد لبطاقات الكتب؛ أضف رابط HTTPS موثوقاً داخل url عند توفر PDF.
-const List<BookResource> studyBooks = [
-  BookResource('التربية الإسلامية', 'كتاب التربية الإسلامية'),
-  BookResource('اللغة العربية', 'كتاب اللغة العربية'),
-  BookResource('اللغة الإنكليزية', 'كتاب اللغة الإنكليزية'),
-  BookResource('الرياضيات', 'كتاب الرياضيات'),
-  BookResource('الاجتماعيات', 'كتاب الاجتماعيات'),
-  BookResource('الأحياء', 'كتاب الأحياء'),
-  BookResource('الكيمياء', 'كتاب الكيمياء'),
-  BookResource('الفيزياء', 'كتاب الفيزياء'),
+
+const List<Subject> subjects = [
+  Subject('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A)),
+  Subject('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24)),
+  Subject('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9)),
+  Subject('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7)),
+  Subject('الاجتماعيات', Icons.public_rounded, Color(0xFFB65C69)),
+  Subject('الأحياء', Icons.biotech_rounded, Color(0xFF269B75)),
+  Subject('الكيمياء', Icons.science_rounded, Color(0xFF2787B8)),
+  Subject('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25)),
 ];
 
 class BooksLibraryScreen extends StatelessWidget {
   const BooksLibraryScreen({super.key});
-  Future<void> _openBook(BuildContext context, BookResource book) async {
-    if (!book.isAvailable) {
+  Future<void> _openBook(BuildContext context, Subject book) async {
+    if (!book.hasPdf) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('هذا الكتاب قيد التجهيز. سنضيف رابط PDF بعد التحقق من مصدره.')));
       return;
     }
-    final uri = Uri.tryParse(book.url!);
+    final uri = Uri.tryParse(book.pdfUrl!);
     if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('رابط الكتاب غير صالح.')));
@@ -170,7 +172,7 @@ class BooksLibraryScreen extends StatelessWidget {
             ]),
           ),
           const SizedBox(height: 12),
-          ...studyBooks.map((book) {
+          ...subjects.map((book) {
             final ready = book.isAvailable;
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
@@ -197,7 +199,7 @@ class BooksLibraryScreen extends StatelessWidget {
                     Expanded(child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(book.title, maxLines: 2,
+                        Text(book.bookTitle, maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontWeight: FontWeight.w900,
                             fontSize: 14, height: 1.35, color: colors.onSurface)),
