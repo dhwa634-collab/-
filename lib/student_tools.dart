@@ -173,7 +173,7 @@ class BooksLibraryScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ...subjects.map((book) {
-            final ready = book.isAvailable;
+            final ready = book.hasPdf;
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
               clipBehavior: Clip.antiAlias,
