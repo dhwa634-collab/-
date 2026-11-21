@@ -1,7 +1,7 @@
 name: third_intermediate_iraq
-description: تطبيق أسئلة الثالث المتوسط الوزارية والتمهيدية في العراق.
+description: دليلك الدراسي للثالث المتوسط في العراق: الكتب والامتحانات والمراجعة الذكية.
 publish_to: 'none'
-version: 1.0.3+4
+version: 1.1.0+5
 environment:
   sdk: '>=3.3.0 <4.0.0'
 dependencies:
