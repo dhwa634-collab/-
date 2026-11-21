@@ -20,6 +20,59 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
   int _completedToday = 0;
   bool _isBreak = false, _isRunning = false;
   int? _deadlineMs;
+  int _quoteIndex = 0;
+
+  static const List<String> _motivationalQuotes = [
+    'كل صفحة تقرؤها اليوم تقرّبك من حلمك.',
+    'لا تنتظر الحماس؛ ابدأ وسيأتي الحماس بالطريق.',
+    'خطوة صغيرة كل يوم تصنع نجاحاً كبيراً.',
+    'أنت أقوى من التسويف، ابدأ الآن.',
+    'افهم الفكرة، ثم ستصبح المسائل أسهل.',
+    'تعب اليوم هو فخر الغد.',
+    'لا تقارن بدايتك بإنجاز غيرك؛ نافس نفسك.',
+    'استمر، فكل محاولة تزيد خبرتك.',
+    'رتّب وقتك، وامنح كل مادة حقها.',
+    'النجاح ليس صدفة؛ إنه عادة يومية.',
+    'إذا أخطأت في سؤال فقد تعلمت طريقاً جديداً.',
+    'خذ نفساً عميقاً، ثم أكمل بثقة.',
+    'ساعة تركيز أفضل من ساعات من التشتت.',
+    'أحلامك تستحق أن تمنحها وقتاً وجهداً.',
+    'لا تؤجل إنجاز اليوم إلى الغد.',
+    'أنت تتقدم حتى لو كان تقدمك بطيئاً.',
+    'اجعل هدفك الفهم لا مجرد حفظ الإجابة.',
+    'كل مراجعة تثبّت معلومة في ذاكرتك.',
+    'ابدأ بالأصعب، وستشعر بالإنجاز بعدها.',
+    'الاستراحة الذكية جزء من الدراسة الناجحة.',
+    'ثق بنفسك، فأنت قادر على تجاوز الصعب.',
+    'لا تخف من كثرة المنهج؛ قسّمه إلى خطوات.',
+    'التركيز مهارة تقوى بالتدريب.',
+    'اليوم فرصة جديدة لتكون أفضل من الأمس.',
+    'واصل، فالثبات يصنع الفرق.',
+    'ضع هاتفك جانباً، فمستقبلك يستحق تركيزك.',
+    'كل سؤال تحله يزيد ثقتك بنفسك.',
+    'لا تبحث عن الكمال؛ ابحث عن التقدم.',
+    'أنت لا تدرس للامتحان فقط، بل تبني مستقبلك.',
+    'ابدأ بعشر دقائق، وقد تنجز أكثر مما تتوقع.',
+    'المعلومة التي تراجعها اليوم سترافقك غداً.',
+    'حين تتعب، تذكر لماذا بدأت.',
+    'الإنجاز الكبير يبدأ بقرار صغير.',
+    'استعن بالله، وخذ بالأسباب، ولا تستسلم.',
+    'اجعل لكل جلسة هدفاً واضحاً.',
+    'الهدوء والتركيز أقوى من العجلة.',
+    'أنت أقرب إلى هدفك مما كنت عليه بالأمس.',
+    'لا تجعل سؤالاً صعباً يوقف رحلتك.',
+    'استرح قليلاً ثم عُد أقوى.',
+    'كل دقيقة تركيز استثمار في مستقبلك.',
+    'نظّم أفكارك، وسترى الطريق أوضح.',
+    'تعلّم من الخطأ ولا تكرره.',
+    'النجاح يحتاج صبراً أكثر مما يحتاج سرعة.',
+    'اليوم تزرع، وغداً تحصد بإذن الله.',
+    'أكمل هذه الجلسة بفخر؛ أنت تستحق النجاح.',
+  ];
+
+  void _nextQuote() {
+    setState(() => _quoteIndex = (_quoteIndex + 1) % _motivationalQuotes.length);
+  }
   static String _todayKey() {
     final now = DateTime.now();
     return '${now.year}-${now.month}-${now.day}';
@@ -88,10 +141,12 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
       setState(() {
         _isBreak = false; _isRunning = false; _deadlineMs = null;
         _remainingSeconds = _studyMinutes * 60;
+        _quoteIndex = (_quoteIndex + 1) % _motivationalQuotes.length;
       });
     } else {
       setState(() {
         _completedToday++; _isBreak = true; _isRunning = true;
+        _quoteIndex = (_quoteIndex + 1) % _motivationalQuotes.length;
         _remainingSeconds = _breakMinutes * 60;
         _deadlineMs = DateTime.now().add(Duration(minutes: _breakMinutes)).millisecondsSinceEpoch;
       });
@@ -130,6 +185,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
     setState(() {
       _isBreak = !_isBreak; _isRunning = false; _deadlineMs = null;
       _remainingSeconds = (_isBreak ? _breakMinutes : _studyMinutes) * 60;
+      _quoteIndex = (_quoteIndex + 1) % _motivationalQuotes.length;
     });
     await _persist();
   }
@@ -197,9 +253,27 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
           const SizedBox(height: 22),
           Card(child: Padding(padding: const EdgeInsets.all(22),
             child: Column(children: [
-              Text(_isBreak ? 'وقت الاستراحة' : 'وقت الدراسة',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800,
-                  color: colors.onSurfaceVariant)),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 420),
+                switchInCurve: Curves.easeOutBack,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(scale: animation, child: child)),
+                child: Row(
+                  key: ValueKey(_isBreak),
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(_isBreak ? Icons.coffee_rounded : Icons.menu_book_rounded,
+                      color: _isBreak ? const Color(0xFF16866A) : colors.primary,
+                      size: 24),
+                    const SizedBox(width: 9),
+                    Text(_isBreak ? 'وقت الاستراحة' : 'وقت الدراسة',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800,
+                        color: colors.onSurfaceVariant)),
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
               SizedBox(width: 220, height: 220,
                 child: Stack(alignment: Alignment.center, children: [
@@ -230,6 +304,51 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
             ]),
           )),
           const SizedBox(height: 14),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 15, 16, 13),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.auto_awesome_rounded, color: colors.primary),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('جرعة تحفيز',
+                      style: TextStyle(fontWeight: FontWeight.w900))),
+                    TextButton.icon(
+                      onPressed: _nextQuote,
+                      icon: const Icon(Icons.refresh_rounded, size: 17),
+                      label: const Text('عبارة جديدة'),
+                    ),
+                  ]),
+                  const SizedBox(height: 7),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 350),
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, .10), end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
+                      ),
+                    ),
+                    child: Text(
+                      _motivationalQuotes[_quoteIndex],
+                      key: ValueKey(_quoteIndex),
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.7,
+                        fontWeight: FontWeight.w700,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
           Card(child: ListTile(
             leading: const Icon(Icons.check_circle_rounded, color: Color(0xFF16866A)),
             title: const Text('الجلسات المكتملة اليوم', style: TextStyle(fontWeight: FontWeight.w800)),
@@ -245,12 +364,12 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
   }
 }
 
-/// عدّل هذه التواريخ فقط عند صدور الجدول المعتمد.
+/// عدّل هذه التواريخ فقط عند صدور الجداول الرسمية.
 class ExamDates {
-  // عدد الأيام المعروض للتمهيدي إلى حين تثبيت الموعد الرسمي.
-  // غيّر هذه القيمة وحدها لتحديث العدّاد مؤقتاً.
-  static const int preparatoryDaysRemaining = 76;
-  static const DateTime? preparatory = null;
+  // 5 شباط 2027 يبعد 76 يوماً عن 21 تشرين الثاني 2026.
+  // غيّر التاريخ هنا وحده عند اعتماد الموعد الرسمي.
+  static const DateTime? preparatory = DateTime(2027, 2, 5);
+  // اتركه null إلى أن يُعلن الموعد الوزاري المعتمد.
   static const DateTime? ministerial = null;
 }
 
@@ -280,7 +399,7 @@ class _ExamCountdownSectionState extends State<ExamCountdownSection> {
       const SizedBox(height: 9),
       Row(children: [
         Expanded(child: _CountdownTile(title: 'الامتحانات التمهيدية',
-          date: ExamDates.preparatory, daysOverride: ExamDates.preparatoryDaysRemaining,
+          date: ExamDates.preparatory,
           icon: Icons.edit_calendar_rounded, tint: const Color(0xFF16866A))),
         const SizedBox(width: 10),
         Expanded(child: _CountdownTile(title: 'الامتحانات الوزارية',
@@ -297,32 +416,33 @@ class _ExamCountdownSectionState extends State<ExamCountdownSection> {
 class _CountdownTile extends StatelessWidget {
   final String title;
   final DateTime? date;
-  final int? daysOverride;
   final IconData icon;
   final Color tint;
   const _CountdownTile({required this.title, required this.date,
-    this.daysOverride, required this.icon, required this.tint});
+    required this.icon, required this.tint});
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     String value;
     String detail;
-    if (daysOverride != null) {
-      value = '$daysOverride يوم';
-      detail = 'متبقية تقريباً';
-    } else if (date == null) {
+    if (date == null) {
       value = 'لم يُعلن';
       detail = 'بانتظار الموعد المعتمد';
     } else {
-      final difference = date!.difference(DateTime.now());
-      if (difference.isNegative) {
-        value = 'بدأ الموعد';
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final targetDay = DateTime(date!.year, date!.month, date!.day);
+      final days = targetDay.difference(today).inDays;
+      if (days < 0) {
+        value = 'انتهى الموعد';
         detail = 'راجع الجدول الرسمي';
+      } else if (days == 0) {
+        value = 'اليوم';
+        detail = 'موعد الامتحان';
       } else {
-        final days = difference.inDays;
-        final hours = difference.inHours.remainder(24);
-        value = days > 0 ? '$days يوم' : '${difference.inHours} ساعة';
-        detail = days > 0 ? 'و $hours ساعة تقريباً' : 'متبقية';
+        value = '$days يوم';
+        detail = 'متبقية';
       }
     }
     return Container(
@@ -418,6 +538,16 @@ class BooksLibraryScreen extends StatefulWidget {
 }
 
 class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
+  final Subject? subject;
+  final int cardStyle;
+  final Color accentColor;
+  const BooksLibraryScreen({
+    super.key,
+    this.subject,
+    this.cardStyle = 0,
+    this.accentColor = const Color(0xFF2868D7),
+  });
+
   final Map<String, double> _progress = {};
   final Set<String> _downloading = {};
   final Set<String> _downloaded = {};
@@ -595,10 +725,12 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final visibleBooks = subject == null ? subjects : <Subject>[subject!];
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('الكتب الثالث متوسط')),
+        appBar: AppBar(title: Text(subject == null
+          ? 'الكتب الثالث متوسط' : 'كتاب ${subject!.name}')),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -626,7 +758,7 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: subjects.length,
+              itemCount: visibleBooks.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 crossAxisSpacing: 11,
@@ -634,7 +766,7 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
                 childAspectRatio: .88,
               ),
               itemBuilder: (context, index) {
-                final book = subjects[index];
+                final book = visibleBooks[index];
                 final parts = book.availableParts.where((part) => part.isAvailable);
                 final available = parts.isNotEmpty;
                 final part = available ? parts.first : null;
@@ -651,7 +783,11 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
                   margin: EdgeInsets.zero,
                   clipBehavior: Clip.antiAlias,
                   elevation: 0,
-                  color: colors.surfaceContainerLow,
+                  color: cardStyle == 1
+                      ? Color.alphaBlend(book.color.withValues(alpha: .10), colors.surface)
+                      : cardStyle == 2
+                          ? Color.alphaBlend(accentColor.withValues(alpha: .13), colors.surface)
+                          : colors.surfaceContainerLow,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
                     side: BorderSide(
