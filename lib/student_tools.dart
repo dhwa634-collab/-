@@ -387,9 +387,9 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
 class ExamDates {
   // 5 شباط 2027 يبعد 76 يوماً عن 21 تشرين الثاني 2026.
   // غيّر التاريخ هنا وحده عند اعتماد الموعد الرسمي.
-  static const DateTime? preparatory = DateTime(2027, 2, 5);
+  static final DateTime? preparatory = DateTime(2027, 2, 5);
   // اتركه null إلى أن يُعلن الموعد الوزاري المعتمد.
-  static const DateTime? ministerial = null;
+  static final DateTime? ministerial = null;
 }
 
 class ExamCountdownSection extends StatefulWidget {
