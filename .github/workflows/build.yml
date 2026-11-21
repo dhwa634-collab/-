@@ -1,4 +1,4 @@
-name: Build Third Intermediate Android Releases
+name: Build Dalilak Lilnajah Android Releases
 on:
   push:
     branches: [main, master]
@@ -62,7 +62,7 @@ jobs:
         run: flutter build appbundle --release
       - uses: actions/upload-artifact@v4
         with:
-          name: third-intermediate-iraq-android-preview
+          name: dalilak-lilnajah-android-preview
           path: |
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/bundle/release/app-release.aab
