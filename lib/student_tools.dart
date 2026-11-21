@@ -7,7 +7,12 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
+
+class PomodoroScreen extends StatefulWidget {
+  const PomodoroScreen({super.key});
+  @override
+  State<PomodoroScreen> createState() => _PomodoroScreenState();
+}
 
 /// عدّل هذه التواريخ فقط عند صدور الجدول المعتمد.
 class ExamDates {
