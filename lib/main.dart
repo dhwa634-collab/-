@@ -2130,8 +2130,6 @@ class _NewsScreenState extends State<NewsScreen> {
   // also enforced by NEWS_ADMIN_PIN in the Cloudflare Worker environment.
   static final Uri _workerNewsUri = Uri.parse(
     'https://wispy-union-276e.dhwa634.workers.dev/news');
-  static final Uri _workerAdminUri = Uri.parse(
-    'https://wispy-union-276e.dhwa634.workers.dev/news/admin');
   static final Uri _feedUri = Uri.parse(
     'https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json');
   static const Map<String, String> _categories = {
@@ -2415,9 +2413,11 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
         );
       }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تعذر نشر الخبر: $error')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر نشر الخبر: $error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _working = false);
     }
@@ -2467,9 +2467,11 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
         );
       }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تعذر حذف الخبر: $error')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر حذف الخبر: $error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _working = false);
     }
