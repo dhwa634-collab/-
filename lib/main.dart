@@ -9,18 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'student_tools.dart';
 Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); await ThemeController.load(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
-const subjects=<Subject>[
- Subject('التربية الإسلامية',Icons.mosque_rounded,Color(0xFF16866A)),
- Subject('اللغة العربية',Icons.menu_book_rounded,Color(0xFFB76E24)),
- Subject('اللغة الإنكليزية',Icons.translate_rounded,Color(0xFF5267C9)),
- Subject('الرياضيات',Icons.functions_rounded,Color(0xFF7A52C7)),
- Subject('الاجتماعيات',Icons.public_rounded,Color(0xFFB65C69)),
- Subject('الأحياء',Icons.biotech_rounded,Color(0xFF269B75)),
- Subject('الكيمياء',Icons.science_rounded,Color(0xFF2787B8)),
- Subject('الفيزياء',Icons.bolt_rounded,Color(0xFFD18A25)),
-];
-class Subject {final String name; final IconData icon; final Color color; const Subject(this.name,this.icon,this.color);}
-
 class SavedExamsStore {
   static const String _storageKey = 'saved_exam_sheets_v1';
   static final ValueNotifier<List<Map<String, String>>> items =
