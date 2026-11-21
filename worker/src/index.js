@@ -1,6 +1,6 @@
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
   "Cache-Control": "no-store",
 };
@@ -17,11 +17,106 @@ function json(data, status = 200) {
   return Response.json(data, { status, headers: corsHeaders });
 }
 
+const NEWS_FEED_KEY = "news:feed";
+const NEWS_FALLBACK_URL =
+  "https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json";
+const NEWS_CATEGORIES = ["updates", "tips", "students", "app"];
+
+async function readNewsFeed(env) {
+  if (env.AI_REPORTS) {
+    const stored = await env.AI_REPORTS.get(NEWS_FEED_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed && Array.isArray(parsed.posts)) return parsed;
+      } catch (_) {}
+    }
+  }
+  try {
+    const response = await fetch(NEWS_FALLBACK_URL, {
+      headers: { "Accept": "application/json", "Cache-Control": "no-cache" },
+    });
+    if (response.ok) {
+      const parsed = await response.json();
+      if (parsed && Array.isArray(parsed.posts)) return parsed;
+    }
+  } catch (_) {}
+  return { version: 1, updatedAt: new Date().toISOString().slice(0, 10), posts: [] };
+}
+
+async function handleNewsAdmin(request, env) {
+  if (!env.AI_REPORTS) {
+    return json({ error: "ربط KV باسم AI_REPORTS غير مهيأ." }, 503);
+  }
+  if (!env.NEWS_ADMIN_PIN) {
+    return json({ error: "سر إدارة الأخبار NEWS_ADMIN_PIN غير مضبوط على Worker." }, 503);
+  }
+  try {
+    const body = await request.json();
+    if (String(body.pin || "") !== String(env.NEWS_ADMIN_PIN)) {
+      return json({ error: "رمز المطوّر غير صحيح." }, 401);
+    }
+    const feed = await readNewsFeed(env);
+    const posts = Array.isArray(feed.posts) ? feed.posts : [];
+    const action = String(body.action || "");
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (action === "publish") {
+      const input = body.post && typeof body.post === "object" ? body.post : {};
+      const title = sanitizeStudentText(input.title, 100).trim();
+      const content = sanitizeStudentText(input.body, 2000).trim();
+      const category = NEWS_CATEGORIES.includes(input.category) ? input.category : null;
+      if (!title || !content || !category) {
+        return json({ error: "عنوان الخبر ونصه وتصنيفه مطلوبة." }, 400);
+      }
+      const post = {
+        id: "post-" + Date.now() + "-" + crypto.randomUUID(),
+        title,
+        body: content,
+        category,
+        date: today,
+        pinned: input.pinned === true,
+      };
+      posts.unshift(post);
+    } else if (action === "delete") {
+      const id = String(body.id || "").slice(0, 160);
+      if (!id) return json({ error: "معرّف الخبر غير صالح." }, 400);
+      const index = posts.findIndex((post) => String(post.id || "") === id);
+      if (index < 0) return json({ error: "لم يتم العثور على الخبر المطلوب." }, 404);
+      posts.splice(index, 1);
+    } else {
+      return json({ error: "عملية إدارة الأخبار غير معروفة." }, 400);
+    }
+
+    posts.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return String(b.date || "").localeCompare(String(a.date || ""));
+    });
+    const updated = { version: 1, updatedAt: today, posts: posts.slice(0, 200) };
+    await env.AI_REPORTS.put(NEWS_FEED_KEY, JSON.stringify(updated));
+    return json({ success: true, feed: updated });
+  } catch (_) {
+    return json({ error: "تعذر تحديث الأخبار في التخزين. حاول مرة ثانية." }, 500);
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
+    }
+    if (request.method === "GET" && url.pathname === "/news") {
+      if (!env.AI_REPORTS) {
+        // Read-only fallback keeps the existing public GitHub feed working
+        // until the KV binding is configured on the Worker.
+        const feed = await readNewsFeed(env);
+        return json(feed);
+      }
+      return json(await readNewsFeed(env));
+    }
+    if (request.method === "POST" && url.pathname === "/news/admin") {
+      return handleNewsAdmin(request, env);
     }
     if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
     if (url.pathname === "/report") {
