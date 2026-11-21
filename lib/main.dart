@@ -403,11 +403,13 @@ class _ArchiveSearchScreenState extends State<ArchiveSearchScreen> {
               style: const TextStyle(fontWeight: FontWeight.w900, )),
             const SizedBox(height: 8),
             if (items.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(28),
-                child: Text('ماكو أوراق مطابقة حالياً. الأرشيف يُحدّث تدريجياً.',
+              Padding(
+                padding: const EdgeInsets.all(28),
+                child: Text(subjectFilter == 'كل المواد'
+                  ? 'ماكو أوراق مطابقة حالياً. الأرشيف يُحدّث تدريجياً.'
+                  : 'أرشيف مادة $subjectFilter لهذا الاختيار قيد التجهيز، وسيظهر هنا بعد تصنيف الأوراق والتحقق منها.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.blueGrey, height: 1.7)),
+                  style: const TextStyle(height: 1.7)),
               )
             else
               ...items.map((item) => Card(
@@ -701,7 +703,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
                           padding: EdgeInsets.all(12),
                           child: Text('اضغط على الصورة للتكبير',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
+                            style: TextStyle( fontSize: 12)),
                         ),
                       ],
                     ),
@@ -727,7 +729,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
                       ? 'الصور التي لم يُتحقق بعد من سنتها ودورها لم نضعها في تصنيف عشوائي.'
                       : 'سيُضاف أرشيف هذه المادة عند توفر أوراقها الأصلية.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.blueGrey, height: 1.8),
+                    style: const TextStyle( height: 1.8),
                   ),
                 ]),
               ),
@@ -751,13 +753,13 @@ class Saved extends StatelessWidget {
           return const Center(child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.bookmark_border, size: 55, color: Colors.blueGrey),
+              Icon(Icons.bookmark_border, size: 55,),
               SizedBox(height: 12),
               Text('المحفوظات', style: TextStyle(
                 fontSize: 21, fontWeight: FontWeight.w900, )),
               SizedBox(height: 5),
               Text('احفظ أوراق الامتحانات لتصل إليها بسرعة هنا',
-                style: TextStyle(color: Colors.blueGrey)),
+                style: TextStyle()),
             ],
           ));
         }
@@ -768,7 +770,7 @@ class Saved extends StatelessWidget {
               fontSize: 23, fontWeight: FontWeight.w900, )),
             const SizedBox(height: 5),
             Text('${saved.length} ورقة محفوظة للمراجعة',
-              style: const TextStyle(color: Colors.blueGrey)),
+              style: const TextStyle()),
             const SizedBox(height: 14),
             ...saved.map((exam) => Card(
               margin: const EdgeInsets.only(bottom: 10),
@@ -839,10 +841,10 @@ class About extends StatelessWidget {
         const SizedBox(height: 12),
         const Text(
           'الأرشيف المتاح يُصنّف حسب المادة والسنة والدور بعد التحقق من بيانات الورقة. لا ننسب أي سؤال إلى امتحان وزاري دون دليل.',
-          style: TextStyle(color: Colors.blueGrey, height: 1.8)),
+          style: TextStyle( height: 1.8)),
         const SizedBox(height: 12),
         const Text('هذا التطبيق غير تابع لوزارة التربية العراقية.',
-          style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blueGrey)),
+          style: TextStyle(fontWeight: FontWeight.w800,)),
         const SizedBox(height: 18),
         Card(
           child: ListTile(
@@ -868,7 +870,7 @@ class About extends StatelessWidget {
         ),
         const Text('الإصدار 1.0.2',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
+          style: TextStyle( fontSize: 12)),
       ],
     ),
   );
@@ -941,7 +943,7 @@ class PrivacyScreen extends StatelessWidget {
           const SizedBox(height: 12),
           const Text(
             'تُفتح الصفحة الرسمية للسياسة عبر اتصال الإنترنت. عند تحديث السياسة مستقبلاً سيبقى هذا الرابط نفسه صالحاً.',
-            style: TextStyle(color: Colors.blueGrey, height: 1.7, fontSize: 12),
+            style: TextStyle( height: 1.7, fontSize: 12),
           ),
         ],
       ),
@@ -1179,7 +1181,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                   ),
                 ),
                 const Text('سيُرسل سبب البلاغ ونص الإجابة المبلّغ عنها وملاحظتك الاختيارية إلى المطوّر لمراجعتها. لا نرسل نص سؤال الطالب.',
-                  style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+                  style: TextStyle(fontSize: 11,)),
               ],
             ),
           ),
@@ -1365,7 +1367,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           children: [
             Text('المساعد الذكي', style: TextStyle(fontWeight: FontWeight.w900)),
             Text('مساعدك لمواد الثالث المتوسط',
-              style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+              style: TextStyle(fontSize: 11,)),
           ],
         ),
         actions: [
@@ -1414,7 +1416,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2)),
                           SizedBox(width: 9),
                           Text('جاري التفكير...',
-                            style: TextStyle(color: Colors.blueGrey)),
+                            style: TextStyle()),
                         ],
                       ),
                     ),
@@ -1432,7 +1434,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     margin: const EdgeInsets.only(bottom: 11),
                     padding: const EdgeInsets.fromLTRB(14, 11, 14, 9),
                     decoration: BoxDecoration(
-                      color: isUser ? blue : Colors.white,
+                      color: isUser ? blue : Theme.of(context).cardColor,
                       border: failed ? Border.all(color: Colors.orange.shade300) : null,
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(18),
@@ -1473,7 +1475,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                                       ));
                                   },
                                   icon: const Icon(Icons.copy_rounded,
-                                    size: 17, color: Colors.blueGrey),
+                                    size: 17,),
                                 ),
                                 TextButton.icon(
                                   onPressed: () => _reportAnswer(reportedAnswer: messageText),
