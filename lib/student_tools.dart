@@ -157,88 +157,146 @@ class BooksLibraryScreen extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Directionality(textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('الكتب المنهجية PDF')),
-        body: ListView(padding: const EdgeInsets.all(16), children: [
-          Container(
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(color: colors.primaryContainer,
-              borderRadius: BorderRadius.circular(17)),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.menu_book_rounded, color: colors.onPrimaryContainer, size: 27),
-              const SizedBox(width: 11),
-              Expanded(child: Text(
-                'مكتبة كتب الثالث المتوسط. ستظهر الكتب المتاحة للفتح عند إضافة روابط PDF موثوقة.',
-                style: TextStyle(height: 1.6, color: colors.onPrimaryContainer))),
-            ]),
-          ),
-          const SizedBox(height: 12),
-          ...subjects.map((book) {
-            final ready = book.hasPdf;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              clipBehavior: Clip.antiAlias,
-              elevation: 0,
-              color: colors.surfaceContainerLow,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(17),
-                side: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
+        appBar: AppBar(title: const Text('الكتب الثالث متوسط')),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer,
+                borderRadius: BorderRadius.circular(17)),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.menu_book_rounded,
+                    color: colors.onPrimaryContainer, size: 27),
+                  const SizedBox(width: 11),
+                  Expanded(child: Text(
+                    'كتب مواد الثالث المتوسط. اختر الكتاب لمعرفة حالة توفره أو فتح ملف PDF عند إتاحة رابط موثوق.',
+                    style: TextStyle(height: 1.6,
+                      color: colors.onPrimaryContainer))),
+                ],
               ),
-              child: InkWell(
-                onTap: () => _openBook(context, book),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                  child: Row(children: [
-                    Container(
-                      width: 48, height: 48,
-                      decoration: BoxDecoration(
-                        color: colors.errorContainer,
-                        borderRadius: BorderRadius.circular(14)),
-                      child: Icon(Icons.picture_as_pdf_rounded,
-                        color: colors.onErrorContainer, size: 27)),
-                    const SizedBox(width: 13),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(book.bookTitle, maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontWeight: FontWeight.w900,
-                            fontSize: 14, height: 1.35, color: colors.onSurface)),
-                        const SizedBox(height: 5),
-                        Text('للثالث المتوسط',
-                          style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant)),
-                        const SizedBox(height: 7),
-                        Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: ready ? colors.primaryContainer : colors.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(20)),
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              Icon(ready ? Icons.check_circle_rounded : Icons.hourglass_top_rounded,
-                                size: 13,
-                                color: ready ? colors.onPrimaryContainer : colors.onSurfaceVariant),
-                              const SizedBox(width: 5),
-                              Text(ready ? 'متاح للفتح • إنترنت' : 'قيد التجهيز',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
-                                  color: ready ? colors.onPrimaryContainer : colors.onSurfaceVariant)),
-                            ]),
+            ),
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: subjects.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 11,
+                mainAxisSpacing: 11,
+                childAspectRatio: .88,
+              ),
+              itemBuilder: (context, index) {
+                final book = subjects[index];
+                final ready = book.hasPdf;
+                return Card(
+                  margin: EdgeInsets.zero,
+                  clipBehavior: Clip.antiAlias,
+                  elevation: 0,
+                  color: colors.surfaceContainerLow,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    side: BorderSide(
+                      color: colors.outlineVariant.withValues(alpha: .65)),
+                  ),
+                  child: InkWell(
+                    onTap: () => _openBook(context, book),
+                    borderRadius: BorderRadius.circular(18),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11, vertical: 13),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 49, height: 49,
+                              decoration: BoxDecoration(
+                                color: colors.errorContainer,
+                                borderRadius: BorderRadius.circular(15)),
+                              child: Icon(Icons.picture_as_pdf_rounded,
+                                color: colors.onErrorContainer, size: 27),
+                            ),
                           ),
-                        ),
-                      ],
-                    )),
-                    const SizedBox(width: 8),
-                    Icon(ready ? Icons.open_in_new_rounded : Icons.chevron_left_rounded,
-                      color: colors.onSurfaceVariant),
-                  ]),
-                ),
-              ),
-            );
-          }),
-          const SizedBox(height: 8),
-          Text('تنويه: لا تمثل هذه المكتبة جهة حكومية أو وزارة، ولا ننسب أي ملف إلى جهة رسمية إلا بعد التحقق من مصدره ومحتواه.',
-            style: TextStyle(fontSize: 12, height: 1.65, color: colors.onSurfaceVariant)),
-        ]),
+                          const SizedBox(height: 11),
+                          Text(
+                            book.bookTitle,
+                            textAlign: TextAlign.center,
+                            maxLines: 3,
+                            softWrap: true,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13,
+                              height: 1.3,
+                              color: colors.onSurface),
+                          ),
+                          const SizedBox(height: 5),
+                          Text('للثالث المتوسط',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 10.5,
+                              color: colors.onSurfaceVariant)),
+                          const Spacer(),
+                          Container(
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: ready
+                                  ? colors.primaryContainer
+                                  : colors.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(12)),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  ready ? Icons.check_circle_rounded
+                                      : Icons.hourglass_top_rounded,
+                                  size: 13,
+                                  color: ready ? colors.onPrimaryContainer
+                                      : colors.onSurfaceVariant),
+                                const SizedBox(width: 4),
+                                Flexible(child: Text(
+                                  ready ? 'متاح للفتح' : 'قيد التجهيز',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: ready ? colors.onPrimaryContainer
+                                        : colors.onSurfaceVariant),
+                                )),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            ready ? 'اضغط لفتح الكتاب' : 'اضغط للتفاصيل',
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10,
+                              color: colors.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'تنويه: لا تمثل هذه المكتبة جهة حكومية أو وزارة، ولا ننسب أي ملف إلى جهة رسمية إلا بعد التحقق من مصدره ومحتواه.',
+              style: TextStyle(fontSize: 12, height: 1.65,
+                color: colors.onSurfaceVariant)),
+          ],
+        )
       ),
     );
   }
