@@ -238,7 +238,7 @@ class _HomeState extends State<Home> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('أهلاً بك في وزاريات الثالث متوسط',
+                    Text('أهلاً بك في دليلك للنجاح',
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         color: Theme.of(context).colorScheme.onSurface,
