@@ -2075,7 +2075,7 @@ class _StudyNoteDetailScreenState extends State<StudyNoteDetailScreen> {
                           return;
                         }
                         await Clipboard.setData(ClipboardData(text: text));
-                        if (!mounted) return;
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('تم نسخ نص الملاحظة بنجاح'),
