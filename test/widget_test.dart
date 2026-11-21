@@ -7,19 +7,13 @@ import 'package:third_intermediate_iraq/main.dart';
 void main() {
   testWidgets('home screen loads', (tester) async {
     await tester.pumpWidget(const StudyApp());
+
+    // The subjects catalog is intentionally displayed in its own bottom tab,
+    // not on the home screen. Keep this test focused on the home screen.
     expect(find.text('دليلك للنجاح'), findsOneWidget);
     expect(find.text('الثالث متوسط • العراق'), findsOneWidget);
-
-    // The welcome card and hero content push the subjects section below
-    // the initial viewport, so scroll the home list before asserting it.
-    final subjectsHeading = find.text('المواد الدراسية');
-    await tester.scrollUntilVisible(
-      subjectsHeading,
-      350,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-    expect(subjectsHeading, findsOneWidget);
+    expect(find.text('المساعد الذكي'), findsOneWidget);
+    expect(find.text('ابدأ المحادثة الآن'), findsOneWidget);
   });
 
   testWidgets('archive search screen loads and shows available archive results', (tester) async {
