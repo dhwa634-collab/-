@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:third_intermediate_iraq/main.dart';
 
 void main() {
@@ -14,6 +15,38 @@ void main() {
     expect(find.text('الثالث متوسط • العراق'), findsOneWidget);
     expect(find.text('المساعد الذكي'), findsOneWidget);
     expect(find.text('ابدأ المحادثة الآن'), findsOneWidget);
+  });
+
+  testWidgets('subjects catalog scrolls from ministerial archive to review notes', (tester) async {
+    await tester.view.setPhysicalSize(const Size(800, 1600));
+    await tester.view.setDevicePixelRatio(1);
+    await tester.pumpWidget(MaterialApp(
+      home: Catalog(onOpen: (_) {}),
+    ));
+
+    expect(find.text('الأسئلة الوزارية للسنين السابقة'), findsOneWidget);
+    expect(find.text('كتب المواد الدراسية'), findsOneWidget);
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -1400));
+    await tester.pumpAndSettle();
+
+    expect(find.text('مفكرة المراجعة الخاصة بي'), findsOneWidget);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  });
+
+  testWidgets('study notes are saved locally for the selected subject', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(const MaterialApp(home: StudyNotesScreen()));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'قانون مهم للمراجعة');
+    await tester.tap(find.text('حفظ الملاحظات'));
+    await tester.pumpAndSettle();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('dalilak_subject_note_v1_${subjects.first.name}'),
+      'قانون مهم للمراجعة');
   });
 
   testWidgets('archive search screen loads and shows available archive results', (tester) async {
