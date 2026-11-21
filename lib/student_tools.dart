@@ -21,6 +21,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
   bool _isBreak = false, _isRunning = false;
   int? _deadlineMs;
   int _quoteIndex = 0;
+  bool _showCompletion = false;
 
   static const List<String> _motivationalQuotes = [
     'كل صفحة تقرؤها اليوم تقرّبك من حلمك.',
@@ -141,11 +142,13 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
       setState(() {
         _isBreak = false; _isRunning = false; _deadlineMs = null;
         _remainingSeconds = _studyMinutes * 60;
+        _showCompletion = false;
         _quoteIndex = (_quoteIndex + 1) % _motivationalQuotes.length;
       });
     } else {
       setState(() {
         _completedToday++; _isBreak = true; _isRunning = true;
+        _showCompletion = true;
         _quoteIndex = (_quoteIndex + 1) % _motivationalQuotes.length;
         _remainingSeconds = _breakMinutes * 60;
         _deadlineMs = DateTime.now().add(Duration(minutes: _breakMinutes)).millisecondsSinceEpoch;
@@ -184,6 +187,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
     _ticker?.cancel();
     setState(() {
       _isBreak = !_isBreak; _isRunning = false; _deadlineMs = null;
+      _showCompletion = false;
       _remainingSeconds = (_isBreak ? _breakMinutes : _studyMinutes) * 60;
       _quoteIndex = (_quoteIndex + 1) % _motivationalQuotes.length;
     });
@@ -303,6 +307,21 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
                 ]),
             ]),
           )),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 350),
+            child: _showCompletion
+                ? Card(
+                    key: const ValueKey('pomodoro-completed'),
+                    child: const ListTile(
+                      leading: Icon(Icons.emoji_events_rounded,
+                        color: Color(0xFFD49A2A), size: 29),
+                      title: Text('أحسنت! أكملت جلسة دراسة',
+                        style: TextStyle(fontWeight: FontWeight.w900)),
+                      subtitle: Text('استمتع باستراحتك، فأنت تستحقها.'),
+                    ),
+                  )
+                : const SizedBox.shrink(key: ValueKey('pomodoro-no-completion')),
+          ),
           const SizedBox(height: 14),
           Card(
             child: Padding(
