@@ -326,7 +326,7 @@ class _ShellState extends State<Shell>{
   int tab=0;
   void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s)));
   @override Widget build(BuildContext context){
-    final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const NewsScreen(),const Saved(),const MoreScreen()];
+    final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const NewsScreen(),const PomodoroScreen(),const Saved(),const MoreScreen()];
     return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
       body:SafeArea(child:IndexedStack(index:tab,children:pages)),
       bottomNavigationBar:NavigationBar(
@@ -336,6 +336,7 @@ class _ShellState extends State<Shell>{
           NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),
           NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),
           NavigationDestination(icon:Icon(Icons.campaign_rounded),label:'الأخبار'),
+          NavigationDestination(icon:Icon(Icons.timer_rounded),label:'المؤقت'),
           NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),
           NavigationDestination(icon:Icon(Icons.more_horiz_rounded),label:'المزيد')
         ])));
@@ -551,18 +552,12 @@ class _HomeState extends State<Home> {
           _HomeToolTile(icon: Icons.history_edu_rounded, title: 'الأرشيف حسب السنة والدور', subtitle: 'وزاري وتمهيدي', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ArchiveSearchScreen()))),
           _HomeToolTile(icon: Icons.fact_check_outlined, title: 'الحلول النموذجية', subtitle: 'شرح وخطوات الحل', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SolutionsHubScreen()))),
           _HomeToolTile(icon: Icons.search_rounded, title: 'بحث وحفظ سريع', subtitle: 'ابحث واحتفظ للمراجعة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchSaveScreen()))),
+          _HomeToolTile(icon: Icons.edit_note_rounded, title: 'مفكرة المراجعة', subtitle: 'أضف وعدّل ملاحظاتك', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyNotesScreen()))),
+          _HomeToolTile(icon: Icons.bookmarks_rounded, title: 'المحفوظات', subtitle: 'أوراقك المحفوظة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const Saved()))),
         ],
       ),
       const SizedBox(height: 8),
-      Container(padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF3B321F) : const Color(0xFFFFF5DF),
-          borderRadius: BorderRadius.circular(15)),
-        child: Text('تنبيه: الأرشيف يجري تجهيزه والتحقق من مصادره. لن ننسب أسئلة تجريبية إلى الامتحانات الوزارية.',
-          style: TextStyle(color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFFFFD98A) : const Color(0xFF76551B),
-            height: 1.6, fontSize: 12))),
+
     ]);
 }
 class SubjectTile extends StatelessWidget {
@@ -1357,95 +1352,140 @@ class StudyNotesScreen extends StatefulWidget {
   const StudyNotesScreen({super.key});
   @override State<StudyNotesScreen> createState() => _StudyNotesScreenState();
 }
-
 class _StudyNotesScreenState extends State<StudyNotesScreen> {
-  static const String _keyPrefix = 'dalilak_subject_note_v1_';
-  late final TextEditingController _noteController;
-  String _selectedSubject = subjects.first.name;
+  static const _legacy = 'dalilak_subject_note_v1_';
+  static const _prefix = 'dalilak_subject_notes_v2_';
+  final _entry = TextEditingController();
+  String _subject = subjects.first.name;
+  List<Map<String,String>> _notes = [];
   bool _loading = true, _saving = false;
-  String _savedText = '';
+  String get _key => '$_prefix$_subject';
 
-  @override
-  void initState() { super.initState(); _noteController = TextEditingController(); _loadNote(); }
-
-  Future<void> _loadNote() async {
+  @override void initState() { super.initState(); _load(); }
+  Future<void> _load() async {
     setState(() => _loading = true);
     final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getString('$_keyPrefix$_selectedSubject') ?? '';
-    if (!mounted) return;
-    _noteController.text = value;
-    setState(() { _savedText = value; _loading = false; });
+    var items = <Map<String,String>>[];
+    final raw = prefs.getString(_key);
+    if (raw != null) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) items = decoded.whereType<Map>()
+          .map((e) => Map<String,String>.from(e)).toList();
+      } catch (_) {}
+    } else {
+      final old = prefs.getString('$_legacy$_subject') ?? '';
+      if (old.trim().isNotEmpty) {
+        items = [{'id': DateTime.now().microsecondsSinceEpoch.toString(),
+          'title': 'ملاحظة سابقة', 'body': old}];
+        await prefs.setString(_key, jsonEncode(items));
+      }
+    }
+    if (mounted) setState(() { _notes = items; _loading = false; });
   }
-
-  Future<void> _saveNote() async {
-    if (_saving) return;
+  Future<void> _save() async {
+    final body = _entry.text.trim();
+    if (body.isEmpty || _saving) return;
     setState(() => _saving = true);
-    final value = _noteController.text.trim();
+    final item = <String,String>{
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'title': body.split('\n').first.characters.take(48).toString(),
+      'body': body,
+    };
+    final updated = [item, ..._notes];
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('$_keyPrefix$_selectedSubject', value);
+    await prefs.setString(_key, jsonEncode(updated));
+    await prefs.setString('$_legacy$_subject', body);
     if (!mounted) return;
-    setState(() { _savedText = value; _saving = false; });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('انحفظت ملاحظتك على هذا الجهاز.'), duration: Duration(seconds: 2)));
+    _entry.clear();
+    setState(() { _notes = updated; _saving = false; });
   }
-
-  Future<void> _clearNote() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
-        title: const Text('مسح ملاحظات المادة؟'),
-        content: Text('سيتم حذف ملاحظات مادة $_selectedSubject من هذا الجهاز.'),
+  Future<void> _edit(Map<String,String> item) async {
+    final title = TextEditingController(text: item['title'] ?? '');
+    final body = TextEditingController(text: item['body'] ?? '');
+    final ok = await showDialog<bool>(context: context, builder: (d) =>
+      Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
+        title: const Text('تعديل الملاحظة'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: title, maxLength: 60, decoration: const InputDecoration(labelText: 'العنوان')),
+          TextField(controller: body, minLines: 4, maxLines: 8, maxLength: 5000,
+            decoration: const InputDecoration(labelText: 'الملاحظة')),
+        ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('مسح')),
+          TextButton(onPressed: () => Navigator.pop(d,false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(d,true), child: const Text('حفظ')),
         ],
-      )),
-    );
-    if (confirm != true) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('$_keyPrefix$_selectedSubject');
-    if (!mounted) return;
-    _noteController.clear();
-    setState(() => _savedText = '');
+      )));
+    if (ok == true && title.text.trim().isNotEmpty && body.text.trim().isNotEmpty) {
+      final updated = _notes.map((e) => e['id'] == item['id']
+        ? {...e, 'title': title.text.trim(), 'body': body.text.trim()} : e).toList();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_key, jsonEncode(updated));
+      if (mounted) setState(() => _notes = updated);
+    }
+    title.dispose(); body.dispose();
   }
-
-  @override void dispose() { _noteController.dispose(); super.dispose(); }
+  Future<void> _delete(String id) async {
+    final ok = await showDialog<bool>(context: context, builder: (d) =>
+      Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
+        title: const Text('حذف الملاحظة؟'),
+        content: const Text('سيتم حذف هذه الملاحظة نهائياً من الجهاز.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d,false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(d,true), child: const Text('حذف')),
+        ],
+      )));
+    if (ok != true) return;
+    final updated = _notes.where((e) => e['id'] != id).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, jsonEncode(updated));
+    if (mounted) setState(() => _notes = updated);
+  }
+  @override void dispose() { _entry.dispose(); super.dispose(); }
 
   @override Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final c = Theme.of(context).colorScheme;
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       appBar: AppBar(title: const Text('مفكرة المراجعة')),
       body: ListView(physics: const BouncingScrollPhysics(), padding: const EdgeInsets.all(16), children: [
-        Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: colors.primaryContainer, borderRadius: BorderRadius.circular(18)),
-          child: Row(children: [
-            Icon(Icons.lightbulb_outline_rounded, color: colors.onPrimaryContainer, size: 27),
-            const SizedBox(width: 10),
-            Expanded(child: Text('اكتب القوانين المهمة، والأسئلة التي تتعبك، والنقاط التي تريد مراجعتها قبل الامتحان. ملاحظاتك تبقى محفوظة على جهازك.', style: TextStyle(color: colors.onPrimaryContainer, height: 1.55))),
-          ])),
-        const SizedBox(height: 18),
-        DropdownButtonFormField<String>(
-          value: _selectedSubject,
-          decoration: const InputDecoration(labelText: 'اختر المادة', prefixIcon: Icon(Icons.menu_book_rounded), border: OutlineInputBorder()),
-          items: subjects.map((subject) => DropdownMenuItem(value: subject.name, child: Text(subject.name))).toList(),
-          onChanged: (value) async {
-            if (value == null || value == _selectedSubject) return;
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('$_keyPrefix$_selectedSubject', _noteController.text.trim());
-            if (!mounted) return;
-            setState(() => _selectedSubject = value);
-            await _loadNote();
-          },
-        ),
+        Card(color: c.primaryContainer, child: Padding(padding: const EdgeInsets.all(15),
+          child: Text('احفظ قوانينك ونقاط المراجعة لكل مادة، وعدّل ملاحظاتك أو احذفها. تبقى بياناتك على جهازك.',
+            style: TextStyle(color: c.onPrimaryContainer, height: 1.55)))),
         const SizedBox(height: 14),
-        TextField(controller: _noteController, minLines: 9, maxLines: 18, maxLength: 5000, textDirection: TextDirection.rtl, textInputAction: TextInputAction.newline,
-          decoration: const InputDecoration(labelText: 'ملاحظاتي لهذه المادة', hintText: 'مثلاً: قانون مهم، سؤال وزاري صعب، تعريف أحتاج أحفظه...', alignLabelWithHint: true, border: OutlineInputBorder())),
+        DropdownButtonFormField<String>(
+          value: _subject,
+          decoration: const InputDecoration(labelText: 'اختر المادة', border: OutlineInputBorder()),
+          items: subjects.map((s) => DropdownMenuItem(value: s.name, child: Text(s.name))).toList(),
+          onChanged: (v) async { if (v == null || v == _subject) return; setState(() => _subject = v); await _load(); },
+        ),
+        const SizedBox(height: 12),
+        TextField(controller: _entry, minLines: 4, maxLines: 8, maxLength: 5000,
+          textDirection: TextDirection.rtl,
+          decoration: const InputDecoration(labelText: 'أضف ملاحظة جديدة',
+            hintText: 'قانون أو تعريف أو سؤال تريد مراجعته...', border: OutlineInputBorder())),
         const SizedBox(height: 8),
-        FilledButton.icon(onPressed: _loading || _saving ? null : _saveNote,
-          icon: _saving ? const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)) : const Icon(Icons.save_rounded),
-          label: Text(_saving ? 'جارٍ الحفظ...' : 'حفظ الملاحظات')),
+        FilledButton.icon(onPressed: _loading || _saving ? null : _save,
+          icon: const Icon(Icons.save_rounded), label: const Text('حفظ الملاحظات')),
+        const SizedBox(height: 18),
+        Text('ملاحظاتي المحفوظة (' + _notes.length.toString() + ')',
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
         const SizedBox(height: 8),
-        OutlinedButton.icon(onPressed: _savedText.isEmpty ? null : _clearNote, icon: const Icon(Icons.delete_outline_rounded), label: const Text('مسح ملاحظات هذه المادة')),
-        const SizedBox(height: 8),
-        Text('آخر نسخة محفوظة: ${_savedText.isEmpty ? 'لا توجد ملاحظات بعد' : 'موجودة على هذا الجهاز'}', style: TextStyle(fontSize:12,color:colors.onSurfaceVariant)),
+        if (_loading) const Center(child: CircularProgressIndicator()),
+        if (!_loading && _notes.isEmpty) const Card(child: Padding(
+          padding: EdgeInsets.all(18), child: Text('لا توجد ملاحظات لهذه المادة بعد.'))),
+        ..._notes.map((item) => Card(margin: const EdgeInsets.only(bottom: 9),
+          child: Padding(padding: const EdgeInsets.all(12), child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Text(item['title'] ?? 'ملاحظة',
+                  style: const TextStyle(fontWeight: FontWeight.w900))),
+                IconButton(tooltip: 'تعديل', onPressed: () => _edit(item), icon: const Icon(Icons.edit_outlined)),
+                IconButton(tooltip: 'حذف', onPressed: () => _delete(item['id'] ?? ''),
+                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent)),
+              ]),
+              Text(item['body'] ?? '', style: TextStyle(height: 1.6, color: c.onSurfaceVariant)),
+            ],
+          )))),
       ]),
     ));
   }
