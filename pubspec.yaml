@@ -8,6 +8,7 @@ dependencies:
   http: ^1.2.2
   shared_preferences: ^2.5.3
   url_launcher: ^6.3.2
+  share_plus: ^10.1.4
   flutter:
     sdk: flutter
 dev_dependencies:
