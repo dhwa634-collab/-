@@ -1492,7 +1492,7 @@ class _NewsScreenState extends State<NewsScreen> {
   ];
   List<NewsPost> _posts = _fallback;
   String _selected = 'all';
-  bool _loading = false, _usingFallback = true;
+  bool _loading = false;
   @override void initState() { super.initState(); _loadNews(); }
   Future<void> _loadNews() async {
     if (!mounted) return;
@@ -1512,9 +1512,9 @@ class _NewsScreenState extends State<NewsScreen> {
         return b.date.compareTo(a.date);
       });
       if (posts.isEmpty) throw const FormatException('Empty news feed');
-      if (mounted) setState(() { _posts = posts; _usingFallback = false; });
+      if (mounted) setState(() { _posts = posts; });
     } catch (_) {
-      if (mounted) setState(() { _posts = _fallback; _usingFallback = true; });
+      if (mounted) setState(() { _posts = _fallback; });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
