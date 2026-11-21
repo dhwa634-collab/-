@@ -827,10 +827,16 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('وصل بلاغك إلى المطوّر بنجاح. شكراً لمساعدتنا على تحسين التطبيق.'),
       ));
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('ما وصل البلاغ إلى المطوّر. تحقق من اتصال الإنترنت وحاول مرة ثانية.'),
+      final details = error.toString().replaceFirst('Exception: ', '').trim();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 8),
+        content: Text(
+          details.isEmpty
+              ? 'تعذر إرسال البلاغ. تحقق من إعدادات الخادم وحاول مرة ثانية.'
+              : 'فشل إرسال البلاغ: $details',
+        ),
       ));
     }
   }
