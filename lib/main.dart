@@ -280,7 +280,7 @@ class _HomeState extends State<Home> {
       const SizedBox(height: 18),
       const ExamCountdownSection(),
       const SizedBox(height: 16),
-      Feature(icon: Icons.picture_as_pdf_rounded, title: 'الكتب المنهجية PDF',
+      Feature(icon: Icons.picture_as_pdf_rounded, title: 'الكتب الثالث متوسط',
         desc: 'مكتبة الكتب حسب المادة وحالة توفر كل كتاب',
         onTap: () => Navigator.push(context, MaterialPageRoute(
           builder: (_) => const BooksLibraryScreen()))),
@@ -289,27 +289,80 @@ class _HomeState extends State<Home> {
         onTap: () => Navigator.push(context, MaterialPageRoute(
           builder: (_) => const PomodoroScreen()))),
       const SizedBox(height: 16),
-      Material(color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(padding: const EdgeInsets.all(15),
-          child: Row(children: [
-            Container(width: 44, height: 44,
-              decoration: BoxDecoration(color: blue.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(13)),
-              child: const Icon(Icons.auto_awesome_rounded, color: blue)),
-            const SizedBox(width: 11),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+      const SizedBox(height: 18),
+      Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => const AiAssistantScreen())),
+          child: Ink(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: Theme.of(context).brightness == Brightness.dark
+                    ? const [Color(0xFF183B61), Color(0xFF234F7C)]
+                    : const [Color(0xFF17427E), Color(0xFF347FE8)],
+              ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: .16)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('المساعد الذكي', style: TextStyle(fontWeight: FontWeight.w900,
-                  color: Theme.of(context).colorScheme.onSurface, fontSize: 16)),
-                Text('اسأل عن أي مادة واحصل على شرح خطوة بخطوة',
-                  style: TextStyle(fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
-              ])),
-            FilledButton(onPressed: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const AiAssistantScreen())),
-              child: const Text('افتح')),
-          ]))),
+                Row(children: [
+                  Container(
+                    width: 48, height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .16),
+                      borderRadius: BorderRadius.circular(15)),
+                    child: const Icon(Icons.auto_awesome_rounded,
+                      color: Colors.white, size: 27)),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('المساعد الذكي',
+                        style: TextStyle(color: Colors.white,
+                          fontSize: 18, fontWeight: FontWeight.w900)),
+                      SizedBox(height: 4),
+                      Text('مساعدك الدراسي للثالث متوسط',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  )),
+                  const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white, size: 17),
+                ]),
+                const SizedBox(height: 13),
+                const Text(
+                  'اسأل عن أي درس أو مسألة، واحصل على شرح واضح خطوة بخطوة يساعدك على الفهم والمراجعة.',
+                  style: TextStyle(color: Colors.white, height: 1.55,
+                    fontSize: 13)),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const AiAssistantScreen())),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: navy,
+                      padding: const EdgeInsets.symmetric(vertical: 12)),
+                    icon: const Icon(Icons.chat_bubble_rounded, size: 18),
+                    label: const Text('ابدأ المحادثة الآن',
+                      style: TextStyle(fontWeight: FontWeight.w900)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 4),
       const SizedBox(height: 22),
       Row(children: [
         Expanded(child: Text('المواد الدراسية', style: TextStyle(fontSize: 19,
@@ -392,7 +445,7 @@ class Catalog extends StatelessWidget {
       Text('اختر المادة للوصول إلى أرشيفها',
         style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
       const SizedBox(height: 18),
-      Feature(icon: Icons.picture_as_pdf_rounded, title: 'مكتبة الكتب PDF',
+      Feature(icon: Icons.picture_as_pdf_rounded, title: 'الكتب الثالث متوسط',
         desc: 'افتح الكتب المنهجية حسب المادة',
         onTap: () => Navigator.push(context, MaterialPageRoute(
           builder: (_) => const BooksLibraryScreen()))),
