@@ -740,8 +740,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   String _sanitizeStudentText(String value) {
     return value
-        .replaceAll(RegExp(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}', caseSensitive: false), '[بريد محذوف]')
-        .replaceAll(RegExp(r'(?:\\+?964|0)7[0-9]{9}'), '[رقم هاتف محذوف]');
+        .replaceAll(RegExp(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}', caseSensitive: false), '[بريد محذوف]')
+        .replaceAll(RegExp(r'(?:\+?964|0)7[0-9]{9}'), '[رقم هاتف محذوف]');
   }
 
   Future<void> _reportAnswer() async {
