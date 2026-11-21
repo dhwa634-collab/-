@@ -2103,6 +2103,9 @@ class _StudyNoteDetailScreenState extends State<StudyNoteDetailScreen> {
   }
 }
 
+// Owner-only UI access code. Change this single constant when required.
+const String kNewsAdminPin = '123@123@';
+
 class NewsPost {
   final String id, title, body, category, date;
   final bool pinned;
@@ -2125,7 +2128,6 @@ class NewsScreen extends StatefulWidget {
 class _NewsScreenState extends State<NewsScreen> {
   // Change this UI access code here when needed. Server-side validation is
   // also enforced by NEWS_ADMIN_PIN in the Cloudflare Worker environment.
-  static const String _adminPin = '123@123@';
   static final Uri _workerNewsUri = Uri.parse(
     'https://wispy-union-276e.dhwa634.workers.dev/news');
   static final Uri _workerAdminUri = Uri.parse(
@@ -2157,6 +2159,7 @@ class _NewsScreenState extends State<NewsScreen> {
   Future<void> _loadNews() async {
     if (!mounted) return;
     setState(() => _loading = true);
+    var loadedFromWorker = false;
     try {
       http.Response response;
       try {
@@ -2168,6 +2171,7 @@ class _NewsScreenState extends State<NewsScreen> {
         if (workerDecoded is! Map || workerDecoded['posts'] is! List) {
           throw const FormatException('Invalid Worker news feed');
         }
+        loadedFromWorker = true;
       } catch (_) {
         response = await http.get(_feedUri,
           headers: const {'Accept':'application/json', 'Cache-Control':'no-cache'})
@@ -2175,7 +2179,9 @@ class _NewsScreenState extends State<NewsScreen> {
       }
       if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-      if (decoded is! Map || decoded['posts'] is! List) throw const FormatException('Invalid news feed');
+      if (decoded is! Map || decoded['posts'] is! List) {
+        throw const FormatException('Invalid news feed');
+      }
       final posts = (decoded['posts'] as List)
         .whereType<Map>().map((e) => NewsPost.fromJson(Map<String,dynamic>.from(e)))
         .where((p) => p.id.isNotEmpty && p.title.isNotEmpty && p.body.isNotEmpty).toList();
@@ -2183,7 +2189,10 @@ class _NewsScreenState extends State<NewsScreen> {
         if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
         return b.date.compareTo(a.date);
       });
-      if (posts.isEmpty) throw const FormatException('Empty news feed');
+      // An empty Worker feed is intentional after the owner deletes all posts.
+      if (posts.isEmpty && !loadedFromWorker) {
+        throw const FormatException('Empty news feed');
+      }
       if (mounted) setState(() { _posts = posts; });
     } catch (_) {
       if (mounted) setState(() { _posts = _fallback; });
@@ -2217,7 +2226,7 @@ class _NewsScreenState extends State<NewsScreen> {
     );
     controller.dispose();
     if (!mounted || entered == null) return;
-    if (entered != _adminPin) {
+    if (entered != kNewsAdminPin) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('رمز المطوّر غير صحيح.')),
       );
@@ -2359,7 +2368,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     final response = await http.post(
       _workerAdminUri,
       headers: const {'Content-Type':'application/json', 'Accept':'application/json'},
-      body: jsonEncode({...payload, 'pin': _adminPin}),
+      body: jsonEncode({...payload, 'pin': kNewsAdminPin}),
     ).timeout(const Duration(seconds: 18));
     Map<String,dynamic> decoded = {};
     try {
