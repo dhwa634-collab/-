@@ -1311,7 +1311,7 @@ class MoreScreen extends StatelessWidget {
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.verified_outlined, color: colors.primary, size: 20),
                   const SizedBox(width: 8),
-                  Text('إصدار التطبيق  1.0.3',
+                  Text('إصدار التطبيق  1.1.0',
                     style: TextStyle(
                       fontWeight: FontWeight.w900, color: colors.onSurface)),
                 ]),
