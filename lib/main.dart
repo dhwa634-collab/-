@@ -1370,8 +1370,10 @@ class _StudyNotesScreenState extends State<StudyNotesScreen> {
     if (raw != null) {
       try {
         final decoded = jsonDecode(raw);
-        if (decoded is List) items = decoded.whereType<Map>()
-          .map((e) => Map<String,String>.from(e)).toList();
+        if (decoded is List) {
+          items = decoded.whereType<Map>()
+              .map((e) => Map<String,String>.from(e)).toList();
+        }
       } catch (_) {}
     } else {
       final old = prefs.getString('$_legacy$_subject') ?? '';
