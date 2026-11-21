@@ -780,7 +780,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     border: OutlineInputBorder(),
                   ),
                 ),
-                const Text('سيُرسل سبب البلاغ وملاحظتك الاختيارية إلى المطوّر لمراجعتها. لا نرسل نص السؤال أو الإجابة.',
+                const Text('سيُرسل سبب البلاغ ونص الإجابة المبلّغ عنها وملاحظتك الاختيارية إلى المطوّر لمراجعتها. لا نرسل نص سؤال الطالب.',
                   style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
               ],
             ),
