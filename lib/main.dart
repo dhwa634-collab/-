@@ -254,42 +254,6 @@ class _HomeState extends State<Home> {
         ),
       ],
       const SizedBox(height: 20),
-      Container(padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: [Color(0xFF173D78), Color(0xFF2675E8)]),
-          borderRadius: BorderRadius.circular(25)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('منصة المراجعة الشاملة',
-            style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 11),
-          const Text('استعد للوزاري\nبخطوات واثقة',
-            style: TextStyle(color: Colors.white, fontSize: 27,
-              fontWeight: FontWeight.w900, height: 1.35)),
-          const SizedBox(height: 8),
-          const Text('الأسئلة الوزارية والتمهيدية مع الحلول النموذجية',
-            style: TextStyle(color: Colors.white70, height: 1.6)),
-          const SizedBox(height: 15),
-          FilledButton.icon(onPressed: widget.onAll,
-            style: FilledButton.styleFrom(backgroundColor: Colors.white,
-              foregroundColor: navy),
-            icon: const Icon(Icons.arrow_back_rounded),
-            label: const Text('تصفح المواد')),
-        ])),
-      const SizedBox(height: 18),
-      const ExamCountdownSection(),
-      const SizedBox(height: 16),
-      Feature(icon: Icons.picture_as_pdf_rounded, title: 'الكتب الثالث متوسط',
-        desc: 'مكتبة الكتب حسب المادة وحالة توفر كل كتاب',
-        onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => const BooksLibraryScreen()))),
-      Feature(icon: Icons.timer_rounded, title: 'مؤقت الدراسة والاستراحة',
-        desc: 'جلسات 25/5 أو 45/10 مع متابعة إنجازك اليومي',
-        onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => const PomodoroScreen()))),
-      const SizedBox(height: 16),
-      const SizedBox(height: 18),
       Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(22),
@@ -362,37 +326,36 @@ class _HomeState extends State<Home> {
           ),
         ),
       ),
+      const SizedBox(height: 12),
+      const SizedBox(height: 18),
+      const ExamCountdownSection(),
+      const SizedBox(height: 16),
+      Feature(icon: Icons.timer_rounded, title: 'مؤقت الدراسة والاستراحة',
+        desc: 'جلسات 25/5 أو 45/10 مع متابعة إنجازك اليومي',
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => const PomodoroScreen()))),
+      const SizedBox(height: 12),
+      const SizedBox(height: 16),
+      const SizedBox(height: 18),
       const SizedBox(height: 4),
       const SizedBox(height: 22),
-      Row(children: [
-        Expanded(child: Text('المواد الدراسية', style: TextStyle(fontSize: 19,
-          fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface))),
-        TextButton(onPressed: widget.onAll, child: const Text('عرض الكل')),
-      ]),
-      const SizedBox(height: 9),
-      GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-        itemCount: subjects.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11,
-          childAspectRatio: 1.34),
-        itemBuilder: (_, i) => SubjectTile(subject: subjects[i],
-          onTap: () => widget.onOpen(subjects[i]))),
       const SizedBox(height: 22),
       Text('مميزات التطبيق', style: TextStyle(fontSize: 18,
         fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface)),
       const SizedBox(height: 12),
-      Feature(icon: Icons.history_edu, title: 'أرشيف حسب السنة والدور',
-        desc: 'وزاري وتمهيدي بترتيب واضح',
-        onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => const ArchiveSearchScreen()))),
-      Feature(icon: Icons.fact_check_outlined, title: 'حلول نموذجية مفصلة',
-        desc: 'شرح السؤال خطوة بخطوة بالمساعد الذكي',
-        onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => const SolutionsHubScreen()))),
-      Feature(icon: Icons.search_rounded, title: 'بحث وحفظ سريع',
-        desc: 'ابحث في الأوراق المصنفة واحفظها للمراجعة',
-        onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => const SearchSaveScreen()))),
+      GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.55,
+        children: [
+          _HomeToolTile(icon: Icons.history_edu_rounded, title: 'الأرشيف حسب السنة والدور', subtitle: 'وزاري وتمهيدي', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ArchiveSearchScreen()))),
+          _HomeToolTile(icon: Icons.fact_check_outlined, title: 'الحلول النموذجية', subtitle: 'شرح وخطوات الحل', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SolutionsHubScreen()))),
+          _HomeToolTile(icon: Icons.search_rounded, title: 'بحث وحفظ سريع', subtitle: 'ابحث واحتفظ للمراجعة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchSaveScreen()))),
+        ],
+      ),
       const SizedBox(height: 8),
       Container(padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -449,11 +412,6 @@ class Catalog extends StatelessWidget {
         desc: 'افتح الكتب المنهجية حسب المادة',
         onTap: () => Navigator.push(context, MaterialPageRoute(
           builder: (_) => const BooksLibraryScreen()))),
-      const SizedBox(height: 8),
-      Feature(icon: Icons.timer_rounded, title: 'مؤقت الدراسة',
-        desc: 'نظّم وقت القراءة والاستراحة',
-        onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => const PomodoroScreen()))),
       const SizedBox(height: 8),
       Expanded(child: GridView.builder(itemCount: subjects.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -1575,6 +1533,17 @@ List<_ArchiveSearchItem> _getAvailableArchiveItems() {
     }
   }
   return result;
+}
+
+class _HomeToolTile extends StatelessWidget {
+  final IconData icon;
+  final String title, subtitle;
+  final VoidCallback onTap;
+  const _HomeToolTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+  @override Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(color: colors.surfaceContainerHighest.withValues(alpha: .55), borderRadius: BorderRadius.circular(17), child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(17), child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, color: colors.primary, size: 25), const SizedBox(height: 8), Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: colors.onSurface, fontSize: 12.5)), const SizedBox(height: 3), Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, color: colors.onSurfaceVariant))]))));
+  }
 }
 
 class Feature extends StatelessWidget {
