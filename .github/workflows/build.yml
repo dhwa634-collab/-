@@ -33,7 +33,7 @@ jobs:
               if marker not in content:
                   raise SystemExit("Android manifest format was not recognized")
               content = content.replace(marker, marker + chr(10) + "    " + permission, 1)
-          content = re.sub(r'android:label="[^"]*"', 'android:label="وزاريات الثالث متوسط"', content, count=1)
+          content = re.sub(r'android:label="[^"]*"', 'android:label="دليلك للنجاح — الثالث متوسط"', content, count=1)
           manifest.write_text(content)
           gradle_kts = Path("android/app/build.gradle.kts")
           gradle_groovy = Path("android/app/build.gradle")
