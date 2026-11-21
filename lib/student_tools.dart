@@ -136,6 +136,13 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
     "استعن بالله، ثم خطط واعمل واطمئن.",
   ];
 
+  void _nextQuote() {
+    if (!mounted || _motivationalQuotes.isEmpty) return;
+    setState(() {
+      _quoteIndex = (_quoteIndex + 1) % _motivationalQuotes.length;
+    });
+  }
+
   void _startQuoteRotation() {
     _quoteTicker?.cancel();
     if (!_autoQuotes) return;
