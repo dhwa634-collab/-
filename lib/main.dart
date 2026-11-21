@@ -185,10 +185,10 @@ class StudyApp extends StatelessWidget {
     builder: (context, _) {
       final isDark = ThemeController.isDark.value;
       final palette = ThemeController.paletteColors[
-        ThemeController.paletteIndex.value.clamp(0, 3)];
+        ThemeController.paletteIndex.value.clamp(0, 3).toInt()];
       final fontScale = ThemeController.fontScale.value;
       final lightBackground = ThemeController.lightBackgrounds[
-        ThemeController.paletteIndex.value.clamp(0, 3)];
+        ThemeController.paletteIndex.value.clamp(0, 3).toInt()];
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'دليلك للنجاح — الثالث متوسط • العراق',
