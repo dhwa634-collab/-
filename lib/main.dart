@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 const subjects=<Subject>[
@@ -671,7 +672,7 @@ class About extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        const Text('الإصدار 1.0.1',
+        const Text('الإصدار 1.0.2',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
       ],
@@ -682,6 +683,30 @@ class About extends StatelessWidget {
 class PrivacyScreen extends StatelessWidget {
   const PrivacyScreen({super.key});
 
+  static final Uri _policyUri = Uri.parse(
+    'https://dhwa634-collab.github.io/wizariyat-privacy/',
+  );
+
+  Future<void> _openFullPolicy(BuildContext context) async {
+    try {
+      final opened = await launchUrl(
+        _policyUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('تعذر فتح صفحة سياسة الخصوصية. تحقق من اتصال الإنترنت.'),
+        ));
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('تعذر فتح صفحة سياسة الخصوصية. حاول مرة ثانية.'),
+        ));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Directionality(
     textDirection: TextDirection.rtl,
@@ -689,31 +714,41 @@ class PrivacyScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('سياسة الخصوصية')),
       body: ListView(
         padding: const EdgeInsets.all(20),
-        children: const [
-          Text('البيانات التي يعالجها التطبيق',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
-          SizedBox(height: 8),
-          Text('لا يتطلب التطبيق إنشاء حساب ولا يطلب الاسم أو رقم الهاتف أو البريد الإلكتروني أو الموقع أو كلمة المرور. قائمة أوراق الامتحانات المحفوظة تُخزّن محلياً على جهازك.'),
-          SizedBox(height: 18),
-          Text('المساعد الذكي ومزودو الخدمة',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
-          SizedBox(height: 8),
-          Text('عند إرسال سؤال، يُرسل نص السؤال وجزءاً من سياق المحادثة إلى Cloudflare Worker ثم إلى Google Gemini لتوليد الإجابة. لا نرفق مع الطلب اسمك أو رقم هاتفك أو موقعك أو معرّف جهازك. قد تعالج Cloudflare وGoogle بيانات الطلب وفق سياساتهما.'),
-          SizedBox(height: 18),
-          Text('تقليل البيانات والاحتفاظ',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
-          SizedBox(height: 8),
-          Text('يحاول التطبيق إزالة عناوين البريد الإلكتروني وأرقام الهاتف العراقية الواضحة قبل إرسال السؤال. لا يمكن ضمان اكتشاف كل المعلومات الشخصية؛ لذلك لا تكتب أسماءك أو عناوينك أو أي معلومات سرية. سجل المحادثة يبقى في الذاكرة أثناء الجلسة ولا يُحفظ كسجل دائم.'),
-          SizedBox(height: 18),
-          Text('بلاغات الإجابات',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
-          SizedBox(height: 8),
-          Text('عند إرسال بلاغ عن إجابة، يُرسل سبب البلاغ ونص إجابة الذكاء الاصطناعي المبلّغ عنها والملاحظة الاختيارية إلى خادم Cloudflare ليتمكن المطوّر من مراجعتها. لا نرسل نص سؤال الطالب أو اسمه أو معرّف جهازه ضمن البلاغ. تُحفظ نسخة محلية بعد نجاح الإرسال، وتحذف البلاغات من الخادم بعد 90 يوماً.'),
-          SizedBox(height: 18),
-          Text('حقوقك والتنويه',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
-          SizedBox(height: 8),
-          Text('يمكنك حذف بيانات التطبيق من إعدادات جهازك. التطبيق مستقل وغير تابع لوزارة التربية العراقية. قد يخطئ الذكاء الاصطناعي؛ راجع الحلول مع الكتاب المدرسي أو مدرسك.'),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF1FF),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.privacy_tip_outlined, color: blue, size: 28),
+                SizedBox(width: 12),
+                Expanded(child: Text(
+                  'يمكنك الاطلاع على سياسة الخصوصية الكاملة والمحدّثة للتطبيق، بما في ذلك البيانات التي تتم معالجتها، والمساعد الذكي، والبلاغات، ومدة الاحتفاظ بالمعلومات.',
+                  style: TextStyle(color: navy, height: 1.7),
+                )),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.open_in_browser, color: blue),
+              title: const Text('عرض سياسة الخصوصية كاملة',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: const Text('فتح النسخة المنشورة والمحدّثة'),
+              trailing: const Icon(Icons.chevron_left),
+              onTap: () => _openFullPolicy(context),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'تُفتح الصفحة الرسمية للسياسة عبر اتصال الإنترنت. عند تحديث السياسة مستقبلاً سيبقى هذا الرابط نفسه صالحاً.',
+            style: TextStyle(color: Colors.blueGrey, height: 1.7, fontSize: 12),
+          ),
         ],
       ),
     ),
