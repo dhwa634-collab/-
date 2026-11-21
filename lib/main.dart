@@ -278,7 +278,7 @@ class StudyApp extends StatelessWidget {
           cardTheme: CardThemeData(
             color: darkCard,
             elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ThemeController.cardRadius.value))),
           navigationBarTheme: const NavigationBarThemeData(
             backgroundColor: Color(0xFF172337),
             indicatorColor: Color(0xFF294A78)),
@@ -597,61 +597,68 @@ class Catalog extends StatelessWidget {
   const Catalog({super.key, required this.onOpen});
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(18),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 12),
-        Text('المواد الدراسية', style: TextStyle(
-          fontSize: 25,
-          fontWeight: FontWeight.w900,
-          color: Theme.of(context).colorScheme.onSurface)),
-        const SizedBox(height: 6),
-        Text('اختر المادة للوصول إلى كتبها أو مراجعة وزارياتها',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        const SizedBox(height: 18),
-        // الكتب أولاً، والوزاريات بعدها: عكس الترتيب السابق بناءً على طلب المستخدم.
-        Feature(
-          icon: Icons.menu_book_rounded,
-          title: 'الكتب الثالث متوسط',
-          desc: 'تصفح كتب جميع المواد ونزّل ملفات PDF لقراءتها داخل التطبيق',
-          onTap: () => Navigator.push(context, MaterialPageRoute(
-            builder: (_) => BooksLibraryScreen(
-              cardStyle: ThemeController.bookCardStyle.value,
-              accentColor: ThemeController.accent,
-              cardRadius: ThemeController.cardRadius.value,
-            )))),
-        const SizedBox(height: 12),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: subjects.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 11,
-            mainAxisSpacing: 11,
-            childAspectRatio: 1.34),
-          itemBuilder: (_, i) => SubjectTile(
-            subject: subjects[i],
-            onTap: () => Navigator.push(context, MaterialPageRoute(
-              builder: (_) => BooksLibraryScreen(
-                subject: subjects[i],
-                cardStyle: ThemeController.bookCardStyle.value,
-                accentColor: ThemeController.accent,
-                cardRadius: ThemeController.cardRadius.value,
-              )))),
-        ),
-        const SizedBox(height: 14),
-        Feature(
-          icon: Icons.history_edu_rounded,
-          title: 'وزاريات الثالث متوسط',
-          desc: 'ابحث في الأوراق الامتحانية حسب المادة والسنة والدور',
-          onTap: () => Navigator.push(context, MaterialPageRoute(
-            builder: (_) => const ArchiveSearchScreen()))),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: CustomScrollView(
+        key: const PageStorageKey<String>('subjects_catalog_scroll'),
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+            sliver: SliverToBoxAdapter(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('المواد الدراسية', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900, color: colors.onSurface)),
+                const SizedBox(height: 6),
+                Text('اختر المادة لفتح كتابها، أو ابدأ بمراجعة الأسئلة الوزارية', style: TextStyle(color: colors.onSurfaceVariant)),
+                const SizedBox(height: 18),
+                Feature(
+                  icon: Icons.history_edu_rounded,
+                  title: 'الأسئلة الوزارية للسنين السابقة',
+                  desc: 'تصفح الأوراق الامتحانية حسب المادة والسنة والدور',
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ArchiveSearchScreen())),
+                ),
+                const SizedBox(height: 18),
+                Text('كتب المواد الدراسية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: colors.onSurface)),
+                const SizedBox(height: 5),
+                Text('اختر المادة للوصول إلى كتابها وملفات PDF', style: TextStyle(color: colors.onSurfaceVariant)),
+              ]),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11, childAspectRatio: 1.34),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => SubjectTile(
+                  subject: subjects[index],
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BooksLibraryScreen(
+                    subject: subjects[index],
+                    cardStyle: ThemeController.bookCardStyle.value,
+                    accentColor: ThemeController.accent,
+                    cardRadius: ThemeController.cardRadius.value,
+                  ))),
+                ),
+                childCount: subjects.length,
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+            sliver: SliverToBoxAdapter(
+              child: Feature(
+                icon: Icons.edit_note_rounded,
+                title: 'مفكرة المراجعة الخاصة بي',
+                desc: 'سجّل القوانين والأسئلة الصعبة والملاحظات لكل مادة واحفظها على جهازك',
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyNotesScreen())),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 class ArchiveSearchScreen extends StatefulWidget {
   const ArchiveSearchScreen({super.key});
@@ -1346,6 +1353,103 @@ class PersonalizationScreen extends StatelessWidget {
 }
 
 
+class StudyNotesScreen extends StatefulWidget {
+  const StudyNotesScreen({super.key});
+  @override State<StudyNotesScreen> createState() => _StudyNotesScreenState();
+}
+
+class _StudyNotesScreenState extends State<StudyNotesScreen> {
+  static const String _keyPrefix = 'dalilak_subject_note_v1_';
+  late final TextEditingController _noteController;
+  String _selectedSubject = subjects.first.name;
+  bool _loading = true, _saving = false;
+  String _savedText = '';
+
+  @override
+  void initState() { super.initState(); _noteController = TextEditingController(); _loadNote(); }
+
+  Future<void> _loadNote() async {
+    setState(() => _loading = true);
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString('$_keyPrefix$_selectedSubject') ?? '';
+    if (!mounted) return;
+    _noteController.text = value;
+    setState(() { _savedText = value; _loading = false; });
+  }
+
+  Future<void> _saveNote() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final value = _noteController.text.trim();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_keyPrefix$_selectedSubject', value);
+    if (!mounted) return;
+    setState(() { _savedText = value; _saving = false; });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('انحفظت ملاحظتك على هذا الجهاز.'), duration: Duration(seconds: 2)));
+  }
+
+  Future<void> _clearNote() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
+        title: const Text('مسح ملاحظات المادة؟'),
+        content: Text('سيتم حذف ملاحظات مادة $_selectedSubject من هذا الجهاز.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('مسح')),
+        ],
+      )),
+    );
+    if (confirm != true) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_keyPrefix$_selectedSubject');
+    if (!mounted) return;
+    _noteController.clear();
+    setState(() => _savedText = '');
+  }
+
+  @override void dispose() { _noteController.dispose(); super.dispose(); }
+
+  @override Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+      appBar: AppBar(title: const Text('مفكرة المراجعة')),
+      body: ListView(physics: const BouncingScrollPhysics(), padding: const EdgeInsets.all(16), children: [
+        Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: colors.primaryContainer, borderRadius: BorderRadius.circular(18)),
+          child: Row(children: [
+            Icon(Icons.lightbulb_outline_rounded, color: colors.onPrimaryContainer, size: 27),
+            const SizedBox(width: 10),
+            Expanded(child: Text('اكتب القوانين المهمة، والأسئلة التي تتعبك، والنقاط التي تريد مراجعتها قبل الامتحان. ملاحظاتك تبقى محفوظة على جهازك.', style: TextStyle(color: colors.onPrimaryContainer, height: 1.55))),
+          ])),
+        const SizedBox(height: 18),
+        DropdownButtonFormField<String>(
+          value: _selectedSubject,
+          decoration: const InputDecoration(labelText: 'اختر المادة', prefixIcon: Icon(Icons.menu_book_rounded), border: OutlineInputBorder()),
+          items: subjects.map((subject) => DropdownMenuItem(value: subject.name, child: Text(subject.name))).toList(),
+          onChanged: (value) async {
+            if (value == null || value == _selectedSubject) return;
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('$_keyPrefix$_selectedSubject', _noteController.text.trim());
+            if (!mounted) return;
+            setState(() => _selectedSubject = value);
+            await _loadNote();
+          },
+        ),
+        const SizedBox(height: 14),
+        TextField(controller: _noteController, minLines: 9, maxLines: 18, maxLength: 5000, textDirection: TextDirection.rtl, textInputAction: TextInputAction.newline,
+          decoration: const InputDecoration(labelText: 'ملاحظاتي لهذه المادة', hintText: 'مثلاً: قانون مهم، سؤال وزاري صعب، تعريف أحتاج أحفظه...', alignLabelWithHint: true, border: OutlineInputBorder())),
+        const SizedBox(height: 8),
+        FilledButton.icon(onPressed: _loading || _saving ? null : _saveNote,
+          icon: _saving ? const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)) : const Icon(Icons.save_rounded),
+          label: Text(_saving ? 'جارٍ الحفظ...' : 'حفظ الملاحظات')),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(onPressed: _savedText.isEmpty ? null : _clearNote, icon: const Icon(Icons.delete_outline_rounded), label: const Text('مسح ملاحظات هذه المادة')),
+        const SizedBox(height: 8),
+        Text('آخر نسخة محفوظة: ${_savedText.isEmpty ? 'لا توجد ملاحظات بعد' : 'موجودة على هذا الجهاز'}', style: TextStyle(fontSize:12,color:colors.onSurfaceVariant)),
+      ]),
+    ));
+  }
+}
 class NewsPost {
   final String id, title, body, category, date;
   final bool pinned;
@@ -1415,6 +1519,33 @@ class _NewsScreenState extends State<NewsScreen> {
       if (mounted) setState(() => _loading = false);
     }
   }
+  Future<void> _openDeveloperTools() async {
+    const expectedPin = String.fromEnvironment('NEWS_ADMIN_PIN');
+    if (expectedPin.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('واجهة المطوّر غير مفعّلة بعد. أضف NEWS_ADMIN_PIN إلى أسرار GitHub ثم أعد البناء.')));
+      return;
+    }
+    final controller = TextEditingController();
+    final entered = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
+        title: const Text('دخول أدوات المطوّر'),
+        content: TextField(controller: controller, autofocus: true, obscureText: true, keyboardType: TextInputType.number, maxLength: 12,
+          decoration: const InputDecoration(labelText: 'رمز المطوّر', prefixIcon: Icon(Icons.lock_outline_rounded)),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('دخول')),
+        ],
+      )),
+    );
+    controller.dispose();
+    if (!mounted || entered != expectedPin) {
+      if (mounted && entered != null) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('رمز المطوّر غير صحيح.')));
+      return;
+    }
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const NewsAdminScreen()));
+  }
   Future<void> _share(NewsPost post) async {
     final text = '${post.title}\n\n${post.body}\n\nمن تطبيق دليلك للنجاح — الثالث متوسط • العراق';
     try { await Share.share(text, subject: post.title); }
@@ -1427,7 +1558,10 @@ class _NewsScreenState extends State<NewsScreen> {
     final colors = Theme.of(context).colorScheme;
     final visible = _posts.where((p) => _selected == 'all' || p.category == _selected).toList();
     return Directionality(textDirection:TextDirection.rtl, child:Scaffold(
-      appBar:AppBar(title:const Text('نبض دليلك'), actions:[
+      appBar:AppBar(title:GestureDetector(
+        onLongPress: _openDeveloperTools,
+        child: const Text('نبض دليلك'),
+      ), actions:[
         IconButton(tooltip:'تحديث الأخبار', onPressed:_loading ? null : _loadNews,
           icon:const Icon(Icons.refresh_rounded))
       ]),
@@ -1447,15 +1581,7 @@ class _NewsScreenState extends State<NewsScreen> {
               ]))
             ])),
           const SizedBox(height:14),
-          if (_usingFallback) Container(
-            padding:const EdgeInsets.all(10),
-            decoration:BoxDecoration(color:colors.secondaryContainer,borderRadius:BorderRadius.circular(12)),
-            child:Row(children:[
-              Icon(Icons.info_outline_rounded,color:colors.onSecondaryContainer,size:18),
-              const SizedBox(width:8),
-              Expanded(child:Text('نعرض المحتوى الأساسي حالياً؛ قد لا يكون الاتصال بمصدر الأخبار متاحاً.',
-                style:TextStyle(color:colors.onSecondaryContainer,fontSize:12)))
-            ])),
+
           if (_loading) const LinearProgressIndicator(),
           const SizedBox(height:10),
           SingleChildScrollView(scrollDirection:Axis.horizontal, child:Row(children:
@@ -1499,6 +1625,86 @@ class _NewsScreenState extends State<NewsScreen> {
   }
 }
 
+class NewsAdminScreen extends StatefulWidget {
+  const NewsAdminScreen({super.key});
+  @override State<NewsAdminScreen> createState() => _NewsAdminScreenState();
+}
+
+class _NewsAdminScreenState extends State<NewsAdminScreen> {
+  static final Uri _feedUri = Uri.parse('https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json');
+  final _title = TextEditingController();
+  final _body = TextEditingController();
+  String _category = 'updates';
+  bool _pinned = false, _loading = true, _working = false;
+  List<Map<String,dynamic>> _existing = [];
+  @override void initState() { super.initState(); _loadExisting(); }
+
+  Future<void> _loadExisting() async {
+    try {
+      final response = await http.get(_feedUri).timeout(const Duration(seconds: 12));
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        if (decoded is Map && decoded['posts'] is List) _existing = (decoded['posts'] as List).whereType<Map>().map((e) => Map<String,dynamic>.from(e)).toList();
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _copyFeed() async {
+    final title = _title.text.trim(), body = _body.text.trim();
+    if (title.isEmpty || body.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اكتب عنوان الخبر ونصه أولاً.')));
+      return;
+    }
+    setState(() => _working = true);
+    try {
+      final now = DateTime.now();
+      final date = '${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}';
+      final post = <String,dynamic>{'id':'post-${now.microsecondsSinceEpoch}','title':title,'category':_category,'date':date,'pinned':_pinned,'body':body};
+      final all = <Map<String,dynamic>>[post, ..._existing];
+      all.sort((a,b) { final ap=a['pinned']==true, bp=b['pinned']==true; if(ap!=bp) return ap?-1:1; return (b['date']??'').toString().compareTo((a['date']??'').toString()); });
+      final output = const JsonEncoder.withIndent('  ').convert({'version':1,'updatedAt':date,'posts':all});
+      await Clipboard.setData(ClipboardData(text: output));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ ملف الأخبار JSON كاملاً. الصقه في news.json بمستودع الأخبار ثم احفظ التعديل.'), duration: Duration(seconds:4)));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تجهيز JSON: $error')));
+    } finally { if (mounted) setState(() => _working = false); }
+  }
+
+  @override void dispose() { _title.dispose(); _body.dispose(); super.dispose(); }
+  @override Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(textDirection:TextDirection.rtl, child:Scaffold(
+      appBar:AppBar(title:const Text('استوديو أخبار دليلك')),
+      body:ListView(physics:const BouncingScrollPhysics(),padding:const EdgeInsets.all(16),children:[
+        Card(child:Padding(padding:const EdgeInsets.all(14),child:Row(children:[
+          Icon(Icons.admin_panel_settings_rounded,color:colors.primary,size:28),
+          const SizedBox(width:10),
+          Expanded(child:Text('هذه الأداة تُنشئ ملف الأخبار وتنسخه فقط. النشر النهائي يتم من حساب مالك مستودع GitHub، ولا توجد مفاتيح نشر داخل التطبيق.',style:TextStyle(height:1.55,color:colors.onSurfaceVariant))),
+        ]))),
+        const SizedBox(height:14),
+        TextField(controller:_title,maxLength:100,decoration:const InputDecoration(labelText:'عنوان الخبر',border:OutlineInputBorder())),
+        const SizedBox(height:12),
+        DropdownButtonFormField<String>(value:_category,decoration:const InputDecoration(labelText:'تصنيف الخبر',border:OutlineInputBorder()),items:const [
+          DropdownMenuItem(value:'updates',child:Text('المستجدات')),
+          DropdownMenuItem(value:'tips',child:Text('نصائح دراسية')),
+          DropdownMenuItem(value:'students',child:Text('تنويهات الطلبة / الخارجي')),
+          DropdownMenuItem(value:'app',child:Text('إرشادات التطبيق')),
+        ],onChanged:(value)=>setState(()=>_category=value??'updates')),
+        const SizedBox(height:12),
+        TextField(controller:_body,minLines:5,maxLines:9,maxLength:2000,decoration:const InputDecoration(labelText:'نص الخبر',hintText:'اكتب الخبر أو التنويه هنا...',alignLabelWithHint:true,border:OutlineInputBorder())),
+        SwitchListTile(contentPadding:EdgeInsets.zero,value:_pinned,onChanged:(value)=>setState(()=>_pinned=value),title:const Text('تثبيت الخبر في أعلى القائمة')),
+        const SizedBox(height:12),
+        FilledButton.icon(onPressed:_working?null:_copyFeed,icon:_working?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.copy_all_rounded),label:Text(_working?'جارٍ تجهيز الملف...':'توليد ونسخ ملف JSON كاملاً')),
+        const SizedBox(height:12),
+        Text(_loading?'جارٍ قراءة المنشورات الحالية...':'عدد المنشورات الحالية المقروءة: ${_existing.length}',style:TextStyle(fontSize:12,color:colors.onSurfaceVariant)),
+        OutlinedButton.icon(onPressed:()=>launchUrl(Uri.parse('https://github.com/dhwa634-collab/wizariyat-privacy/blob/main/news.json'),mode:LaunchMode.externalApplication),icon:const Icon(Icons.open_in_new_rounded),label:const Text('فتح ملف الأخبار على GitHub')),
+        Text('بعد النسخ: افتح news.json، اختر Edit، الصق الملف كاملاً، ثم Commit changes. سيظهر الخبر للطلاب بعد تحديث المصدر.',style:TextStyle(fontSize:12,height:1.6,color:colors.onSurfaceVariant)),
+      ]),
+    ));
+  }
+}
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
