@@ -20,6 +20,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
   bool _autoQuotes = true;
   int _studyMinutes = 25, _breakMinutes = 5, _remainingSeconds = 1500;
   int _completedToday = 0;
+  int _completedStudyMinutesToday = 0;
   bool _isBreak = false, _isRunning = false;
   int? _deadlineMs;
   int _quoteIndex = 0;
@@ -182,6 +183,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
       _deadlineMs = prefs.getInt('${_prefix}deadline');
       _remainingSeconds = prefs.getInt('${_prefix}remaining') ?? _studyMinutes * 60;
       _completedToday = sameDay ? (prefs.getInt('${_prefix}count') ?? 0) : 0;
+      _completedStudyMinutesToday = sameDay ? (prefs.getInt('${_prefix}studyMinutesToday') ?? 0) : 0;
     });
     if (_isRunning && _deadlineMs != null) {
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
@@ -199,6 +201,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
     await prefs.setInt('${_prefix}remaining', _remainingSeconds);
     await prefs.setString('${_prefix}date', _todayKey());
     await prefs.setInt('${_prefix}count', _completedToday);
+    await prefs.setInt('${_prefix}studyMinutesToday', _completedStudyMinutesToday);
     if (_deadlineMs == null) {
       await prefs.remove('${_prefix}deadline');
     } else {
@@ -230,7 +233,9 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
       });
     } else {
       setState(() {
-        _completedToday++; _isBreak = true; _isRunning = true;
+        _completedToday++;
+        _completedStudyMinutesToday += _studyMinutes;
+        _isBreak = true; _isRunning = true;
         _showCompletion = true;
         _quoteIndex = (_quoteIndex + 1) % _motivationalQuotes.length;
         _remainingSeconds = _breakMinutes * 60;
@@ -326,14 +331,17 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
             segments: const [
               ButtonSegment(value: '25', label: Text('25 / 5 دقيقة')),
               ButtonSegment(value: '45', label: Text('45 / 10 دقيقة')),
+              ButtonSegment(value: '60', label: Text('جلسة مركزة 60 / 15')),
               ButtonSegment(value: 'custom', label: Text('تخصيص')),
             ],
             selected: {_studyMinutes == 25 && _breakMinutes == 5 ? '25' :
-              _studyMinutes == 45 && _breakMinutes == 10 ? '45' : 'custom'},
+              _studyMinutes == 45 && _breakMinutes == 10 ? '45' :
+              _studyMinutes == 60 && _breakMinutes == 15 ? '60' : 'custom'},
             onSelectionChanged: (selection) {
               final value = selection.first;
               if (value == '25') _selectPreset(25, 5);
               if (value == '45') _selectPreset(45, 10);
+              if (value == '60') _selectPreset(60, 15);
               if (value == 'custom') _customDurations();
             },
           ),
@@ -425,11 +433,6 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
                       },
                       icon: Icon(_autoQuotes ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded),
                     ),
-                    TextButton.icon(
-                      onPressed: _nextQuote,
-                      icon: const Icon(Icons.refresh_rounded, size: 17),
-                      label: const Text('عبارة جديدة'),
-                    ),
                   ]),
                   const SizedBox(height: 7),
                   AnimatedSwitcher(
@@ -459,12 +462,21 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
             ),
           ),
           const SizedBox(height: 14),
-          Card(child: ListTile(
-            leading: const Icon(Icons.check_circle_rounded, color: Color(0xFF16866A)),
-            title: const Text('الجلسات المكتملة اليوم', style: TextStyle(fontWeight: FontWeight.w800)),
-            trailing: Text('$_completedToday', style: TextStyle(fontSize: 24,
-              fontWeight: FontWeight.w900, color: colors.primary)),
-          )),
+          Card(child: Column(children: [
+            ListTile(
+              leading: const Icon(Icons.check_circle_rounded, color: Color(0xFF16866A)),
+              title: const Text('الجلسات المكتملة اليوم', style: TextStyle(fontWeight: FontWeight.w800)),
+              trailing: Text('$_completedToday', style: TextStyle(fontSize: 24,
+                fontWeight: FontWeight.w900, color: colors.primary)),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            ListTile(
+              leading: Icon(Icons.timelapse_rounded, color: colors.primary),
+              title: const Text('دقائق الدراسة المنجزة اليوم', style: TextStyle(fontWeight: FontWeight.w800)),
+              trailing: Text('$_completedStudyMinutesToday د', style: TextStyle(fontSize: 22,
+                fontWeight: FontWeight.w900, color: colors.primary)),
+            ),
+          ])),
           const SizedBox(height: 8),
           Text('عند انتهاء جلسة الدراسة ينتقل المؤقت تلقائياً إلى الاستراحة. عند انتهاء الاستراحة يتوقف بانتظار بدء جلسة جديدة. تُحفظ حالة المؤقت وعدد الجلسات على هذا الجهاز.',
             style: TextStyle(fontSize: 12, height: 1.65, color: colors.onSurfaceVariant)),
