@@ -48,7 +48,9 @@ void main() {
     expect(fields, findsNWidgets(2));
     await tester.enterText(fields.at(0), 'قوانين الفصل الأول');
     await tester.enterText(fields.at(1), 'قانون مهم للمراجعة');
-    await tester.tap(find.text('حفظ الملاحظة'));
+    // The editor's AppBar save action stays visible even when the
+    // multiline body field extends below the viewport.
+    await tester.tap(find.byTooltip('حفظ'));
     await tester.pumpAndSettle();
 
     final prefs = await SharedPreferences.getInstance();
