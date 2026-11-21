@@ -60,6 +60,32 @@ void main() {
     expect(saved, contains('قانون مهم للمراجعة'));
   });
 
+  testWidgets('saved screen shows a stable empty state and quick navigation', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(const MaterialApp(home: Saved()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('محفوظاتك بانتظارك'), findsOneWidget);
+    expect(find.text('استكشاف المواد'), findsOneWidget);
+    expect(find.text('فتح الأرشيف الوزاري'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saved screen renders saved items even when the asset is missing', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    SavedExamsStore.items.value = [
+      {'path': 'assets/not_existing_exam.png', 'subject': 'الكيمياء',
+       'year': '2025', 'round': 'الدور الأول'},
+    ];
+    await tester.pumpWidget(const MaterialApp(home: Saved()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('أوراقي المحفوظة'), findsOneWidget);
+    expect(find.text('الكيمياء'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    SavedExamsStore.items.value = [];
+  });
+
   testWidgets('archive search screen loads and shows available archive results', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: ArchiveSearchScreen()));
     expect(find.text('البحث في الأرشيف'), findsOneWidget);
