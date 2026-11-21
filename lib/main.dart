@@ -868,7 +868,7 @@ class About extends StatelessWidget {
             onChanged: ThemeController.toggle,
           ),
         ),
-        const Text('الإصدار 1.0.2',
+        const Text('الإصدار 1.0.3',
           textAlign: TextAlign.center,
           style: TextStyle( fontSize: 12)),
       ],
@@ -914,7 +914,8 @@ class PrivacyScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFEAF1FF),
+              color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF243A5B) : const Color(0xFFEAF1FF),
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Row(
@@ -1384,7 +1385,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             margin: const EdgeInsets.fromLTRB(14, 4, 14, 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFEAF1FF),
+              color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF243A5B) : const Color(0xFFEAF1FF),
               borderRadius: BorderRadius.circular(15),
             ),
             child: const Row(
