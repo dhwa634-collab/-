@@ -57,9 +57,13 @@ jobs:
       - name: Test
         run: flutter test
       - name: Build release APK
-        run: flutter build apk --release
+        env:
+          NEWS_ADMIN_PIN: ${{ secrets.NEWS_ADMIN_PIN }}
+        run: flutter build apk --release --dart-define=NEWS_ADMIN_PIN="$NEWS_ADMIN_PIN"
       - name: Build release Android App Bundle
-        run: flutter build appbundle --release
+        env:
+          NEWS_ADMIN_PIN: ${{ secrets.NEWS_ADMIN_PIN }}
+        run: flutter build appbundle --release --dart-define=NEWS_ADMIN_PIN="$NEWS_ADMIN_PIN"
       - uses: actions/upload-artifact@v4
         with:
           name: dalilak-lilnajah-android-preview
