@@ -333,7 +333,7 @@ class _HomeState extends State<Home> {
         itemCount: subjects.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11,
-          childAspectRatio: 1.48),
+          childAspectRatio: 1.34),
         itemBuilder: (_, i) => SubjectTile(subject: subjects[i],
           onTap: () => widget.onOpen(subjects[i]))),
       const SizedBox(height: 22),
@@ -384,10 +384,11 @@ class SubjectTile extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onSurfaceVariant),
             ]),
             const SizedBox(height: 9),
-            Text(subject.name, maxLines: 2, softWrap: true,
-              overflow: TextOverflow.visible,
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13,
-                height: 1.25, color: Theme.of(context).colorScheme.onSurface)),
+            Text('وزاريات ${subject.name}', maxLines: 3, softWrap: true,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5,
+                height: 1.22, letterSpacing: 0,
+                color: Theme.of(context).colorScheme.onSurface)),
           ]))));
 }
 class Catalog extends StatelessWidget {
