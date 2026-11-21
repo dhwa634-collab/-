@@ -708,7 +708,7 @@ class PrivacyScreen extends StatelessWidget {
           Text('بلاغات الإجابات',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
           SizedBox(height: 8),
-          Text('بلاغات الإجابات تُحفظ محلياً على جهازك فقط، وتتضمن نوع البلاغ والملاحظة الاختيارية ووقت الإنشاء. لا نرسل نص السؤال أو الإجابة أو البلاغ إلى خادم خارجي في هذه النسخة.'),
+          Text('عند إرسال بلاغ عن إجابة، يُرسل سبب البلاغ والملاحظة الاختيارية فقط إلى خادم Cloudflare ليتمكن المطوّر من مراجعتها. لا نرسل نص السؤال أو الإجابة أو اسم الطالب أو معرّف جهازه ضمن البلاغ. تُحفظ نسخة محلية من البلاغ بعد نجاح الإرسال.'),
           SizedBox(height: 18),
           Text('حقوقك والتنويه',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
@@ -780,7 +780,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     border: OutlineInputBorder(),
                   ),
                 ),
-                const Text('سيُحفظ البلاغ على هذا الجهاز فقط ولن يُرسل إلى الإنترنت.',
+                const Text('سيُرسل سبب البلاغ وملاحظتك الاختيارية إلى المطوّر لمراجعتها. لا نرسل نص السؤال أو الإجابة.',
                   style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
               ],
             ),
@@ -798,12 +798,38 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
     noteController.dispose();
     if (result == null || !mounted) return;
-    await AiReportStore.save(category: result['category'] ?? reasons.first,
-      note: result['note'] ?? '');
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('تم حفظ البلاغ على جهازك، شكراً لمساعدتنا على التحسين.'),
-    ));
+    try {
+      final response = await http.post(
+        Uri.parse(endpoint).replace(path: '/report'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'category': result['category'] ?? reasons.first,
+          'note': result['note'] ?? '',
+        }),
+      ).timeout(const Duration(seconds: 15));
+      Map<String, dynamic> data = {};
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) data = decoded;
+      } catch (_) {}
+      if (response.statusCode != 200 || data['success'] != true) {
+        final message = (data['error'] ?? '').toString();
+        throw Exception(message.isNotEmpty ? message : 'تعذر إرسال البلاغ حالياً.');
+      }
+      await AiReportStore.save(
+        category: result['category'] ?? reasons.first,
+        note: result['note'] ?? '',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('وصل بلاغك إلى المطوّر بنجاح. شكراً لمساعدتنا على تحسين التطبيق.'),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('ما وصل البلاغ إلى المطوّر. تحقق من اتصال الإنترنت وحاول مرة ثانية.'),
+      ));
+    }
   }
 
   Future<void> send() async {
