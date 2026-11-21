@@ -1,6 +1,11 @@
 // ignore_for_file: deprecated_member_use
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -100,18 +105,55 @@ class _CountdownTile extends StatelessWidget {
   }
 }
 
-/// مصدر موحد للمواد وبطاقات الوزاريات وروابط كتب PDF.
+/// ملف كتاب واحد؛ يدعم رابط تنزيل أو ملفاً مضمّناً داخل التطبيق.
+class BookPdfPart {
+  final String title;
+  final String? pdfUrl;
+  final String? assetPath;
+  const BookPdfPart({
+    required this.title,
+    this.pdfUrl,
+    this.assetPath,
+  });
+
+  bool get isAvailable {
+    final uri = Uri.tryParse(pdfUrl ?? '');
+    return (uri != null && uri.scheme == 'https' && uri.host.isNotEmpty) ||
+        (assetPath != null && assetPath!.trim().isNotEmpty);
+  }
+}
+
+/// مصدر موحّد للمواد والوزاريات وكتب PDF. أضف روابط الكتب هنا فقط.
 class Subject {
   final String name;
   final IconData icon;
   final Color color;
   final String? pdfUrl;
-  const Subject(this.name, this.icon, this.color, {this.pdfUrl});
+  final String? assetPath;
+  final List<BookPdfPart> parts;
+
+  const Subject(
+    this.name,
+    this.icon,
+    this.color, {
+    this.pdfUrl,
+    this.assetPath,
+    this.parts = const [],
+  });
+
   String get bookTitle => 'كتاب $name';
-  bool get hasPdf {
-    final uri = Uri.tryParse(pdfUrl ?? '');
-    return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty;
+  List<BookPdfPart> get availableParts {
+    if (parts.isNotEmpty) return parts;
+    if (pdfUrl != null || assetPath != null) {
+      return [BookPdfPart(
+        title: bookTitle,
+        pdfUrl: pdfUrl,
+        assetPath: assetPath,
+      )];
+    }
+    return const [];
   }
+  bool get hasPdf => availableParts.any((part) => part.isAvailable);
 }
 
 const List<Subject> subjects = [
@@ -125,37 +167,193 @@ const List<Subject> subjects = [
   Subject('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25)),
 ];
 
-class BooksLibraryScreen extends StatelessWidget {
+class BooksLibraryScreen extends StatefulWidget {
   const BooksLibraryScreen({super.key});
-  Future<void> _openBook(BuildContext context, Subject book) async {
-    if (!book.hasPdf) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('هذا الكتاب قيد التجهيز. سنضيف رابط PDF بعد التحقق من مصدره.')));
-      return;
-    }
-    final uri = Uri.tryParse(book.pdfUrl!);
-    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('رابط الكتاب غير صالح.')));
-      return;
-    }
-    try {
-      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!opened && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('تعذر فتح ملف PDF. تحقق من اتصال الإنترنت أو تطبيق قراءة PDF.')));
-      }
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('تعذر فتح الكتاب حالياً. حاول مرة ثانية.')));
+
+  @override
+  State<BooksLibraryScreen> createState() => _BooksLibraryScreenState();
+}
+
+class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
+  final Map<String, double> _progress = {};
+  final Set<String> _downloading = {};
+  final Set<String> _downloaded = {};
+  final http.Client _client = http.Client();
+
+  String _fileKey(Subject book, BookPdfPart part) =>
+      '${book.name}_${part.title}'.replaceAll(RegExp(r'[^\\w\\u0600-\\u06FF-]'), '_');
+
+  Future<File> _localFile(Subject book, BookPdfPart part) async {
+    final directory = await getApplicationSupportDirectory();
+    return File('${directory.path}/books/${_fileKey(book, part)}.pdf');
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshDownloaded();
+  }
+
+  Future<void> _refreshDownloaded() async {
+    for (final book in subjects) {
+      for (final part in book.availableParts) {
+        if (!part.isAvailable) continue;
+        try {
+          final file = await _localFile(book, part);
+          if (await file.exists() && await file.length() > 0 && mounted) {
+            setState(() => _downloaded.add(_fileKey(book, part)));
+          }
+        } catch (_) {}
       }
     }
   }
+
+  Future<void> _chooseBook(Subject book) async {
+    final parts = book.availableParts.where((part) => part.isAvailable).toList();
+    if (parts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('كتاب ${book.name} قيد التجهيز. سنضيفه بعد توفير ملف PDF موثوق.'),
+      ));
+      return;
+    }
+    BookPdfPart? selected = parts.first;
+    if (parts.length > 1) {
+      selected = await showModalBottomSheet<BookPdfPart>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: Text(book.bookTitle,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              ),
+              ...parts.map((part) => ListTile(
+                leading: const Icon(Icons.picture_as_pdf_rounded),
+                title: Text(part.title),
+                subtitle: const Text('تنزيل وقراءة داخل التطبيق'),
+                onTap: () => Navigator.pop(context, part),
+              )),
+            ],
+          ),
+        ),
+      );
+    }
+    if (selected != null && mounted) await _downloadAndOpen(book, selected);
+  }
+
+  Future<void> _downloadAndOpen(Subject book, BookPdfPart part) async {
+    final key = _fileKey(book, part);
+    if (_downloading.contains(key)) return;
+    setState(() {
+      _downloading.add(key);
+      _progress[key] = 0;
+    });
+    try {
+      final file = await _localFile(book, part);
+      if (await file.exists() && await file.length() > 0) {
+        if (!mounted) return;
+        await _openViewer(book, part, file);
+        return;
+      }
+
+      await file.parent.create(recursive: true);
+      final temporary = File('${file.path}.part');
+      if (await temporary.exists()) await temporary.delete();
+
+      if (part.assetPath != null && part.assetPath!.isNotEmpty) {
+        final data = await rootBundle.load(part.assetPath!);
+        final bytes = data.buffer.asUint8List(
+          data.offsetInBytes, data.lengthInBytes);
+        await temporary.writeAsBytes(bytes, flush: true);
+        if (mounted) setState(() => _progress[key] = 1);
+      } else {
+        final uri = Uri.tryParse(part.pdfUrl ?? '');
+        if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+          throw Exception('رابط ملف PDF غير صالح');
+        }
+        final request = http.Request('GET', uri);
+        final response = await _client.send(request).timeout(
+          const Duration(seconds: 45));
+        if (response.statusCode != 200) {
+          throw Exception('تعذر تنزيل الملف (رمز ${response.statusCode})');
+        }
+        final total = response.contentLength ?? 0;
+        var received = 0;
+        final sink = temporary.openWrite();
+        try {
+          await for (final chunk in response.stream) {
+            sink.add(chunk);
+            received += chunk.length;
+            if (mounted && total > 0) {
+              setState(() => _progress[key] = (received / total).clamp(0, 1));
+            }
+          }
+          await sink.flush();
+        } finally {
+          await sink.close();
+        }
+      }
+
+      final bytes = await temporary.openRead(0, 5).fold<List<int>>(
+        <int>[], (all, chunk) => all..addAll(chunk));
+      if (bytes.length < 4 ||
+          String.fromCharCodes(bytes.take(4)) != '%PDF') {
+        await temporary.delete();
+        throw Exception('الملف المستلم ليس ملف PDF صالحاً');
+      }
+      if (await file.exists()) await file.delete();
+      await temporary.rename(file.path);
+      if (!mounted) return;
+      setState(() => _downloaded.add(key));
+      await _openViewer(book, part, file);
+    } catch (error) {
+      final temporary = await _localFile(book, part);
+      final partial = File('${temporary.path}.part');
+      if (await partial.exists()) await partial.delete();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('تعذر تجهيز الكتاب: ${error.toString().replaceFirst('Exception: ', '')}'),
+          action: SnackBarAction(
+            label: 'إعادة المحاولة',
+            onPressed: () => _downloadAndOpen(book, part),
+          ),
+        ));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloading.remove(key);
+          _progress.remove(key);
+        });
+      }
+    }
+  }
+
+  Future<void> _openViewer(
+    Subject book, BookPdfPart part, File file) async {
+    if (!mounted) return;
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => PdfBookReaderScreen(
+        title: part.title,
+        file: file,
+      ),
+    ));
+  }
+
+  @override
+  void dispose() {
+    _client.close();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Directionality(textDirection: TextDirection.rtl,
+    return Directionality(
+      textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(title: const Text('الكتب الثالث متوسط')),
         body: ListView(
@@ -165,7 +363,8 @@ class BooksLibraryScreen extends StatelessWidget {
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
                 color: colors.primaryContainer,
-                borderRadius: BorderRadius.circular(17)),
+                borderRadius: BorderRadius.circular(17),
+              ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -173,9 +372,10 @@ class BooksLibraryScreen extends StatelessWidget {
                     color: colors.onPrimaryContainer, size: 27),
                   const SizedBox(width: 11),
                   Expanded(child: Text(
-                    'كتب مواد الثالث المتوسط. اختر الكتاب لمعرفة حالة توفره أو فتح ملف PDF عند إتاحة رابط موثوق.',
+                    'نزّل الكتاب مرة واحدة، وبعدها تقدر تفتحه وتقرأه داخل التطبيق حتى بدون إنترنت.',
                     style: TextStyle(height: 1.6,
-                      color: colors.onPrimaryContainer))),
+                      color: colors.onPrimaryContainer),
+                  )),
                 ],
               ),
             ),
@@ -192,7 +392,18 @@ class BooksLibraryScreen extends StatelessWidget {
               ),
               itemBuilder: (context, index) {
                 final book = subjects[index];
-                final ready = book.hasPdf;
+                final parts = book.availableParts.where((part) => part.isAvailable);
+                final available = parts.isNotEmpty;
+                final part = available ? parts.first : null;
+                final key = part == null ? '' : _fileKey(book, part);
+                final downloading = key.isNotEmpty && _downloading.contains(key);
+                final downloaded = key.isNotEmpty && _downloaded.contains(key);
+                final progress = key.isNotEmpty ? (_progress[key] ?? 0) : 0.0;
+                final status = downloading
+                    ? 'جاري التنزيل'
+                    : downloaded ? 'تم التنزيل • جاهز للفتح'
+                    : available ? 'اضغط للتنزيل' : 'قيد التجهيز';
+
                 return Card(
                   margin: EdgeInsets.zero,
                   clipBehavior: Clip.antiAlias,
@@ -201,29 +412,31 @@ class BooksLibraryScreen extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
                     side: BorderSide(
-                      color: colors.outlineVariant.withValues(alpha: .65)),
+                      color: book.color.withValues(alpha: .35)),
                   ),
                   child: InkWell(
-                    onTap: () => _openBook(context, book),
+                    onTap: downloading ? null : () => _chooseBook(book),
                     borderRadius: BorderRadius.circular(18),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 11, vertical: 13),
+                        horizontal: 10, vertical: 12),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Center(
                             child: Container(
-                              width: 49, height: 49,
+                              width: 49,
+                              height: 49,
                               decoration: BoxDecoration(
-                                color: colors.errorContainer,
-                                borderRadius: BorderRadius.circular(15)),
-                              child: Icon(Icons.picture_as_pdf_rounded,
-                                color: colors.onErrorContainer, size: 27),
+                                color: book.color.withValues(alpha: .14),
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              child: Icon(book.icon,
+                                color: book.color, size: 28),
                             ),
                           ),
-                          const SizedBox(height: 11),
+                          const SizedBox(height: 9),
                           Text(
                             book.bookTitle,
                             textAlign: TextAlign.center,
@@ -234,53 +447,61 @@ class BooksLibraryScreen extends StatelessWidget {
                               fontWeight: FontWeight.w900,
                               fontSize: 13,
                               height: 1.3,
-                              color: colors.onSurface),
+                              color: colors.onSurface,
+                            ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 4),
                           Text('للثالث المتوسط',
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 10.5,
+                            style: TextStyle(fontSize: 10,
                               color: colors.onSurfaceVariant)),
                           const Spacer(),
+                          if (downloading) ...[
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: LinearProgressIndicator(
+                                value: progress > 0 ? progress : null,
+                                minHeight: 5,
+                                backgroundColor: colors.surfaceContainerHighest,
+                                color: book.color,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                          ],
                           Container(
                             alignment: Alignment.center,
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 7),
+                              horizontal: 5, vertical: 7),
                             decoration: BoxDecoration(
-                              color: ready
+                              color: downloaded
                                   ? colors.primaryContainer
                                   : colors.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(12)),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  ready ? Icons.check_circle_rounded
-                                      : Icons.hourglass_top_rounded,
-                                  size: 13,
-                                  color: ready ? colors.onPrimaryContainer
-                                      : colors.onSurfaceVariant),
-                                const SizedBox(width: 4),
-                                Flexible(child: Text(
-                                  ready ? 'متاح للفتح' : 'قيد التجهيز',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: ready ? colors.onPrimaryContainer
-                                        : colors.onSurfaceVariant),
-                                )),
-                              ],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              status,
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10,
+                                height: 1.2,
+                                fontWeight: FontWeight.w800,
+                                color: downloaded
+                                    ? colors.onPrimaryContainer
+                                    : colors.onSurfaceVariant,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 5),
                           Text(
-                            ready ? 'اضغط لفتح الكتاب' : 'اضغط للتفاصيل',
+                            available
+                                ? (downloaded ? 'اضغط للقراءة داخل التطبيق' : 'اضغط للتنزيل')
+                                : 'سيُضاف قريباً',
                             textAlign: TextAlign.center,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 10,
+                            style: TextStyle(fontSize: 9.5,
                               color: colors.onSurfaceVariant),
                           ),
                         ],
@@ -294,9 +515,70 @@ class BooksLibraryScreen extends StatelessWidget {
             Text(
               'تنويه: لا تمثل هذه المكتبة جهة حكومية أو وزارة، ولا ننسب أي ملف إلى جهة رسمية إلا بعد التحقق من مصدره ومحتواه.',
               style: TextStyle(fontSize: 12, height: 1.65,
-                color: colors.onSurfaceVariant)),
+                color: colors.onSurfaceVariant),
+            ),
           ],
-        )
+        ),
+      ),
+    );
+  }
+}
+
+class PdfBookReaderScreen extends StatelessWidget {
+  final String title;
+  final File file;
+  const PdfBookReaderScreen({
+    super.key,
+    required this.title,
+    required this.file,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          actions: [
+            IconButton(
+              tooltip: 'معلومات القراءة',
+              icon: const Icon(Icons.info_outline_rounded),
+              onPressed: () => showAboutDialog(
+                context: context,
+                applicationName: 'دليلك للنجاح',
+                children: const [
+                  Text('هذا الكتاب محفوظ على جهازك ويمكن قراءته دون اتصال بالإنترنت.'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        body: PdfViewer.file(
+          file.path,
+          params: PdfViewerParams(
+            backgroundColor: colors.surface,
+            loadingBannerBuilder: (context, bytesDownloaded, totalBytes) =>
+                Center(child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 10),
+                    Text('جاري تجهيز صفحات الكتاب...'),
+                  ],
+                )),
+            errorBannerBuilder: (context, error, stackTrace, documentRef) =>
+                Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'تعذر عرض ملف PDF. تأكد من سلامة الملف ثم أعد تنزيله.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: colors.error),
+                  ),
+                )),
+          ),
+        ),
       ),
     );
   }
