@@ -111,15 +111,16 @@ class BookResource {
   }
 }
 /// أضف رابط HTTPS موثوقاً في url عند توفره.
+// مصدر بيانات موحد لبطاقات الكتب؛ أضف رابط HTTPS موثوقاً داخل url عند توفر PDF.
 const List<BookResource> studyBooks = [
-  BookResource('التربية الإسلامية', 'كتاب التربية الإسلامية للثالث المتوسط'),
-  BookResource('اللغة العربية', 'كتاب اللغة العربية للثالث المتوسط'),
-  BookResource('اللغة الإنكليزية', 'كتاب اللغة الإنكليزية للثالث المتوسط'),
-  BookResource('الرياضيات', 'كتاب الرياضيات للثالث المتوسط'),
-  BookResource('الاجتماعيات', 'كتاب الاجتماعيات للثالث المتوسط'),
-  BookResource('الأحياء', 'كتاب الأحياء للثالث المتوسط'),
-  BookResource('الكيمياء', 'كتاب الكيمياء للثالث المتوسط'),
-  BookResource('الفيزياء', 'كتاب الفيزياء للثالث المتوسط'),
+  BookResource('التربية الإسلامية', 'كتاب التربية الإسلامية'),
+  BookResource('اللغة العربية', 'كتاب اللغة العربية'),
+  BookResource('اللغة الإنكليزية', 'كتاب اللغة الإنكليزية'),
+  BookResource('الرياضيات', 'كتاب الرياضيات'),
+  BookResource('الاجتماعيات', 'كتاب الاجتماعيات'),
+  BookResource('الأحياء', 'كتاب الأحياء'),
+  BookResource('الكيمياء', 'كتاب الكيمياء'),
+  BookResource('الفيزياء', 'كتاب الفيزياء'),
 ];
 
 class BooksLibraryScreen extends StatelessWidget {
@@ -171,14 +172,66 @@ class BooksLibraryScreen extends StatelessWidget {
           const SizedBox(height: 12),
           ...studyBooks.map((book) {
             final ready = book.isAvailable;
-            return Card(child: ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.picture_as_pdf_rounded)),
-              title: Text(book.title, style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text(ready ? 'جاهز للعرض • يتطلب اتصال إنترنت' : 'قيد التجهيز'),
-              trailing: Icon(ready ? Icons.open_in_new_rounded : Icons.hourglass_top_rounded,
-                color: ready ? colors.primary : colors.onSurfaceVariant),
-              onTap: () => _openBook(context, book),
-            ));
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              clipBehavior: Clip.antiAlias,
+              elevation: 0,
+              color: colors.surfaceContainerLow,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(17),
+                side: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
+              ),
+              child: InkWell(
+                onTap: () => _openBook(context, book),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                  child: Row(children: [
+                    Container(
+                      width: 48, height: 48,
+                      decoration: BoxDecoration(
+                        color: colors.errorContainer,
+                        borderRadius: BorderRadius.circular(14)),
+                      child: Icon(Icons.picture_as_pdf_rounded,
+                        color: colors.onErrorContainer, size: 27)),
+                    const SizedBox(width: 13),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(book.title, maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontWeight: FontWeight.w900,
+                            fontSize: 14, height: 1.35, color: colors.onSurface)),
+                        const SizedBox(height: 5),
+                        Text('للثالث المتوسط',
+                          style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant)),
+                        const SizedBox(height: 7),
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: ready ? colors.primaryContainer : colors.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(20)),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(ready ? Icons.check_circle_rounded : Icons.hourglass_top_rounded,
+                                size: 13,
+                                color: ready ? colors.onPrimaryContainer : colors.onSurfaceVariant),
+                              const SizedBox(width: 5),
+                              Text(ready ? 'متاح للفتح • إنترنت' : 'قيد التجهيز',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                                  color: ready ? colors.onPrimaryContainer : colors.onSurfaceVariant)),
+                            ]),
+                          ),
+                        ),
+                      ],
+                    )),
+                    const SizedBox(width: 8),
+                    Icon(ready ? Icons.open_in_new_rounded : Icons.chevron_left_rounded,
+                      color: colors.onSurfaceVariant),
+                  ]),
+                ),
+              ),
+            );
           }),
           const SizedBox(height: 8),
           Text('تنويه: لا تمثل هذه المكتبة جهة حكومية أو وزارة، ولا ننسب أي ملف إلى جهة رسمية إلا بعد التحقق من مصدره ومحتواه.',
