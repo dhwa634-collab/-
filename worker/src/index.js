@@ -31,7 +31,10 @@ export default {
         const allowed = ["إجابة غير دقيقة", "محتوى غير مناسب", "مشكلة تقنية"];
         const category = allowed.includes(body.category) ? body.category : null;
         const note = sanitizeStudentText(body.note, 240).trim();
-        if (!category) return json({ error: "سبب البلاغ غير صالح." }, 400);
+        const reportedAnswer = sanitizeStudentText(body.reportedAnswer, 5000).trim();
+        if (!category || !reportedAnswer) {
+          return json({ error: "بيانات البلاغ غير مكتملة." }, 400);
+        }
         const day = new Date().toISOString().slice(0, 10);
         const dailyKey = "daily-report-count:" + day;
         const count = Number(await env.AI_REPORTS.get(dailyKey) || "0");
@@ -39,7 +42,8 @@ export default {
         await env.AI_REPORTS.put(dailyKey, String(count + 1), { expirationTtl: 172800 });
         const reportId = "report:" + Date.now() + ":" + crypto.randomUUID();
         await env.AI_REPORTS.put(reportId, JSON.stringify({
-          category, note, createdAt: new Date().toISOString(), status: "new",
+          category, note, reportedAnswer,
+          createdAt: new Date().toISOString(), status: "new",
         }), { expirationTtl: 7776000 });
         return json({ success: true });
       } catch (_) {
