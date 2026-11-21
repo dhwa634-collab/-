@@ -108,6 +108,24 @@ class ThemeController {
     Color(0xFFF5F2FA),
     Color(0xFFFBF6ED),
   ];
+  static const List<Color> lightCardSurfaces = [
+    Color(0xFFFFFFFF),
+    Color(0xFFFBFEFD),
+    Color(0xFFFCFAFF),
+    Color(0xFFFFFDFA),
+  ];
+  static const List<Color> darkBackgrounds = [
+    Color(0xFF101827),
+    Color(0xFF0D1A18),
+    Color(0xFF171321),
+    Color(0xFF1A160F),
+  ];
+  static const List<Color> darkCardSurfaces = [
+    Color(0xFF1B2A40),
+    Color(0xFF19302B),
+    Color(0xFF29213A),
+    Color(0xFF302719),
+  ];
 
   static final ValueNotifier<bool> isDark = ValueNotifier<bool>(false);
   static final ValueNotifier<int> paletteIndex = ValueNotifier<int>(0);
@@ -187,8 +205,11 @@ class StudyApp extends StatelessWidget {
       final palette = ThemeController.paletteColors[
         ThemeController.paletteIndex.value.clamp(0, 3).toInt()];
       final fontScale = ThemeController.fontScale.value;
-      final lightBackground = ThemeController.lightBackgrounds[
-        ThemeController.paletteIndex.value.clamp(0, 3).toInt()];
+      final paletteIndex = ThemeController.paletteIndex.value.clamp(0, 3).toInt();
+      final lightBackground = ThemeController.lightBackgrounds[paletteIndex];
+      final lightCard = ThemeController.lightCardSurfaces[paletteIndex];
+      final darkBackground = ThemeController.darkBackgrounds[paletteIndex];
+      final darkCard = ThemeController.darkCardSurfaces[paletteIndex];
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'دليلك للنجاح — الثالث متوسط • العراق',
@@ -199,7 +220,7 @@ class StudyApp extends StatelessWidget {
           scaffoldBackgroundColor: lightBackground,
           colorScheme: ColorScheme.fromSeed(seedColor: palette),
           cardTheme: CardThemeData(
-            color: Colors.white,
+            color: lightCard,
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
           navigationBarTheme: NavigationBarThemeData(
@@ -211,14 +232,14 @@ class StudyApp extends StatelessWidget {
         darkTheme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.dark,
-          scaffoldBackgroundColor: const Color(0xFF101827),
+          scaffoldBackgroundColor: darkBackground,
           colorScheme: ColorScheme.fromSeed(
             seedColor: palette,
             brightness: Brightness.dark,
-            surface: const Color(0xFF182437)),
-          cardColor: const Color(0xFF1B2A40),
+            surface: darkCard),
+          cardColor: darkCard,
           cardTheme: CardThemeData(
-            color: const Color(0xFF1B2A40),
+            color: darkCard,
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
           navigationBarTheme: const NavigationBarThemeData(
@@ -229,7 +250,7 @@ class StudyApp extends StatelessWidget {
             surfaceTintColor: Colors.transparent),
           inputDecorationTheme: InputDecorationTheme(
             filled: true,
-            fillColor: const Color(0xFF1B2A40),
+            fillColor: darkCard,
             hintStyle: const TextStyle(color: Color(0xFFB8C7DA), fontSize: 14),
             labelStyle: const TextStyle(color: Color(0xFFD0DCEE)),
             floatingLabelStyle: const TextStyle(color: Color(0xFF9FC2FF)),
