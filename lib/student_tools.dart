@@ -134,7 +134,15 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
     if (!_isRunning || _deadlineMs == null || !mounted) return;
     final left = ((_deadlineMs! - DateTime.now().millisecondsSinceEpoch) / 1000).ceil();
     if (left > 0) {
-      if (_remainingSeconds != left) setState(() => _remainingSeconds = left);
+      if (_remainingSeconds != left) {
+        setState(() {
+          _remainingSeconds = left;
+          // بدّل العبارة بهدوء كل ثلاث دقائق أثناء استمرار الجلسة.
+          if (left % 180 == 0) {
+            _quoteIndex = (_quoteIndex + 1) % _motivationalQuotes.length;
+          }
+        });
+      }
       return;
     }
     _ticker?.cancel();
