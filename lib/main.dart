@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); runApp(const StudyApp()); }
+Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); await ThemeController.load(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 const subjects=<Subject>[
  Subject('التربية الإسلامية',Icons.mosque_rounded,Color(0xFF16866A)),
@@ -94,7 +94,53 @@ class AiReportStore {
   }
 }
 
-class StudyApp extends StatelessWidget {const StudyApp({super.key}); @override Widget build(BuildContext context)=>MaterialApp(debugShowCheckedModeBanner:false,title:'وزاريات الثالث متوسط',theme:ThemeData(useMaterial3:true,scaffoldBackgroundColor:bg,colorScheme:ColorScheme.fromSeed(seedColor:blue),cardTheme:CardThemeData(color:Colors.white,elevation:0,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18)))),home:const Shell());}
+class ThemeController {
+  static const _key = 'study_app_dark_mode_v1';
+  static final ValueNotifier<bool> isDark = ValueNotifier<bool>(false);
+  static Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    isDark.value = prefs.getBool(_key) ?? false;
+  }
+  static Future<void> toggle(bool value) async {
+    isDark.value = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_key, value);
+  }
+}
+class StudyApp extends StatelessWidget {
+  const StudyApp({super.key});
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: ThemeController.isDark,
+    builder: (context, isDark, _) => MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'وزاريات الثالث متوسط',
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+      theme: ThemeData(useMaterial3: true, brightness: Brightness.light,
+        scaffoldBackgroundColor: bg,
+        colorScheme: ColorScheme.fromSeed(seedColor: blue),
+        cardTheme: CardThemeData(color: Colors.white, elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+        navigationBarTheme: const NavigationBarThemeData(
+          backgroundColor: Colors.white, indicatorColor: Color(0xFFDCE8FF)),
+        appBarTheme: const AppBarTheme(backgroundColor: bg,
+          surfaceTintColor: Colors.transparent)),
+      darkTheme: ThemeData(useMaterial3: true, brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF101827),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF79A9FF),
+          brightness: Brightness.dark, surface: const Color(0xFF182437)),
+        cardColor: const Color(0xFF1B2A40),
+        cardTheme: CardThemeData(color: const Color(0xFF1B2A40), elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+        navigationBarTheme: const NavigationBarThemeData(
+          backgroundColor: Color(0xFF172337), indicatorColor: Color(0xFF294A78)),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF101827),
+          surfaceTintColor: Colors.transparent),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true, fillColor: const Color(0xFF1B2A40),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)))),
+      home: const Shell()));
+}
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
 class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const About()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Colors.white,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.info_outline),label:'حول')])));}}
 class Home extends StatelessWidget{final ValueChanged<Subject> onOpen;final VoidCallback onAll;const Home({super.key,required this.onOpen,required this.onAll});@override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(20),children:[
@@ -106,7 +152,9 @@ class Home extends StatelessWidget{final ValueChanged<Subject> onOpen;final Void
  const SizedBox(height:24),Row(children:[const Expanded(child:Text('المواد الدراسية',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900,color:navy))),TextButton(onPressed:onAll,child:const Text('عرض الكل'))]),const SizedBox(height:8),
  GridView.builder(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),itemCount:subjects.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,crossAxisSpacing:11,mainAxisSpacing:11,childAspectRatio:1.65),itemBuilder:(_,i)=>SubjectTile(subject:subjects[i],onTap:()=>onOpen(subjects[i]))),
  const SizedBox(height:24),const Text('مميزات التطبيق',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900,color:navy)),const SizedBox(height:12),
- const Feature(icon:Icons.history_edu,title:'أرشيف حسب السنة والدور',desc:'وزاري وتمهيدي بترتيب واضح'),const Feature(icon:Icons.fact_check_outlined,title:'حلول نموذجية مفصلة',desc:'خطوات الحل وشرح الإجابات'),const Feature(icon:Icons.search,title:'بحث وحفظ سريع',desc:'اعثر على الأسئلة وراجعها لاحقاً'),
+ Feature(icon:Icons.history_edu,title:'أرشيف حسب السنة والدور',desc:'وزاري وتمهيدي بترتيب واضح',onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const ArchiveSearchScreen()))),
+ Feature(icon:Icons.fact_check_outlined,title:'حلول نموذجية مفصلة',desc:'شرح السؤال خطوة بخطوة بالمساعد الذكي',onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const SolutionsHubScreen()))),
+ Feature(icon:Icons.search,title:'بحث وحفظ سريع',desc:'ابحث في الأوراق المصنفة واحفظها للمراجعة',onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const SearchSaveScreen()))),
  const SizedBox(height:12),Container(padding:const EdgeInsets.all(14),decoration:BoxDecoration(color:const Color(0xFFFFF5DF),borderRadius:BorderRadius.circular(15)),child:const Text('تنبيه: الأرشيف يجري تجهيزه والتحقق من مصادره. لن ننسب أسئلة تجريبية إلى الامتحانات الوزارية.',style:TextStyle(color:Color(0xFF76551B),height:1.6,fontSize:12)))
  ]);}
 class SubjectTile extends StatelessWidget{final Subject subject;final VoidCallback onTap;const SubjectTile({super.key,required this.subject,required this.onTap});@override Widget build(BuildContext context)=>Material(color:Colors.white,borderRadius:BorderRadius.circular(18),child:InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[Container(width:42,height:42,decoration:BoxDecoration(color:subject.color.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:Icon(subject.icon,color:subject.color)),const SizedBox(width:9),Expanded(child:Text(subject.name,style:const TextStyle(fontWeight:FontWeight.w800,color:navy,fontSize:13))),const Icon(Icons.chevron_left,color:Colors.blueGrey)]))));}
@@ -125,24 +173,7 @@ class _ArchiveSearchScreenState extends State<ArchiveSearchScreen> {
   String yearFilter = 'كل السنوات';
   String roundFilter = 'كل الأدوار';
 
-  List<_ArchiveSearchItem> get allItems {
-    final result = <_ArchiveSearchItem>[];
-    for (final entry in _SubjectScreenState.arabicExams.entries) {
-      for (final round in entry.value.entries) {
-        for (final path in round.value) {
-          result.add(_ArchiveSearchItem(subjects[1], entry.key, round.key, path));
-        }
-      }
-    }
-    for (final entry in _SubjectScreenState.chemistryExams.entries) {
-      for (final round in entry.value.entries) {
-        for (final path in round.value) {
-          result.add(_ArchiveSearchItem(subjects[6], entry.key, round.key, path));
-        }
-      }
-    }
-    return result;
-  }
+  List<_ArchiveSearchItem> get allItems => _getAvailableArchiveItems();
 
   List<_ArchiveSearchItem> get filteredItems {
     final query = queryController.text.trim().toLowerCase();
@@ -672,6 +703,16 @@ class About extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
+        ValueListenableBuilder<bool>(
+          valueListenable: ThemeController.isDark,
+          builder: (context, isDark, _) => SwitchListTile(
+            secondary: Icon(isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded),
+            title: const Text('الوضع الليلي'),
+            subtitle: const Text('حفظ اختيارك على هذا الجهاز'),
+            value: isDark,
+            onChanged: ThemeController.toggle,
+          ),
+        ),
         const Text('الإصدار 1.0.2',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
@@ -755,11 +796,167 @@ class PrivacyScreen extends StatelessWidget {
   );
 }
 
-class Feature extends StatelessWidget{final IconData icon;final String title,desc;const Feature({super.key,required this.icon,required this.title,required this.desc});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.only(bottom:9),child:Container(padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(16)),child:Row(children:[Icon(icon,color:blue,size:25),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontWeight:FontWeight.w800,color:navy)),Text(desc,style:const TextStyle(fontSize:12,color:Colors.blueGrey))]))])));}
+class SolutionsHubScreen extends StatefulWidget {
+  const SolutionsHubScreen({super.key});
+  @override State<SolutionsHubScreen> createState() => _SolutionsHubScreenState();
+}
+class _SolutionsHubScreenState extends State<SolutionsHubScreen> {
+  Subject selected = subjects.first;
+  final questionController = TextEditingController();
+  @override void dispose() { questionController.dispose(); super.dispose(); }
+  void _requestSolution() {
+    final question = questionController.text.trim();
+    if (question.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اكتب السؤال أولاً حتى نقدر نشرحه.')));
+      return;
+    }
+    final prompt = 'أريد حلاً نموذجياً تعليمياً لسؤال من مادة ${selected.name} للثالث المتوسط في العراق. '
+      'اشرح الحل خطوة بخطوة، واذكر القانون أو القاعدة عند الحاجة، ثم اكتب الجواب النهائي بوضوح. '
+      'إذا كانت المعطيات غير كافية فاطلب توضيحاً ولا تخمّن. السؤال: $question';
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => AiAssistantScreen(initialPrompt: prompt)));
+  }
+  @override Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(appBar: AppBar(title: const Text('الحلول النموذجية')),
+      body: ListView(padding: const EdgeInsets.all(18), children: [
+        Container(padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(18)),
+          child: const Text('حدد المادة واكتب السؤال، وسيشرح لك المساعد الدراسي طريقة الحل خطوة بخطوة. الإجابات مولّدة بالذكاء الاصطناعي وليست نماذج وزارية رسمية؛ راجعها مع الكتاب والمدرس.',
+            style: TextStyle(height: 1.7))),
+        const SizedBox(height: 18),
+        const Text('المادة الدراسية', style: TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<Subject>(value: selected,
+          items: subjects.map((s) => DropdownMenuItem(value: s, child: Text(s.name))).toList(),
+          onChanged: (value) { if (value != null) setState(() => selected = value); }),
+        const SizedBox(height: 14),
+        TextField(controller: questionController, minLines: 4, maxLines: 8,
+          textDirection: TextDirection.rtl,
+          decoration: const InputDecoration(labelText: 'نص السؤال',
+            hintText: 'اكتب السؤال أو المسألة هنا', alignLabelWithHint: true,
+            border: OutlineInputBorder())),
+        const SizedBox(height: 16),
+        FilledButton.icon(onPressed: _requestSolution,
+          icon: const Icon(Icons.auto_awesome),
+          label: const Text('اشرح الحل خطوة بخطوة')),
+      ])));
+}
+
+class SearchSaveScreen extends StatefulWidget {
+  const SearchSaveScreen({super.key});
+  @override State<SearchSaveScreen> createState() => _SearchSaveScreenState();
+}
+class _SearchSaveScreenState extends State<SearchSaveScreen> {
+  final queryController = TextEditingController();
+  String subjectFilter = 'كل المواد';
+  List<_ArchiveSearchItem> get results {
+    final query = queryController.text.trim().toLowerCase();
+    return _getAvailableArchiveItems().where((item) {
+      final metadata = '${item.subject.name} ${item.academicYear} ${item.round}'.toLowerCase();
+      return (query.isEmpty || metadata.contains(query)) &&
+        (subjectFilter == 'كل المواد' || item.subject.name == subjectFilter);
+    }).toList();
+  }
+  @override void dispose() { queryController.dispose(); super.dispose(); }
+  @override Widget build(BuildContext context) {
+    final matches = results;
+    return Directionality(textDirection: TextDirection.rtl,
+      child: Scaffold(appBar: AppBar(title: const Text('بحث وحفظ سريع')),
+        body: ListView(padding: const EdgeInsets.all(16), children: [
+          TextField(controller: queryController, onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(hintText: 'ابحث باسم المادة أو السنة أو الدور',
+              prefixIcon: Icon(Icons.search), border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(value: subjectFilter,
+            decoration: const InputDecoration(labelText: 'تصفية حسب المادة'),
+            items: ['كل المواد', ...subjects.map((s) => s.name)]
+              .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+            onChanged: (v) => setState(() => subjectFilter = v ?? 'كل المواد')),
+          const SizedBox(height: 14),
+          Text('نتائج البحث: ${matches.length}',
+            style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 8),
+          if (matches.isEmpty)
+            const Padding(padding: EdgeInsets.all(22),
+              child: Text('ما لقينا أوراقاً مطابقة ضمن الأرشيف المصنّف حالياً. جرّب مادة أو سنة أخرى.',
+                textAlign: TextAlign.center, style: TextStyle(height: 1.7)))
+          else
+            ...matches.map((item) => Card(child: ListTile(
+              leading: const Icon(Icons.description_outlined, color: blue),
+              title: Text(item.subject.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: Text('${item.academicYear} • ${item.round}'),
+              trailing: IconButton(
+                tooltip: SavedExamsStore.contains(item.path) ? 'إزالة من المحفوظات' : 'حفظ للمراجعة',
+                icon: Icon(SavedExamsStore.contains(item.path) ? Icons.bookmark : Icons.bookmark_border, color: blue),
+                onPressed: () async {
+                  await SavedExamsStore.toggle({'path': item.path, 'subject': item.subject.name,
+                    'year': item.academicYear, 'round': item.round});
+                  if (mounted) setState(() {});
+                }),
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => SubjectScreen(subject: item.subject,
+                  initialYear: item.year, initialKind: item.round))),
+            ))),
+          const SizedBox(height: 10),
+          Text('البحث يشمل بيانات الأوراق المصنّفة (المادة والسنة والدور)، ولا يقرأ النص داخل الصور تلقائياً.',
+            style: TextStyle(fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.6)),
+        ])));
+  }
+}
+List<_ArchiveSearchItem> _getAvailableArchiveItems() {
+  final result = <_ArchiveSearchItem>[];
+  for (final entry in _SubjectScreenState.arabicExams.entries) {
+    for (final round in entry.value.entries) {
+      for (final path in round.value) {
+        result.add(_ArchiveSearchItem(subjects[1], entry.key, round.key, path));
+      }
+    }
+  }
+  for (final entry in _SubjectScreenState.chemistryExams.entries) {
+    for (final round in entry.value.entries) {
+      for (final path in round.value) {
+        result.add(_ArchiveSearchItem(subjects[6], entry.key, round.key, path));
+      }
+    }
+  }
+  return result;
+}
+
+class Feature extends StatelessWidget {
+  final IconData icon; final String title, desc; final VoidCallback onTap;
+  const Feature({super.key, required this.icon, required this.title,
+    required this.desc, required this.onTap});
+  @override Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 9),
+    child: Material(color: Theme.of(context).cardColor,
+      borderRadius: BorderRadius.circular(17),
+      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(17),
+        child: Padding(padding: const EdgeInsets.all(15),
+          child: Row(children: [
+            Container(width: 44, height: 44,
+              decoration: BoxDecoration(color: blue.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(13)),
+              child: Icon(icon, color: blue, size: 24)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(desc, style: TextStyle(fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ])),
+            const Icon(Icons.chevron_left_rounded),
+          ]))))); 
+}
 
 
 class AiAssistantScreen extends StatefulWidget {
-  const AiAssistantScreen({super.key});
+  final String? initialPrompt;
+  const AiAssistantScreen({super.key, this.initialPrompt});
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
 }
@@ -772,6 +969,19 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     {'role': 'assistant', 'text': 'هلا بيك! آني مساعدك الدراسي. اسألني عن مواد الثالث المتوسط، وأشرحلك الحل خطوة بخطوة. وتكدر تسأل سؤال متابعة عن نفس الموضوع.'},
   ];
   bool loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final prompt = widget.initialPrompt?.trim();
+    if (prompt != null && prompt.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        controller.text = prompt;
+        send();
+      });
+    }
+  }
 
   String _sanitizeStudentText(String value) {
     return value
