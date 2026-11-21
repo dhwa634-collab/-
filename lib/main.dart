@@ -95,6 +95,9 @@ class ThemeController {
   static const _paletteKey = 'study_app_palette_v1';
   static const _fontKey = 'study_app_font_scale_v1';
   static const _bookStyleKey = 'study_app_book_style_v1';
+  static const _radiusKey = 'study_app_card_radius_v1';
+  static const _motionKey = 'study_app_motion_v1';
+  static const _eyeCareKey = 'study_app_eye_care_v1';
 
   static const List<Color> paletteColors = [
     Color(0xFF2868D7), // أزرق التطبيق الأصلي
@@ -131,6 +134,9 @@ class ThemeController {
   static final ValueNotifier<int> paletteIndex = ValueNotifier<int>(0);
   static final ValueNotifier<double> fontScale = ValueNotifier<double>(1.0);
   static final ValueNotifier<int> bookCardStyle = ValueNotifier<int>(0);
+  static final ValueNotifier<double> cardRadius = ValueNotifier<double>(18);
+  static final ValueNotifier<bool> motionEnabled = ValueNotifier<bool>(true);
+  static final ValueNotifier<bool> eyeCare = ValueNotifier<bool>(false);
 
   static Color get accent => paletteColors[paletteIndex.value.clamp(0, 3).toInt()];
   static Color bookCardColor(Color subjectColor, ColorScheme scheme) {
@@ -151,6 +157,10 @@ class ThemeController {
     final savedScale = prefs.getDouble(_fontKey) ?? 1.0;
     fontScale.value = [0.95, 1.0, 1.08].contains(savedScale) ? savedScale : 1.0;
     bookCardStyle.value = (prefs.getInt(_bookStyleKey) ?? 0).clamp(0, 2).toInt();
+    final radius = prefs.getDouble(_radiusKey) ?? 18;
+    cardRadius.value = [12.0, 18.0, 24.0].contains(radius) ? radius : 18;
+    motionEnabled.value = prefs.getBool(_motionKey) ?? true;
+    eyeCare.value = prefs.getBool(_eyeCareKey) ?? false;
   }
 
   static Future<void> toggle(bool value) async {
@@ -177,16 +187,40 @@ class ThemeController {
     await prefs.setInt(_bookStyleKey, bookCardStyle.value);
   }
 
+  static Future<void> setCardRadius(double value) async {
+    cardRadius.value = [12.0, 18.0, 24.0].contains(value) ? value : 18;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_radiusKey, cardRadius.value);
+  }
+
+  static Future<void> setMotionEnabled(bool value) async {
+    motionEnabled.value = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_motionKey, value);
+  }
+
+  static Future<void> setEyeCare(bool value) async {
+    eyeCare.value = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_eyeCareKey, value);
+  }
+
   static Future<void> restoreDefaults() async {
     isDark.value = false;
     paletteIndex.value = 0;
     fontScale.value = 1.0;
     bookCardStyle.value = 0;
+    cardRadius.value = 18;
+    motionEnabled.value = true;
+    eyeCare.value = false;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_key, false);
     await prefs.setInt(_paletteKey, 0);
     await prefs.setDouble(_fontKey, 1.0);
     await prefs.setInt(_bookStyleKey, 0);
+    await prefs.setDouble(_radiusKey, 18);
+    await prefs.setBool(_motionKey, true);
+    await prefs.setBool(_eyeCareKey, false);
   }
 }
 
@@ -199,6 +233,9 @@ class StudyApp extends StatelessWidget {
       ThemeController.isDark,
       ThemeController.paletteIndex,
       ThemeController.fontScale,
+      ThemeController.cardRadius,
+      ThemeController.motionEnabled,
+      ThemeController.eyeCare,
     ]),
     builder: (context, _) {
       final isDark = ThemeController.isDark.value;
@@ -222,7 +259,7 @@ class StudyApp extends StatelessWidget {
           cardTheme: CardThemeData(
             color: lightCard,
             elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ThemeController.cardRadius.value))),
           navigationBarTheme: NavigationBarThemeData(
             backgroundColor: Colors.white,
             indicatorColor: palette.withValues(alpha: .15)),
@@ -269,14 +306,40 @@ class StudyApp extends StatelessWidget {
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.linear(fontScale)),
-          child: child ?? const SizedBox.shrink(),
+          child: Stack(children: [
+            child ?? const SizedBox.shrink(),
+            if (ThemeController.eyeCare.value)
+              const Positioned.fill(
+                child: IgnorePointer(
+                  child: ColoredBox(color: Color(0x12FFD28A)),
+                ),
+              ),
+          ]),
         ),
         home: const Shell());
     },
   );
 }
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
-class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const MoreScreen()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Theme.of(context).colorScheme.surface,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.more_horiz_rounded),label:'المزيد')])));}}
+class _ShellState extends State<Shell>{
+  int tab=0;
+  void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s)));
+  @override Widget build(BuildContext context){
+    final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const NewsScreen(),const Saved(),const MoreScreen()];
+    return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
+      body:SafeArea(child:IndexedStack(index:tab,children:pages)),
+      bottomNavigationBar:NavigationBar(
+        selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),
+        backgroundColor:Theme.of(context).colorScheme.surface,
+        destinations:const [
+          NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),
+          NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),
+          NavigationDestination(icon:Icon(Icons.campaign_rounded),label:'الأخبار'),
+          NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),
+          NavigationDestination(icon:Icon(Icons.more_horiz_rounded),label:'المزيد')
+        ])));
+  }
+}
 class Home extends StatefulWidget {
   final ValueChanged<Subject> onOpen;
   final VoidCallback onAll;
@@ -1208,6 +1271,54 @@ class PersonalizationScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('استدارة البطاقات', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<double>(
+                    valueListenable: ThemeController.cardRadius,
+                    builder: (context, value, _) => SegmentedButton<double>(
+                      segments: const [
+                        ButtonSegment(value: 12, label: Text('ناعمة')),
+                        ButtonSegment(value: 18, label: Text('متوازنة')),
+                        ButtonSegment(value: 24, label: Text('دائرية')),
+                      ],
+                      selected: {value},
+                      onSelectionChanged: (v) => ThemeController.setCardRadius(v.first),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              child: Column(children: [
+                ValueListenableBuilder<bool>(
+                  valueListenable: ThemeController.motionEnabled,
+                  builder: (context, value, _) => SwitchListTile(
+                    secondary: const Icon(Icons.animation_rounded),
+                    title: const Text('الحركات الناعمة', style: TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: const Text('التحكم بالحركات البصرية في عناصر التطبيق'),
+                    value: value,
+                    onChanged: ThemeController.setMotionEnabled,
+                  ),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ValueListenableBuilder<bool>(
+                  valueListenable: ThemeController.eyeCare,
+                  builder: (context, value, _) => SwitchListTile(
+                    secondary: const Icon(Icons.visibility_rounded),
+                    title: const Text('وضع راحة العين', style: TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: const Text('دفء خفيف للألوان أثناء المذاكرة الطويلة'),
+                    value: value,
+                    onChanged: ThemeController.setEyeCare,
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: () async {
                 await ThemeController.restoreDefaults();
@@ -1228,6 +1339,160 @@ class PersonalizationScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+
+class NewsPost {
+  final String id, title, body, category, date;
+  final bool pinned;
+  const NewsPost({required this.id, required this.title, required this.body,
+    required this.category, required this.date, this.pinned = false});
+  factory NewsPost.fromJson(Map<String, dynamic> json) => NewsPost(
+    id: (json['id'] ?? '').toString(),
+    title: (json['title'] ?? '').toString(),
+    body: (json['body'] ?? '').toString(),
+    category: (json['category'] ?? 'updates').toString(),
+    date: (json['date'] ?? '').toString(),
+    pinned: json['pinned'] == true,
+  );
+}
+
+class NewsScreen extends StatefulWidget {
+  const NewsScreen({super.key});
+  @override State<NewsScreen> createState() => _NewsScreenState();
+}
+class _NewsScreenState extends State<NewsScreen> {
+  static final Uri _feedUri = Uri.parse(
+    'https://dhwa634-collab.github.io/wizariyat-privacy/news.json');
+  static const Map<String, String> _categories = {
+    'all': 'الكل', 'updates': 'المستجدات', 'tips': 'نصائح دراسية',
+    'students': 'تنويهات الطلبة / الخارجي', 'app': 'إرشادات التطبيق',
+  };
+  static const List<NewsPost> _fallback = [
+    NewsPost(id:'welcome', title:'مرحباً بك في مساحة أخبار دليلك للنجاح',
+      body:'ستظهر هنا أخبار التطبيق والتنويهات والنصائح التي ينشرها المطوّر. عند توفر اتصال ستُحدّث المنشورات من المصدر الرسمي.',
+      category:'updates', date:'2026-11-21', pinned:true),
+    NewsPost(id:'study-tip', title:'اجعل مراجعتك على مراحل قصيرة',
+      body:'قسّم الدرس إلى أجزاء، ثم اختبر نفسك بسؤال أو مثال بعد كل جزء. خصص وقتاً لمراجعة الأخطاء قبل الانتقال إلى موضوع جديد.',
+      category:'tips', date:'2026-11-21'),
+    NewsPost(id:'external-students', title:'تنويه لطلبة الدراسة الخارجية',
+      body:'تابع الإعلانات الرسمية الصادرة من وزارة التربية والمديريات المعنية، وتأكد من المواعيد والتعليمات من مصادرها الرسمية.',
+      category:'students', date:'2026-11-21'),
+    NewsPost(id:'app-guide', title:'كيف تستفيد من أدوات التطبيق؟',
+      body:'استخدم المؤقت لتنظيم جلساتك، واحفظ الأوراق المهمة، وافتح ملفات PDF داخل التطبيق للعودة إليها بسهولة.',
+      category:'app', date:'2026-11-21'),
+  ];
+  List<NewsPost> _posts = _fallback;
+  String _selected = 'all';
+  bool _loading = false, _usingFallback = true;
+  @override void initState() { super.initState(); _loadNews(); }
+  Future<void> _loadNews() async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    try {
+      final response = await http.get(_feedUri,
+        headers: const {'Accept':'application/json', 'Cache-Control':'no-cache'})
+        .timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map || decoded['posts'] is! List) throw const FormatException('Invalid news feed');
+      final posts = (decoded['posts'] as List)
+        .whereType<Map>().map((e) => NewsPost.fromJson(Map<String,dynamic>.from(e)))
+        .where((p) => p.id.isNotEmpty && p.title.isNotEmpty && p.body.isNotEmpty).toList();
+      posts.sort((a,b) {
+        if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+        return b.date.compareTo(a.date);
+      });
+      if (posts.isEmpty) throw const FormatException('Empty news feed');
+      if (mounted) setState(() { _posts = posts; _usingFallback = false; });
+    } catch (_) {
+      if (mounted) setState(() { _posts = _fallback; _usingFallback = true; });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+  Future<void> _share(NewsPost post) async {
+    final text = '${post.title}\n\n${post.body}\n\nمن تطبيق دليلك للنجاح — الثالث متوسط • العراق';
+    try { await Share.share(text, subject: post.title); }
+    catch (_) {
+      await Clipboard.setData(ClipboardData(text:text));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم نسخ نص الخبر للمشاركة.')));
+    }
+  }
+  @override Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final visible = _posts.where((p) => _selected == 'all' || p.category == _selected).toList();
+    return Directionality(textDirection:TextDirection.rtl, child:Scaffold(
+      appBar:AppBar(title:const Text('نبض دليلك'), actions:[
+        IconButton(tooltip:'تحديث الأخبار', onPressed:_loading ? null : _loadNews,
+          icon:const Icon(Icons.refresh_rounded))
+      ]),
+      body:RefreshIndicator(onRefresh:_loadNews, child:ListView(
+        padding:const EdgeInsets.all(16), children:[
+          Container(padding:const EdgeInsets.all(16),
+            decoration:BoxDecoration(
+              gradient:LinearGradient(colors:[colors.primary, colors.primary.withValues(alpha:.78)]),
+              borderRadius:BorderRadius.circular(20)),
+            child:const Row(children:[
+              Icon(Icons.campaign_rounded,color:Colors.white,size:30),
+              SizedBox(width:12),
+              Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Text('مساحة دليلك للأخبار',style:TextStyle(color:Colors.white,fontWeight:FontWeight.w900,fontSize:17)),
+                SizedBox(height:4),
+                Text('تنويهات موثوقة ونصائح تساعدك في رحلتك الدراسية',style:TextStyle(color:Colors.white70,height:1.5,fontSize:12))
+              ]))
+            ])),
+          const SizedBox(height:14),
+          if (_usingFallback) Container(
+            padding:const EdgeInsets.all(10),
+            decoration:BoxDecoration(color:colors.secondaryContainer,borderRadius:BorderRadius.circular(12)),
+            child:Row(children:[
+              Icon(Icons.info_outline_rounded,color:colors.onSecondaryContainer,size:18),
+              const SizedBox(width:8),
+              Expanded(child:Text('نعرض المحتوى الأساسي حالياً؛ قد لا يكون الاتصال بمصدر الأخبار متاحاً.',
+                style:TextStyle(color:colors.onSecondaryContainer,fontSize:12)))
+            ])),
+          if (_loading) const LinearProgressIndicator(),
+          const SizedBox(height:10),
+          SingleChildScrollView(scrollDirection:Axis.horizontal, child:Row(children:
+            _categories.entries.map((entry)=>Padding(
+              padding:const EdgeInsetsDirectional.only(end:7),
+              child:ChoiceChip(label:Text(entry.value),selected:_selected==entry.key,
+                onSelected:(_)=>setState(()=>_selected=entry.key)),
+            )).toList())),
+          const SizedBox(height:12),
+          if (visible.isEmpty) const Padding(padding:EdgeInsets.all(28),
+            child:Center(child:Text('لا توجد منشورات في هذا التصنيف حالياً.'))),
+          ...visible.map((post)=>Card(
+            margin:const EdgeInsets.only(bottom:11),
+            child:Padding(padding:const EdgeInsets.all(15), child:Column(
+              crossAxisAlignment:CrossAxisAlignment.start, children:[
+                Row(children:[
+                  if(post.pinned) ...[
+                    const Icon(Icons.push_pin_rounded,color:Color(0xFFD49A2A),size:17),
+                    const SizedBox(width:5),
+                    const Text('مثبّت',style:TextStyle(fontSize:11,fontWeight:FontWeight.w900,color:Color(0xFFD49A2A))),
+                    const SizedBox(width:8),
+                  ],
+                  Expanded(child:Text(_categories[post.category] ?? 'مستجدات',
+                    style:TextStyle(fontSize:11,color:colors.primary,fontWeight:FontWeight.w800))),
+                  Text(post.date,style:TextStyle(fontSize:11,color:colors.onSurfaceVariant)),
+                ]),
+                const SizedBox(height:8),
+                Text(post.title,style:const TextStyle(fontWeight:FontWeight.w900,fontSize:16)),
+                const SizedBox(height:8),
+                Text(post.body,style:TextStyle(height:1.7,color:colors.onSurfaceVariant)),
+                Align(alignment:AlignmentDirectional.centerEnd,
+                  child:TextButton.icon(onPressed:()=>_share(post),
+                    icon:const Icon(Icons.share_rounded,size:17),label:const Text('مشاركة الخبر'))),
+              ]))),
+          ),
+          const SizedBox(height:18),
+          Text('المحتوى الإخباري ينشره مطوّر التطبيق فقط. راجع المصادر الرسمية للمواعيد والقرارات الدراسية.',
+            style:TextStyle(fontSize:11,height:1.6,color:colors.onSurfaceVariant)),
+        ])),
+    ));
   }
 }
 
