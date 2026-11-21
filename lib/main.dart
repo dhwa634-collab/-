@@ -326,7 +326,7 @@ class _ShellState extends State<Shell>{
   int tab=0;
   void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s)));
   @override Widget build(BuildContext context){
-    final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const NewsScreen(),const PomodoroScreen(),const Saved(),const MoreScreen()];
+    final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const NewsScreen(),const PomodoroScreen(),const MoreScreen()];
     return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
       body:SafeArea(child:IndexedStack(index:tab,children:pages)),
       bottomNavigationBar:NavigationBar(
@@ -337,7 +337,6 @@ class _ShellState extends State<Shell>{
           NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),
           NavigationDestination(icon:Icon(Icons.campaign_rounded),label:'الأخبار'),
           NavigationDestination(icon:Icon(Icons.timer_rounded),label:'المؤقت'),
-          NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),
           NavigationDestination(icon:Icon(Icons.more_horiz_rounded),label:'المزيد')
         ])));
   }
@@ -517,17 +516,41 @@ class _HomeState extends State<Home> {
       const SizedBox(height: 12),
       ValueListenableBuilder<List<Map<String, String>>>(
         valueListenable: SavedExamsStore.items,
-        builder: (context, savedItems, _) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .55),
-            borderRadius: BorderRadius.circular(15)),
-          child: Row(children: [
-            Icon(Icons.bookmark_added_rounded, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 9),
-            Expanded(child: Text('إنجاز مراجعتك', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface))),
-            Text('${savedItems.length} محفوظ', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary)),
-          ])),
+        builder: (context, savedItems, _) => Material(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .55),
+          borderRadius: BorderRadius.circular(15),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(15),
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const Saved())),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              child: Row(children: [
+                Icon(Icons.bookmark_added_rounded,
+                  color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 9),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('إنجاز مراجعتك • المحفوظات',
+                      style: TextStyle(fontWeight: FontWeight.w900,
+                        color: Theme.of(context).colorScheme.onSurface)),
+                    const SizedBox(height: 2),
+                    Text('ارجع إلى أوراقك التي حفظتها بلمسة واحدة',
+                      style: TextStyle(fontSize: 11,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  ],
+                )),
+                Text('${savedItems.length} محفوظ',
+                  style: TextStyle(fontWeight: FontWeight.w900,
+                    color: Theme.of(context).colorScheme.primary)),
+                const SizedBox(width: 5),
+                Icon(Icons.arrow_forward_ios_rounded, size: 15,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ]),
+            ),
+          ),
+        ),
       ),
       const SizedBox(height: 12),
       Feature(icon: Icons.timer_rounded, title: 'مؤقت الدراسة والاستراحة',
@@ -1350,150 +1373,536 @@ class PersonalizationScreen extends StatelessWidget {
 
 class StudyNotesScreen extends StatefulWidget {
   const StudyNotesScreen({super.key});
-  @override State<StudyNotesScreen> createState() => _StudyNotesScreenState();
+  @override
+  State<StudyNotesScreen> createState() => _StudyNotesScreenState();
 }
+
 class _StudyNotesScreenState extends State<StudyNotesScreen> {
   static const _legacy = 'dalilak_subject_note_v1_';
   static const _prefix = 'dalilak_subject_notes_v2_';
-  final _entry = TextEditingController();
   String _subject = subjects.first.name;
-  List<Map<String,String>> _notes = [];
-  bool _loading = true, _saving = false;
+  List<Map<String, String>> _notes = [];
+  bool _loading = true;
+
   String get _key => '$_prefix$_subject';
 
-  @override void initState() { super.initState(); _load(); }
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     final prefs = await SharedPreferences.getInstance();
-    var items = <Map<String,String>>[];
+    var items = <Map<String, String>>[];
     final raw = prefs.getString(_key);
     if (raw != null) {
       try {
         final decoded = jsonDecode(raw);
         if (decoded is List) {
           items = decoded.whereType<Map>()
-              .map((e) => Map<String,String>.from(e)).toList();
+              .map((e) => Map<String, String>.from(e)).toList();
         }
       } catch (_) {}
     } else {
       final old = prefs.getString('$_legacy$_subject') ?? '';
       if (old.trim().isNotEmpty) {
-        items = [{'id': DateTime.now().microsecondsSinceEpoch.toString(),
-          'title': 'ملاحظة سابقة', 'body': old}];
+        items = [{
+          'id': DateTime.now().microsecondsSinceEpoch.toString(),
+          'title': 'ملاحظة سابقة',
+          'body': old,
+        }];
         await prefs.setString(_key, jsonEncode(items));
       }
     }
     if (mounted) {
-      setState(() { _notes = items; _loading = false; });
+      setState(() {
+        _notes = items;
+        _loading = false;
+      });
     }
   }
-  Future<void> _save() async {
-    final body = _entry.text.trim();
-    if (body.isEmpty || _saving) return;
-    setState(() => _saving = true);
-    final item = <String,String>{
-      'id': DateTime.now().microsecondsSinceEpoch.toString(),
-      'title': body.split('\n').first.characters.take(48).toString(),
-      'body': body,
-    };
-    final updated = [item, ..._notes];
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(updated));
-    await prefs.setString('$_legacy$_subject', body);
-    if (!mounted) return;
-    _entry.clear();
-    setState(() { _notes = updated; _saving = false; });
-  }
-  Future<void> _edit(Map<String,String> item) async {
-    final title = TextEditingController(text: item['title'] ?? '');
-    final body = TextEditingController(text: item['body'] ?? '');
-    final ok = await showDialog<bool>(context: context, builder: (d) =>
-      Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
-        title: const Text('تعديل الملاحظة'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: title, maxLength: 60, decoration: const InputDecoration(labelText: 'العنوان')),
-          TextField(controller: body, minLines: 4, maxLines: 8, maxLength: 5000,
-            decoration: const InputDecoration(labelText: 'الملاحظة')),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(d,false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(d,true), child: const Text('حفظ')),
-        ],
-      )));
-    if (ok == true && title.text.trim().isNotEmpty && body.text.trim().isNotEmpty) {
-      final updated = _notes.map((e) => e['id'] == item['id']
-        ? {...e, 'title': title.text.trim(), 'body': body.text.trim()} : e).toList();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_key, jsonEncode(updated));
-      if (mounted) setState(() => _notes = updated);
-    }
-    title.dispose(); body.dispose();
-  }
-  Future<void> _delete(String id) async {
-    final ok = await showDialog<bool>(context: context, builder: (d) =>
-      Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
-        title: const Text('حذف الملاحظة؟'),
-        content: const Text('سيتم حذف هذه الملاحظة نهائياً من الجهاز.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(d,false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(d,true), child: const Text('حذف')),
-        ],
-      )));
-    if (ok != true) return;
-    final updated = _notes.where((e) => e['id'] != id).toList();
+
+  Future<void> _persist(List<Map<String, String>> updated) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, jsonEncode(updated));
     if (mounted) setState(() => _notes = updated);
   }
-  @override void dispose() { _entry.dispose(); super.dispose(); }
 
-  @override Widget build(BuildContext context) {
-    final c = Theme.of(context).colorScheme;
-    return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
-      appBar: AppBar(title: const Text('مفكرة المراجعة')),
-      body: ListView(physics: const BouncingScrollPhysics(), padding: const EdgeInsets.all(16), children: [
-        Card(color: c.primaryContainer, child: Padding(padding: const EdgeInsets.all(15),
-          child: Text('احفظ قوانينك ونقاط المراجعة لكل مادة، وعدّل ملاحظاتك أو احذفها. تبقى بياناتك على جهازك.',
-            style: TextStyle(color: c.onPrimaryContainer, height: 1.55)))),
-        const SizedBox(height: 14),
-        DropdownButtonFormField<String>(
-          value: _subject,
-          decoration: const InputDecoration(labelText: 'اختر المادة', border: OutlineInputBorder()),
-          items: subjects.map((s) => DropdownMenuItem(value: s.name, child: Text(s.name))).toList(),
-          onChanged: (v) async { if (v == null || v == _subject) return; setState(() => _subject = v); await _load(); },
+  Future<void> _createNote() async {
+    final result = await Navigator.push<Map<String, String>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StudyNoteEditorScreen(subject: _subject),
+      ),
+    );
+    if (result == null || !mounted) return;
+    final item = <String, String>{
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'title': result['title'] ?? '',
+      'body': result['body'] ?? '',
+    };
+    await _persist([item, ..._notes]);
+  }
+
+  Future<void> _openNote(Map<String, String> note) async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StudyNoteDetailScreen(
+          subject: _subject,
+          note: Map<String, String>.from(note),
+          onUpdate: (updatedNote) {
+            final updated = _notes.map((entry) =>
+              entry['id'] == updatedNote['id']
+                  ? Map<String, String>.from(updatedNote)
+                  : entry).toList();
+            _persist(updated);
+          },
+          onDelete: (id) {
+            final updated = _notes.where((entry) => entry['id'] != id).toList();
+            _persist(updated);
+          },
         ),
-        const SizedBox(height: 12),
-        TextField(controller: _entry, minLines: 4, maxLines: 8, maxLength: 5000,
-          textDirection: TextDirection.rtl,
-          decoration: const InputDecoration(labelText: 'أضف ملاحظة جديدة',
-            hintText: 'قانون أو تعريف أو سؤال تريد مراجعته...', border: OutlineInputBorder())),
-        const SizedBox(height: 8),
-        FilledButton.icon(onPressed: _loading || _saving ? null : _save,
-          icon: const Icon(Icons.save_rounded), label: const Text('حفظ الملاحظات')),
-        const SizedBox(height: 18),
-        Text('ملاحظاتي المحفوظة (${_notes.length})',
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
-        const SizedBox(height: 8),
-        if (_loading) const Center(child: CircularProgressIndicator()),
-        if (!_loading && _notes.isEmpty) const Card(child: Padding(
-          padding: EdgeInsets.all(18), child: Text('لا توجد ملاحظات لهذه المادة بعد.'))),
-        ..._notes.map((item) => Card(margin: const EdgeInsets.only(bottom: 9),
-          child: Padding(padding: const EdgeInsets.all(12), child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(item['title'] ?? 'ملاحظة',
-                  style: const TextStyle(fontWeight: FontWeight.w900))),
-                IconButton(tooltip: 'تعديل', onPressed: () => _edit(item), icon: const Icon(Icons.edit_outlined)),
-                IconButton(tooltip: 'حذف', onPressed: () => _delete(item['id'] ?? ''),
-                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent)),
-              ]),
-              Text(item['body'] ?? '', style: TextStyle(height: 1.6, color: c.onSurfaceVariant)),
-            ],
-          )))),
-      ]),
-    ));
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('مفكرة المراجعة')),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _createNote,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('ملاحظة جديدة'),
+        ),
+        body: ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+          children: [
+            Card(
+              color: colors.primaryContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(15),
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_note_rounded,
+                      color: colors.onPrimaryContainer, size: 27),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(
+                      'نظّم قوانينك وتعريفاتك وملاحظاتك حسب المادة. لكل ملاحظة عنوان مستقل ونص كامل قابل للقراءة والتعديل.',
+                      style: TextStyle(
+                        color: colors.onPrimaryContainer, height: 1.55),
+                    )),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              value: _subject,
+              decoration: const InputDecoration(
+                labelText: 'اختر المادة',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.menu_book_rounded),
+              ),
+              items: subjects.map((subject) => DropdownMenuItem(
+                value: subject.name,
+                child: Text(subject.name),
+              )).toList(),
+              onChanged: (value) async {
+                if (value == null || value == _subject) return;
+                setState(() => _subject = value);
+                await _load();
+              },
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(child: Text('ملاحظات ${_notes.length}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900, fontSize: 18))),
+                TextButton.icon(
+                  onPressed: _createNote,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('إضافة'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            if (_loading)
+              const Center(child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(),
+              )),
+            if (!_loading && _notes.isEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18, vertical: 26),
+                  child: Column(
+                    children: [
+                      Icon(Icons.sticky_note_2_outlined,
+                        size: 42, color: colors.primary),
+                      const SizedBox(height: 9),
+                      const Text('ما عندك ملاحظات لهذه المادة بعد',
+                        style: TextStyle(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 5),
+                      Text('اضغط «ملاحظة جديدة» حتى تحفظ أول ملاحظة.',
+                        style: TextStyle(color: colors.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+              ),
+            ..._notes.map((note) => Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => _openNote(note),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42, height: 46,
+                        decoration: BoxDecoration(
+                          color: colors.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.description_outlined,
+                          color: colors.onPrimaryContainer),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(note['title'] ?? 'ملاحظة بدون عنوان',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900, fontSize: 15)),
+                          const SizedBox(height: 5),
+                          Text(note['body'] ?? '',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              height: 1.45, fontSize: 12,
+                              color: colors.onSurfaceVariant)),
+                        ],
+                      )),
+                      const SizedBox(width: 6),
+                      Icon(Icons.chevron_left_rounded,
+                        color: colors.onSurfaceVariant),
+                    ],
+                  ),
+                ),
+              ),
+            )),
+          ],
+        ),
+      ),
+    );
   }
 }
+
+class StudyNoteEditorScreen extends StatefulWidget {
+  final String subject;
+  final String? initialTitle;
+  final String? initialBody;
+
+  const StudyNoteEditorScreen({
+    super.key,
+    required this.subject,
+    this.initialTitle,
+    this.initialBody,
+  });
+
+  @override
+  State<StudyNoteEditorScreen> createState() => _StudyNoteEditorScreenState();
+}
+
+class _StudyNoteEditorScreenState extends State<StudyNoteEditorScreen> {
+  late final TextEditingController _title;
+  late final TextEditingController _body;
+
+  bool get _isEditing => widget.initialTitle != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _title = TextEditingController(text: widget.initialTitle ?? '');
+    _body = TextEditingController(text: widget.initialBody ?? '');
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _body.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final title = _title.text.trim();
+    final body = _body.text.trim();
+    if (title.isEmpty || body.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('اكتب عنوان الملاحظة ونصها الكامل أولاً.'),
+      ));
+      return;
+    }
+    Navigator.pop(context, <String, String>{
+      'title': title,
+      'body': body,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_isEditing ? 'تعديل الملاحظة' : 'ملاحظة جديدة'),
+          actions: [
+            IconButton(
+              tooltip: 'حفظ',
+              onPressed: _save,
+              icon: const Icon(Icons.check_rounded),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(widget.subject,
+                style: TextStyle(
+                  color: colors.primary, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 18),
+              Text('عنوان الملاحظة',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: colors.onSurface)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _title,
+                maxLength: 80,
+                textDirection: TextDirection.rtl,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  hintText: 'مثلاً: قوانين الفصل الأول',
+                  prefixIcon: Icon(Icons.title_rounded),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('الملاحظة الكاملة',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: colors.onSurface)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _body,
+                minLines: 12,
+                maxLines: 24,
+                maxLength: 10000,
+                keyboardType: TextInputType.multiline,
+                textDirection: TextDirection.rtl,
+                textAlignVertical: TextAlignVertical.top,
+                decoration: const InputDecoration(
+                  alignLabelWithHint: true,
+                  hintText: 'اكتب الشرح أو القوانين أو نقاط المراجعة هنا...',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.all(16),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: _save,
+                  icon: const Icon(Icons.save_rounded),
+                  label: Text(_isEditing ? 'حفظ التعديلات' : 'حفظ الملاحظة'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class StudyNoteDetailScreen extends StatefulWidget {
+  final String subject;
+  final Map<String, String> note;
+  final ValueChanged<Map<String, String>> onUpdate;
+  final ValueChanged<String> onDelete;
+
+  const StudyNoteDetailScreen({
+    super.key,
+    required this.subject,
+    required this.note,
+    required this.onUpdate,
+    required this.onDelete,
+  });
+
+  @override
+  State<StudyNoteDetailScreen> createState() => _StudyNoteDetailScreenState();
+}
+
+class _StudyNoteDetailScreenState extends State<StudyNoteDetailScreen> {
+  late Map<String, String> _note;
+
+  @override
+  void initState() {
+    super.initState();
+    _note = Map<String, String>.from(widget.note);
+  }
+
+  Future<void> _edit() async {
+    final result = await Navigator.push<Map<String, String>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StudyNoteEditorScreen(
+          subject: widget.subject,
+          initialTitle: _note['title'] ?? '',
+          initialBody: _note['body'] ?? '',
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    final updated = <String, String>{
+      ..._note,
+      'title': result['title'] ?? '',
+      'body': result['body'] ?? '',
+    };
+    setState(() => _note = updated);
+    widget.onUpdate(updated);
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('حذف الملاحظة؟'),
+          content: const Text(
+            'سيتم حذف هذه الملاحظة نهائياً من جهازك. هل تريد المتابعة؟'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(dialogContext).colorScheme.error),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('حذف نهائياً'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    widget.onDelete(_note['id'] ?? '');
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('تفاصيل الملاحظة')),
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.menu_book_rounded,
+                          color: colors.primary, size: 19),
+                        const SizedBox(width: 7),
+                        Text(widget.subject,
+                          style: TextStyle(
+                            color: colors.primary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Text(_note['title'] ?? '',
+                      style: TextStyle(
+                        fontSize: 25,
+                        height: 1.4,
+                        fontWeight: FontWeight.w900,
+                        color: colors.onSurface)),
+                    const SizedBox(height: 18),
+                    Divider(color: colors.outlineVariant),
+                    const SizedBox(height: 14),
+                    SelectableText(
+                      _note['body'] ?? '',
+                      textDirection: TextDirection.rtl,
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.9,
+                        letterSpacing: .1,
+                        color: colors.onSurface),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _edit,
+                        icon: const Icon(Icons.edit_rounded),
+                        label: const Text('تعديل الملاحظة'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    OutlinedButton.icon(
+                      onPressed: _delete,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colors.error,
+                        side: BorderSide(color: colors.error),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 14),
+                      ),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      label: const Text('حذف'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class NewsPost {
   final String id, title, body, category, date;
   final bool pinned;
