@@ -1,7 +1,7 @@
 name: third_intermediate_iraq
 description: تطبيق أسئلة الثالث المتوسط الوزارية والتمهيدية في العراق.
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.0.2+3
 environment:
   sdk: '>=3.3.0 <4.0.0'
 dependencies:
