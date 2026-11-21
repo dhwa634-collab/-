@@ -1,4 +1,5 @@
 // ignore_for_file: deprecated_member_use
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,16 +16,25 @@ class SavedExamsStore {
       ValueNotifier<List<Map<String, String>>>([]);
 
   static Future<void> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_storageKey);
-    if (raw == null) return;
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_storageKey);
+      if (raw == null || raw.isEmpty) {
+        items.value = [];
+        return;
+      }
       final decoded = jsonDecode(raw);
       if (decoded is List) {
         items.value = decoded.whereType<Map>()
-            .map((entry) => Map<String, String>.from(entry)).toList();
+            .map((entry) => Map<String, String>.from(entry))
+            .where((entry) => (entry['path'] ?? '').isNotEmpty)
+            .toList();
+      } else {
+        items.value = [];
       }
     } catch (_) {
+      // A damaged or temporarily unavailable local store must not prevent
+      // the application or the saved-items screen from opening.
       items.value = [];
     }
   }
@@ -349,8 +359,49 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> {
+class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   bool _showWelcome = true;
+  late final AnimationController _welcomeController;
+  late final Animation<double> _welcomeSize;
+  late final Animation<double> _welcomeOpacity;
+  late final Animation<Offset> _welcomeSlide;
+  Timer? _welcomeTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _welcomeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+      value: 1,
+    );
+    final curved = CurvedAnimation(
+      parent: _welcomeController,
+      curve: Curves.easeInOutCubic,
+    );
+    _welcomeSize = curved;
+    _welcomeOpacity = curved;
+    _welcomeSlide = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(0, -0.18),
+    ).animate(curved);
+    _welcomeTimer = Timer(const Duration(seconds: 4), _dismissWelcome);
+  }
+
+  void _dismissWelcome() {
+    if (!mounted || !_showWelcome || _welcomeController.isAnimating) return;
+    _welcomeTimer?.cancel();
+    _welcomeController.reverse().then((_) {
+      if (mounted) setState(() => _showWelcome = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _welcomeTimer?.cancel();
+    _welcomeController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -383,61 +434,70 @@ class _HomeState extends State<Home> {
             icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded)),
         ),
       ]),
-      if (_showWelcome) ...[
-        Container(
-          margin: const EdgeInsets.only(top: 16),
-          padding: const EdgeInsets.fromLTRB(15, 14, 10, 14),
-          decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF203A5B)
-                : const Color(0xFFE8F1FF),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF36577F)
-                  : const Color(0xFFD1E1FA),
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.waving_hand_rounded,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFFFFD27A)
-                    : const Color(0xFF2868D7),
-                size: 25),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
+      if (_showWelcome)
+        SizeTransition(
+          sizeFactor: _welcomeSize,
+          axisAlignment: -1,
+          child: FadeTransition(
+            opacity: _welcomeOpacity,
+            child: SlideTransition(
+              position: _welcomeSlide,
+              child: Container(
+                margin: const EdgeInsets.only(top: 16),
+                padding: const EdgeInsets.fromLTRB(15, 14, 10, 14),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF203A5B)
+                      : const Color(0xFFE8F1FF),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF36577F)
+                        : const Color(0xFFD1E1FA),
+                  ),
+                ),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('أهلاً بك في دليلك للنجاح',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      )),
-                    const SizedBox(height: 5),
-                    Text(
-                      'نتمنى لك دراسة موفقة ونجاحاً قريباً. راجع الأسئلة والحلول بهدوء، وتأكد دائماً من مطابقتها للكتاب المدرسي وتوجيهات مدرسك.',
-                      style: TextStyle(
-                        height: 1.55,
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    Icon(Icons.waving_hand_rounded,
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFFFFD27A)
+                          : const Color(0xFF2868D7),
+                      size: 25),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('أهلاً بك في دليلك للنجاح',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            )),
+                          const SizedBox(height: 5),
+                          Text(
+                            'نتمنى لك دراسة موفقة ونجاحاً قريباً. راجع الأسئلة والحلول بهدوء، وتأكد دائماً من مطابقتها للكتاب المدرسي وتوجيهات مدرسك.',
+                            style: TextStyle(
+                              height: 1.55,
+                              fontSize: 12,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'إغلاق رسالة الترحيب',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _dismissWelcome,
+                      icon: const Icon(Icons.close_rounded, size: 19),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'إغلاق رسالة الترحيب',
-                visualDensity: VisualDensity.compact,
-                onPressed: () => setState(() => _showWelcome = false),
-                icon: const Icon(Icons.close_rounded, size: 19),
-              ),
-            ],
+            ),
           ),
         ),
-      ],
       const SizedBox(height: 20),
       Material(
         color: Colors.transparent,
@@ -522,7 +582,7 @@ class _HomeState extends State<Home> {
           child: InkWell(
             borderRadius: BorderRadius.circular(15),
             onTap: () => Navigator.push(context, MaterialPageRoute(
-              builder: (_) => const Saved())),
+              builder: (_) => Saved(onOpenCatalog: widget.onAll))),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
               child: Row(children: [
@@ -576,7 +636,7 @@ class _HomeState extends State<Home> {
           _HomeToolTile(icon: Icons.fact_check_outlined, title: 'الحلول النموذجية', subtitle: 'شرح وخطوات الحل', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SolutionsHubScreen()))),
           _HomeToolTile(icon: Icons.search_rounded, title: 'بحث وحفظ سريع', subtitle: 'ابحث واحتفظ للمراجعة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchSaveScreen()))),
           _HomeToolTile(icon: Icons.edit_note_rounded, title: 'مفكرة المراجعة', subtitle: 'أضف وعدّل ملاحظاتك', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyNotesScreen()))),
-          _HomeToolTile(icon: Icons.bookmarks_rounded, title: 'المحفوظات', subtitle: 'أوراقك المحفوظة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const Saved()))),
+          _HomeToolTile(icon: Icons.bookmarks_rounded, title: 'المحفوظات', subtitle: 'أوراقك المحفوظة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Saved(onOpenCatalog: widget.onAll)))),
         ],
       ),
       const SizedBox(height: 8),
@@ -1106,87 +1166,211 @@ class _SubjectScreenState extends State<SubjectScreen> {
 }
 
 class Saved extends StatelessWidget {
-  const Saved({super.key});
+  final VoidCallback? onOpenCatalog;
+
+  const Saved({super.key, this.onOpenCatalog});
+
+  void _openArchive(BuildContext context) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => const ArchiveSearchScreen(),
+    ));
+  }
+
+  void _openCatalog(BuildContext context) {
+    Navigator.pop(context);
+    if (onOpenCatalog != null) {
+      onOpenCatalog!();
+    } else {
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => Catalog(onOpen: (_) {}),
+      ));
+    }
+  }
 
   @override
-  Widget build(BuildContext context) => Directionality(
-    textDirection: TextDirection.rtl,
-    child: ValueListenableBuilder<List<Map<String, String>>>(
-      valueListenable: SavedExamsStore.items,
-      builder: (context, saved, _) {
-        if (saved.isEmpty) {
-          return const Center(child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.bookmark_border, size: 55,),
-              SizedBox(height: 12),
-              Text('المحفوظات', style: TextStyle(
-                fontSize: 21, fontWeight: FontWeight.w900, )),
-              SizedBox(height: 5),
-              Text('احفظ أوراق الامتحانات لتصل إليها بسرعة هنا',
-                style: TextStyle()),
-            ],
-          ));
-        }
-        return ListView(
-          padding: const EdgeInsets.all(18),
-          children: [
-            const Text('أوراقي المحفوظة', style: TextStyle(
-              fontSize: 23, fontWeight: FontWeight.w900, )),
-            const SizedBox(height: 5),
-            Text('${saved.length} ورقة محفوظة للمراجعة',
-              style: const TextStyle()),
-            const SizedBox(height: 14),
-            ...saved.map((exam) => Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 6),
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(9),
-                  child: Image.asset(exam['path'] ?? '',
-                    width: 52, height: 62, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox(
-                      width: 52, height: 62,
-                      child: Icon(Icons.image_not_supported_outlined)),
-                  ),
-                ),
-                title: Text(exam['subject'] ?? 'مادة دراسية',
-                  style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text("${exam['year'] ?? ''} • ${exam['round'] ?? ''}"),
-                onTap: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => Directionality(
-                    textDirection: TextDirection.rtl,
-                    child: Scaffold(
-                      backgroundColor: Colors.black,
-                      appBar: AppBar(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        title: Text(exam['subject'] ?? 'صورة الامتحان'),
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('المحفوظات'),
+          centerTitle: false,
+        ),
+        body: ValueListenableBuilder<List<Map<String, String>>>(
+          valueListenable: SavedExamsStore.items,
+          builder: (context, saved, _) {
+            if (saved.isEmpty) {
+              return LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(22, 28, 22, 28),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight - 56),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 94,
+                            height: 94,
+                            decoration: BoxDecoration(
+                              color: colors.primaryContainer.withValues(alpha: .65),
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                            child: Icon(Icons.bookmarks_outlined,
+                              size: 48, color: colors.primary),
+                          ),
+                          const SizedBox(height: 20),
+                          Text('محفوظاتك بانتظارك',
+                            style: TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.w900,
+                              color: colors.onSurface,
+                            )),
+                          const SizedBox(height: 8),
+                          Text(
+                            'ما حفظت أي ورقة لحد الآن. اختَر مادة أو افتح الأرشيف واحفظ أوراقك المهمة حتى ترجع إلها بسرعة.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              height: 1.7,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: () => _openCatalog(context),
+                              icon: const Icon(Icons.menu_book_rounded),
+                              label: const Text('استكشاف المواد'),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _openArchive(context),
+                              icon: const Icon(Icons.archive_outlined),
+                              label: const Text('فتح الأرشيف الوزاري'),
+                            ),
+                          ),
+                        ],
                       ),
-                      body: Center(child: InteractiveViewer(
-                        minScale: 0.8, maxScale: 5,
-                        child: Image.asset(exam['path'] ?? '',
-                          fit: BoxFit.contain),
-                      )),
                     ),
                   ),
-                )),
-                trailing: IconButton(
-                  tooltip: 'إزالة من المحفوظات',
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                  onPressed: () async {
-                    await SavedExamsStore.remove(exam['path'] ?? '');
-                  },
                 ),
-              ),
-            )),
-          ],
-        );
-      },
-    ),
-  );
+              );
+            }
+
+            return ListView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+              children: [
+                Text('أوراقي المحفوظة',
+                  style: TextStyle(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w900,
+                    color: colors.onSurface,
+                  )),
+                const SizedBox(height: 5),
+                Text('${saved.length} ورقة محفوظة للمراجعة',
+                  style: TextStyle(color: colors.onSurfaceVariant)),
+                const SizedBox(height: 16),
+                ...saved.map((exam) {
+                  final path = exam['path'] ?? '';
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 11),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: path.isEmpty ? null : () {
+                        Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => Directionality(
+                            textDirection: TextDirection.rtl,
+                            child: Scaffold(
+                              backgroundColor: Colors.black,
+                              appBar: AppBar(
+                                backgroundColor: Colors.black,
+                                foregroundColor: Colors.white,
+                                title: Text(exam['subject'] ?? 'صورة الامتحان'),
+                              ),
+                              body: Center(
+                                child: InteractiveViewer(
+                                  minScale: 0.8,
+                                  maxScale: 5,
+                                  child: Image.asset(
+                                    path,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Padding(
+                                      padding: EdgeInsets.all(24),
+                                      child: Text(
+                                        'تعذر عرض هذه الورقة لأن ملف الصورة غير متوفر داخل التطبيق.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ));
+                      },
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: 54,
+                            height: 64,
+                            child: path.isEmpty
+                                ? Icon(Icons.description_outlined, color: colors.primary)
+                                : Image.asset(
+                                    path,
+                                    width: 54,
+                                    height: 64,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: colors.surfaceContainerHighest,
+                                      alignment: Alignment.center,
+                                      child: Icon(Icons.description_outlined,
+                                        color: colors.onSurfaceVariant),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        title: Text(exam['subject'] ?? 'مادة دراسية',
+                          style: const TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: Text('${exam['year'] ?? ''} • ${exam['round'] ?? ''}'),
+                        trailing: IconButton(
+                          tooltip: 'إزالة من المحفوظات',
+                          icon: const Icon(Icons.delete_outline_rounded,
+                            color: Colors.redAccent),
+                          onPressed: () async {
+                            try {
+                              await SavedExamsStore.remove(path);
+                            } catch (_) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('تعذر حذف الورقة حالياً')),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
+
 class PersonalizationScreen extends StatelessWidget {
   const PersonalizationScreen({super.key});
 
@@ -1877,20 +2061,40 @@ class _StudyNoteDetailScreenState extends State<StudyNoteDetailScreen> {
                       child: FilledButton.icon(
                         onPressed: _edit,
                         icon: const Icon(Icons.edit_rounded),
-                        label: const Text('تعديل الملاحظة'),
+                        label: const Text('تعديل'),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     OutlinedButton.icon(
+                      onPressed: () async {
+                        final text = (_note['body'] ?? '').trim();
+                        if (text.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('لا يوجد نص لنسخه')),
+                          );
+                          return;
+                        }
+                        await Clipboard.setData(ClipboardData(text: text));
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('تم نسخ نص الملاحظة بنجاح'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.copy_rounded),
+                      label: const Text('نسخ النص'),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'حذف الملاحظة',
                       onPressed: _delete,
-                      style: OutlinedButton.styleFrom(
+                      style: IconButton.styleFrom(
                         foregroundColor: colors.error,
                         side: BorderSide(color: colors.error),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 14),
                       ),
                       icon: const Icon(Icons.delete_outline_rounded),
-                      label: const Text('حذف'),
                     ),
                   ],
                 ),
