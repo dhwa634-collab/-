@@ -114,7 +114,7 @@ class ThemeController {
   static final ValueNotifier<double> fontScale = ValueNotifier<double>(1.0);
   static final ValueNotifier<int> bookCardStyle = ValueNotifier<int>(0);
 
-  static Color get accent => paletteColors[paletteIndex.value.clamp(0, 3)];
+  static Color get accent => paletteColors[paletteIndex.value.clamp(0, 3).toInt()];
   static Color bookCardColor(Color subjectColor, ColorScheme scheme) {
     switch (bookCardStyle.value) {
       case 1:
@@ -129,10 +129,10 @@ class ThemeController {
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     isDark.value = prefs.getBool(_key) ?? false;
-    paletteIndex.value = (prefs.getInt(_paletteKey) ?? 0).clamp(0, 3);
+    paletteIndex.value = (prefs.getInt(_paletteKey) ?? 0).clamp(0, 3).toInt();
     final savedScale = prefs.getDouble(_fontKey) ?? 1.0;
     fontScale.value = [0.95, 1.0, 1.08].contains(savedScale) ? savedScale : 1.0;
-    bookCardStyle.value = (prefs.getInt(_bookStyleKey) ?? 0).clamp(0, 2);
+    bookCardStyle.value = (prefs.getInt(_bookStyleKey) ?? 0).clamp(0, 2).toInt();
   }
 
   static Future<void> toggle(bool value) async {
@@ -142,7 +142,7 @@ class ThemeController {
   }
 
   static Future<void> setPalette(int value) async {
-    paletteIndex.value = value.clamp(0, 3);
+    paletteIndex.value = value.clamp(0, 3).toInt();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_paletteKey, paletteIndex.value);
   }
@@ -154,7 +154,7 @@ class ThemeController {
   }
 
   static Future<void> setBookCardStyle(int value) async {
-    bookCardStyle.value = value.clamp(0, 2);
+    bookCardStyle.value = value.clamp(0, 2).toInt();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_bookStyleKey, bookCardStyle.value);
   }
@@ -541,7 +541,11 @@ class Catalog extends StatelessWidget {
             itemBuilder: (_, i) => SubjectTile(
               subject: subjects[i],
               onTap: () => Navigator.push(context, MaterialPageRoute(
-                builder: (_) => BooksLibraryScreen(subject: subjects[i])))),
+                builder: (_) => BooksLibraryScreen(
+                  subject: subjects[i],
+                  cardStyle: ThemeController.bookCardStyle.value,
+                  accentColor: ThemeController.accent,
+                )))),
           ),
         ),
       ],
