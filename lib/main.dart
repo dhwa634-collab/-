@@ -547,31 +547,42 @@ class Catalog extends StatelessWidget {
         Text('اختر المادة للوصول إلى كتبها أو مراجعة وزارياتها',
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(height: 18),
+        // الكتب أولاً، والوزاريات بعدها: عكس الترتيب السابق بناءً على طلب المستخدم.
+        Feature(
+          icon: Icons.menu_book_rounded,
+          title: 'الكتب الثالث متوسط',
+          desc: 'تصفح كتب جميع المواد ونزّل ملفات PDF لقراءتها داخل التطبيق',
+          onTap: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => BooksLibraryScreen(
+              cardStyle: ThemeController.bookCardStyle.value,
+              accentColor: ThemeController.accent,
+            )))),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: subjects.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 11,
+            mainAxisSpacing: 11,
+            childAspectRatio: 1.34),
+          itemBuilder: (_, i) => SubjectTile(
+            subject: subjects[i],
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => BooksLibraryScreen(
+                subject: subjects[i],
+                cardStyle: ThemeController.bookCardStyle.value,
+                accentColor: ThemeController.accent,
+              )))),
+        ),
+        const SizedBox(height: 14),
         Feature(
           icon: Icons.history_edu_rounded,
           title: 'وزاريات الثالث متوسط',
           desc: 'ابحث في الأوراق الامتحانية حسب المادة والسنة والدور',
           onTap: () => Navigator.push(context, MaterialPageRoute(
-            builder: (_) => const ArchiveSearchScreen()))),
-        const SizedBox(height: 8),
-        Expanded(
-          child: GridView.builder(
-            itemCount: subjects.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 11,
-              mainAxisSpacing: 11,
-              childAspectRatio: 1.34),
-            itemBuilder: (_, i) => SubjectTile(
-              subject: subjects[i],
-              onTap: () => Navigator.push(context, MaterialPageRoute(
-                builder: (_) => BooksLibraryScreen(
-                  subject: subjects[i],
-                  cardStyle: ThemeController.bookCardStyle.value,
-                  accentColor: ThemeController.accent,
-                )))),
-          ),
-        ),
+            builder: (_) => const ArchiveSearchScreen())),
       ],
     ),
   );
