@@ -644,12 +644,14 @@ class BooksLibraryScreen extends StatefulWidget {
   final Subject? subject;
   final int cardStyle;
   final Color accentColor;
+  final double cardRadius;
 
   const BooksLibraryScreen({
     super.key,
     this.subject,
     this.cardStyle = 0,
     this.accentColor = const Color(0xFF2868D7),
+    this.cardRadius = 18,
   });
 
   @override
@@ -898,13 +900,13 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
                           ? Color.alphaBlend(widget.accentColor.withValues(alpha: .13), colors.surface)
                           : colors.surfaceContainerLow,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(widget.cardRadius),
                     side: BorderSide(
                       color: book.color.withValues(alpha: .35)),
                   ),
                   child: InkWell(
                     onTap: downloading ? null : () => _chooseBook(book),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(widget.cardRadius),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 12),
