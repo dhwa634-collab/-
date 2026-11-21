@@ -290,7 +290,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
         _isRunning = true;
         _deadlineMs = DateTime.now().add(Duration(seconds: _remainingSeconds)).millisecondsSinceEpoch;
       });
-      _ticker ??= Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     }
     await _persist();
   }
