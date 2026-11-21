@@ -582,7 +582,7 @@ class Catalog extends StatelessWidget {
           title: 'وزاريات الثالث متوسط',
           desc: 'ابحث في الأوراق الامتحانية حسب المادة والسنة والدور',
           onTap: () => Navigator.push(context, MaterialPageRoute(
-            builder: (_) => const ArchiveSearchScreen())),
+            builder: (_) => const ArchiveSearchScreen()))),
       ],
     ),
   );
