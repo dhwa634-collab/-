@@ -92,67 +92,164 @@ class AiReportStore {
 
 class ThemeController {
   static const _key = 'study_app_dark_mode_v1';
+  static const _paletteKey = 'study_app_palette_v1';
+  static const _fontKey = 'study_app_font_scale_v1';
+  static const _bookStyleKey = 'study_app_book_style_v1';
+
+  static const List<Color> paletteColors = [
+    Color(0xFF2868D7), // أزرق التطبيق الأصلي
+    Color(0xFF16866A), // أخضر هادئ
+    Color(0xFF7652C7), // بنفسجي
+    Color(0xFFB87524), // ذهبي دافئ
+  ];
+  static const List<Color> lightBackgrounds = [
+    Color(0xFFF3F6FB),
+    Color(0xFFF0F7F5),
+    Color(0xFFF5F2FA),
+    Color(0xFFFBF6ED),
+  ];
+
   static final ValueNotifier<bool> isDark = ValueNotifier<bool>(false);
+  static final ValueNotifier<int> paletteIndex = ValueNotifier<int>(0);
+  static final ValueNotifier<double> fontScale = ValueNotifier<double>(1.0);
+  static final ValueNotifier<int> bookCardStyle = ValueNotifier<int>(0);
+
+  static Color get accent => paletteColors[paletteIndex.value.clamp(0, 3)];
+  static Color bookCardColor(Color subjectColor, ColorScheme scheme) {
+    switch (bookCardStyle.value) {
+      case 1:
+        return Color.alphaBlend(subjectColor.withValues(alpha: .10), scheme.surface);
+      case 2:
+        return Color.alphaBlend(accent.withValues(alpha: .13), scheme.surface);
+      default:
+        return scheme.surfaceContainerLow;
+    }
+  }
+
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     isDark.value = prefs.getBool(_key) ?? false;
+    paletteIndex.value = (prefs.getInt(_paletteKey) ?? 0).clamp(0, 3);
+    final savedScale = prefs.getDouble(_fontKey) ?? 1.0;
+    fontScale.value = [0.95, 1.0, 1.08].contains(savedScale) ? savedScale : 1.0;
+    bookCardStyle.value = (prefs.getInt(_bookStyleKey) ?? 0).clamp(0, 2);
   }
+
   static Future<void> toggle(bool value) async {
     isDark.value = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_key, value);
   }
+
+  static Future<void> setPalette(int value) async {
+    paletteIndex.value = value.clamp(0, 3);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_paletteKey, paletteIndex.value);
+  }
+
+  static Future<void> setFontScale(double value) async {
+    fontScale.value = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_fontKey, value);
+  }
+
+  static Future<void> setBookCardStyle(int value) async {
+    bookCardStyle.value = value.clamp(0, 2);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_bookStyleKey, bookCardStyle.value);
+  }
+
+  static Future<void> restoreDefaults() async {
+    isDark.value = false;
+    paletteIndex.value = 0;
+    fontScale.value = 1.0;
+    bookCardStyle.value = 0;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_key, false);
+    await prefs.setInt(_paletteKey, 0);
+    await prefs.setDouble(_fontKey, 1.0);
+    await prefs.setInt(_bookStyleKey, 0);
+  }
 }
+
 class StudyApp extends StatelessWidget {
   const StudyApp({super.key});
+
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
-    valueListenable: ThemeController.isDark,
-    builder: (context, isDark, _) => MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'دليلك للنجاح — الثالث متوسط • العراق',
-      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
-      theme: ThemeData(useMaterial3: true, brightness: Brightness.light,
-        scaffoldBackgroundColor: bg,
-        colorScheme: ColorScheme.fromSeed(seedColor: blue),
-        cardTheme: CardThemeData(color: Colors.white, elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
-        navigationBarTheme: const NavigationBarThemeData(
-          backgroundColor: Colors.white, indicatorColor: Color(0xFFDCE8FF)),
-        appBarTheme: const AppBarTheme(backgroundColor: bg,
-          surfaceTintColor: Colors.transparent)),
-      darkTheme: ThemeData(useMaterial3: true, brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF101827),
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF79A9FF),
-          brightness: Brightness.dark, surface: const Color(0xFF182437)),
-        cardColor: const Color(0xFF1B2A40),
-        cardTheme: CardThemeData(color: const Color(0xFF1B2A40), elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
-        navigationBarTheme: const NavigationBarThemeData(
-          backgroundColor: Color(0xFF172337), indicatorColor: Color(0xFF294A78)),
-        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF101827),
-          surfaceTintColor: Colors.transparent),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFF1B2A40),
-          hintStyle: const TextStyle(color: Color(0xFFB8C7DA), fontSize: 14),
-          labelStyle: const TextStyle(color: Color(0xFFD0DCEE)),
-          floatingLabelStyle: const TextStyle(color: Color(0xFF9FC2FF)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFF40536D)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFF79A9FF), width: 1.6),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFFF7777)),
-          ),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-        )),
-      home: const Shell()));
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: Listenable.merge([
+      ThemeController.isDark,
+      ThemeController.paletteIndex,
+      ThemeController.fontScale,
+    ]),
+    builder: (context, _) {
+      final isDark = ThemeController.isDark.value;
+      final palette = ThemeController.paletteColors[
+        ThemeController.paletteIndex.value.clamp(0, 3)];
+      final fontScale = ThemeController.fontScale.value;
+      final lightBackground = ThemeController.lightBackgrounds[
+        ThemeController.paletteIndex.value.clamp(0, 3)];
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'دليلك للنجاح — الثالث متوسط • العراق',
+        themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.light,
+          scaffoldBackgroundColor: lightBackground,
+          colorScheme: ColorScheme.fromSeed(seedColor: palette),
+          textTheme: ThemeData.light().textTheme.apply(fontSizeFactor: fontScale),
+          cardTheme: CardThemeData(
+            color: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+          navigationBarTheme: NavigationBarThemeData(
+            backgroundColor: Colors.white,
+            indicatorColor: palette.withValues(alpha: .15)),
+          appBarTheme: AppBarTheme(
+            backgroundColor: lightBackground,
+            surfaceTintColor: Colors.transparent)),
+        darkTheme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: const Color(0xFF101827),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: palette,
+            brightness: Brightness.dark,
+            surface: const Color(0xFF182437)),
+          cardColor: const Color(0xFF1B2A40),
+          textTheme: ThemeData.dark().textTheme.apply(fontSizeFactor: fontScale),
+          cardTheme: CardThemeData(
+            color: const Color(0xFF1B2A40),
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+          navigationBarTheme: const NavigationBarThemeData(
+            backgroundColor: Color(0xFF172337),
+            indicatorColor: Color(0xFF294A78)),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF101827),
+            surfaceTintColor: Colors.transparent),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: const Color(0xFF1B2A40),
+            hintStyle: const TextStyle(color: Color(0xFFB8C7DA), fontSize: 14),
+            labelStyle: const TextStyle(color: Color(0xFFD0DCEE)),
+            floatingLabelStyle: const TextStyle(color: Color(0xFF9FC2FF)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
+              borderSide: BorderSide(color: Color(0xFF40536D))),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
+              borderSide: BorderSide(color: Color(0xFF79A9FF), width: 1.6)),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
+              borderSide: BorderSide(color: Color(0xFFFF7777))),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14))),
+          )),
+        home: const Shell());
+    },
+  );
 }
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
 class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const MoreScreen()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Theme.of(context).colorScheme.surface,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.more_horiz_rounded),label:'المزيد')])));}}
@@ -400,7 +497,7 @@ class SubjectTile extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onSurfaceVariant),
             ]),
             const SizedBox(height: 9),
-            Text('وزاريات ${subject.name}', maxLines: 3, softWrap: true,
+            Text('كتاب ${subject.name}', maxLines: 3, softWrap: true,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5,
                 height: 1.22, letterSpacing: 0,
@@ -410,28 +507,46 @@ class SubjectTile extends StatelessWidget {
 class Catalog extends StatelessWidget {
   final ValueChanged<Subject> onOpen;
   const Catalog({super.key, required this.onOpen});
-  @override Widget build(BuildContext context) => Padding(
+
+  @override
+  Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(18),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SizedBox(height: 12),
-      Text('المواد الدراسية', style: TextStyle(fontSize: 25,
-        fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface)),
-      const SizedBox(height: 6),
-      Text('اختر المادة للوصول إلى أرشيفها',
-        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-      const SizedBox(height: 18),
-      Feature(icon: Icons.picture_as_pdf_rounded, title: 'الكتب الثالث متوسط',
-        desc: 'افتح الكتب المنهجية حسب المادة',
-        onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => const BooksLibraryScreen()))),
-      const SizedBox(height: 8),
-      Expanded(child: GridView.builder(itemCount: subjects.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11,
-          childAspectRatio: 1.34),
-        itemBuilder: (_, i) => SubjectTile(subject: subjects[i],
-          onTap: () => onOpen(subjects[i])))),
-    ]));
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        Text('المواد الدراسية', style: TextStyle(
+          fontSize: 25,
+          fontWeight: FontWeight.w900,
+          color: Theme.of(context).colorScheme.onSurface)),
+        const SizedBox(height: 6),
+        Text('اختر المادة للوصول إلى كتبها أو مراجعة وزارياتها',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 18),
+        Feature(
+          icon: Icons.history_edu_rounded,
+          title: 'وزاريات الثالث متوسط',
+          desc: 'ابحث في الأوراق الامتحانية حسب المادة والسنة والدور',
+          onTap: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => const ArchiveSearchScreen()))),
+        const SizedBox(height: 8),
+        Expanded(
+          child: GridView.builder(
+            itemCount: subjects.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 11,
+              mainAxisSpacing: 11,
+              childAspectRatio: 1.34),
+            itemBuilder: (_, i) => SubjectTile(
+              subject: subjects[i],
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => BooksLibraryScreen(subject: subjects[i])))),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 class ArchiveSearchScreen extends StatefulWidget {
   const ArchiveSearchScreen({super.key});
@@ -942,6 +1057,141 @@ class Saved extends StatelessWidget {
     ),
   );
 }
+class PersonalizationScreen extends StatelessWidget {
+  const PersonalizationScreen({super.key});
+
+  static const _paletteNames = ['الأزرق الأصلي', 'الأخضر الهادئ', 'البنفسجي', 'الذهبي'];
+  static const _paletteDots = [
+    Color(0xFF2868D7), Color(0xFF16866A),
+    Color(0xFF7652C7), Color(0xFFB87524),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('تخصيص التطبيق')),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text('اختر المظهر الذي يريحك أثناء الدراسة.',
+              style: TextStyle(color: colors.onSurfaceVariant, height: 1.6)),
+            const SizedBox(height: 14),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('لون التطبيق والخلفية',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    const SizedBox(height: 12),
+                    ValueListenableBuilder<int>(
+                      valueListenable: ThemeController.paletteIndex,
+                      builder: (context, selected, _) => Wrap(
+                        spacing: 9,
+                        runSpacing: 9,
+                        children: List.generate(_paletteNames.length, (index) =>
+                          ChoiceChip(
+                            avatar: CircleAvatar(
+                              radius: 8, backgroundColor: _paletteDots[index]),
+                            label: Text(_paletteNames[index]),
+                            selected: selected == index,
+                            onSelected: (_) => ThemeController.setPalette(index),
+                          )),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('تتغير ألوان الواجهة مع بقاء ألوان النصوص متوافقة مع الوضع النهاري والليلي.',
+                      style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('حجم الخط',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    const SizedBox(height: 12),
+                    ValueListenableBuilder<double>(
+                      valueListenable: ThemeController.fontScale,
+                      builder: (context, selected, _) => SegmentedButton<double>(
+                        segments: const [
+                          ButtonSegment(value: .95, label: Text('مريح')),
+                          ButtonSegment(value: 1.0, label: Text('متوسط')),
+                          ButtonSegment(value: 1.08, label: Text('أكبر')),
+                        ],
+                        selected: {selected},
+                        onSelectionChanged: (value) =>
+                          ThemeController.setFontScale(value.first),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text('يمكنك تكبير النصوص قليلاً لتسهيل القراءة.',
+                      style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('طابع بطاقات الكتب',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    const SizedBox(height: 12),
+                    ValueListenableBuilder<int>(
+                      valueListenable: ThemeController.bookCardStyle,
+                      builder: (context, selected, _) => Wrap(
+                        spacing: 8,
+                        children: [
+                          ChoiceChip(label: const Text('هادئ'), selected: selected == 0,
+                            onSelected: (_) => ThemeController.setBookCardStyle(0)),
+                          ChoiceChip(label: const Text('بلون المادة'), selected: selected == 1,
+                            onSelected: (_) => ThemeController.setBookCardStyle(1)),
+                          ChoiceChip(label: const Text('بلون الثيم'), selected: selected == 2,
+                            onSelected: (_) => ThemeController.setBookCardStyle(2)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: () async {
+                await ThemeController.restoreDefaults();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('تمت استعادة المظهر الافتراضي.')));
+                }
+              },
+              icon: const Icon(Icons.restart_alt_rounded),
+              label: const Text('استعادة الإعدادات الافتراضية'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14)),
+            ),
+            const SizedBox(height: 12),
+            Text('تُحفظ اختياراتك على هذا الجهاز، ولا تؤثر في المحفوظات أو ملفات الكتب أو بيانات المساعد الذكي.',
+              style: TextStyle(fontSize: 12, height: 1.6, color: colors.onSurfaceVariant)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
@@ -1211,6 +1461,16 @@ class MoreScreen extends StatelessWidget {
                 ],
               )),
             ]),
+          ),
+
+          _sectionTitle(context, 'المظهر والتخصيص', Icons.palette_outlined),
+          _actionTile(
+            context: context,
+            icon: Icons.tune_rounded,
+            title: 'تخصيص شكل التطبيق',
+            subtitle: 'الألوان والخطوط وطابع بطاقات الكتب',
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const PersonalizationScreen())),
           ),
 
           _sectionTitle(context, 'الدعم والمجتمع', Icons.favorite_outline_rounded),
