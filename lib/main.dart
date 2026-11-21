@@ -66,6 +66,33 @@ class SavedExamsStore {
   }
 }
 
+class AiReportStore {
+  static const String _storageKey = 'ai_answer_reports_v1';
+
+  static Future<void> save({required String category, String note = ''}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final reports = <Map<String, dynamic>>[];
+    final raw = prefs.getString(_storageKey);
+    if (raw != null) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          for (final item in decoded) {
+            if (item is Map) reports.add(Map<String, dynamic>.from(item));
+          }
+        }
+      } catch (_) {}
+    }
+    reports.insert(0, {
+      'category': category,
+      'note': note.trim(),
+      'createdAt': DateTime.now().toUtc().toIso8601String(),
+    });
+    if (reports.length > 100) reports.removeRange(100, reports.length);
+    await prefs.setString(_storageKey, jsonEncode(reports));
+  }
+}
+
 class StudyApp extends StatelessWidget {const StudyApp({super.key}); @override Widget build(BuildContext context)=>MaterialApp(debugShowCheckedModeBanner:false,title:'وزاريات الثالث متوسط',theme:ThemeData(useMaterial3:true,scaffoldBackgroundColor:bg,colorScheme:ColorScheme.fromSeed(seedColor:blue),cardTheme:CardThemeData(color:Colors.white,elevation:0,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18)))),home:const Shell());}
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
 class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const About()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Colors.white,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.info_outline),label:'حول')])));}}
@@ -666,25 +693,27 @@ class PrivacyScreen extends StatelessWidget {
           Text('البيانات التي يعالجها التطبيق',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
           SizedBox(height: 8),
-          Text('يحفظ التطبيق قائمة أوراق الامتحانات المختارة محلياً على جهازك. لا يتطلب إنشاء حساب ولا يطلب الاسم أو رقم الهاتف أو الموقع.'),
+          Text('لا يتطلب التطبيق إنشاء حساب ولا يطلب الاسم أو رقم الهاتف أو البريد الإلكتروني أو الموقع أو كلمة المرور. قائمة أوراق الامتحانات المحفوظة تُخزّن محلياً على جهازك.'),
           SizedBox(height: 18),
-          Text('المساعد الذكي',
+          Text('المساعد الذكي ومزودو الخدمة',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
           SizedBox(height: 8),
-          Text('عند إرسال سؤال إلى المساعد، يُرسل نص السؤال وجزء من سياق المحادثة إلى خادم التطبيق على Cloudflare ثم إلى Google Gemini لمعالجة الطلب وإنتاج الإجابة. لا ترسل معلومات شخصية أو كلمات مرور.'),
+          Text('عند إرسال سؤال، يُرسل نص السؤال وجزءاً من سياق المحادثة إلى Cloudflare Worker ثم إلى Google Gemini لتوليد الإجابة. لا نرفق مع الطلب اسمك أو رقم هاتفك أو موقعك أو معرّف جهازك. قد تعالج Cloudflare وGoogle بيانات الطلب وفق سياساتهما.'),
           SizedBox(height: 18),
-          Text('التخزين والمشاركة',
+          Text('تقليل البيانات والاحتفاظ',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
           SizedBox(height: 8),
-          Text('لا يحفظ التطبيق سجل محادثة المساعد بشكل دائم في النسخة الحالية. تتم مشاركة نص السؤال مع مزودي الخدمة المذكورين فقط لتقديم وظيفة المساعد.'),
+          Text('يحاول التطبيق إزالة عناوين البريد الإلكتروني وأرقام الهاتف العراقية الواضحة قبل إرسال السؤال. لا يمكن ضمان اكتشاف كل المعلومات الشخصية؛ لذلك لا تكتب أسماءك أو عناوينك أو أي معلومات سرية. سجل المحادثة يبقى في الذاكرة أثناء الجلسة ولا يُحفظ كسجل دائم.'),
           SizedBox(height: 18),
-          Text('التنويه',
+          Text('بلاغات الإجابات',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
           SizedBox(height: 8),
-          Text('التطبيق مستقل وغير تابع لوزارة التربية العراقية. قد يخطئ المساعد الذكي، لذا راجع الحلول مع الكتاب المدرسي أو المدرس.'),
-          SizedBox(height: 20),
-          Text('آخر تحديث: 21 نوفمبر 2026',
-            style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
+          Text('بلاغات الإجابات تُحفظ محلياً على جهازك فقط، وتتضمن نوع البلاغ والملاحظة الاختيارية ووقت الإنشاء. لا نرسل نص السؤال أو الإجابة أو البلاغ إلى خادم خارجي في هذه النسخة.'),
+          SizedBox(height: 18),
+          Text('حقوقك والتنويه',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: navy)),
+          SizedBox(height: 8),
+          Text('يمكنك حذف بيانات التطبيق من إعدادات جهازك. التطبيق مستقل وغير تابع لوزارة التربية العراقية. قد يخطئ الذكاء الاصطناعي؛ راجع الحلول مع الكتاب المدرسي أو مدرسك.');
         ],
       ),
     ),
@@ -709,9 +738,83 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   ];
   bool loading = false;
 
+  String _sanitizeStudentText(String value) {
+    return value
+        .replaceAll(RegExp(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}', caseSensitive: false), '[بريد محذوف]')
+        .replaceAll(RegExp(r'(?:\\+?964|0)7[0-9]{9}'), '[رقم هاتف محذوف]');
+  }
+
+  Future<void> _reportAnswer() async {
+    const reasons = ['إجابة غير دقيقة', 'محتوى غير مناسب', 'مشكلة تقنية'];
+    String selected = reasons.first;
+    final noteController = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('الإبلاغ عن الإجابة',
+            style: TextStyle(fontWeight: FontWeight.w900)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('اختر سبب البلاغ:'),
+                const SizedBox(height: 8),
+                ...reasons.map((reason) => RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text(reason, style: const TextStyle(fontSize: 14)),
+                  value: reason,
+                  groupValue: selected,
+                  onChanged: (value) => setDialogState(() => selected = value ?? reasons.first),
+                )),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: noteController,
+                  maxLines: 3,
+                  maxLength: 240,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظة اختيارية',
+                    hintText: 'لا تكتب اسمك أو رقم هاتفك أو أي معلومات شخصية',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const Text('سيُحفظ البلاغ على هذا الجهاز فقط ولن يُرسل إلى الإنترنت.',
+                  style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, {
+              'category': selected,
+              'note': _sanitizeStudentText(noteController.text).trim(),
+            }), child: const Text('إرسال البلاغ')),
+          ],
+        ),
+      ),
+    );
+    noteController.dispose();
+    if (result == null || !mounted) return;
+    await AiReportStore.save(category: result['category'] ?? reasons.first,
+      note: result['note'] ?? '');
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('تم حفظ البلاغ على جهازك، شكراً لمساعدتنا على التحسين.'),
+    ));
+  }
+
   Future<void> send() async {
-    final question = controller.text.trim();
-    if (question.isEmpty || loading) return;
+    final enteredQuestion = controller.text.trim();
+    if (enteredQuestion.isEmpty || loading) return;
+    final question = _sanitizeStudentText(enteredQuestion);
+    if (question != enteredQuestion) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('حذفنا رقم هاتف أو بريداً إلكترونياً واضحاً قبل إرسال السؤال.'),
+      ));
+    }
     controller.clear();
     setState(() {
       messages.add({'role': 'user', 'text': question});
@@ -854,8 +957,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 Icon(Icons.auto_awesome, color: blue),
                 SizedBox(width: 9),
                 Expanded(child: Text(
-                  'اسأل، تابع بنفس المحادثة، واطلب توضيح أي خطوة ما فهمتها.',
-                  style: TextStyle(color: navy, fontSize: 12, height: 1.5),
+                  'اسأل وتابع بنفس المحادثة. تنبيه: الردود مولّدة بالذكاء الاصطناعي وقد تحتوي على أخطاء؛ راجع الحلول الدراسية والوزارية مع الكتاب المدرسي أو مدرسك، ولا تعتمد عليها وحدها.',
+                  style: TextStyle(color: navy, fontSize: 12, height: 1.55),
                 )),
               ],
             ),
@@ -923,7 +1026,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                                   icon: const Icon(Icons.refresh, size: 17),
                                   label: const Text('إعادة المحاولة'),
                                 )
-                              else
+                              else ...[
                                 IconButton(
                                   tooltip: 'نسخ الإجابة',
                                   visualDensity: VisualDensity.compact,
@@ -939,6 +1042,16 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                                   icon: const Icon(Icons.copy_rounded,
                                     size: 17, color: Colors.blueGrey),
                                 ),
+                                TextButton.icon(
+                                  onPressed: _reportAnswer,
+                                  icon: const Icon(Icons.flag_outlined, size: 17),
+                                  label: const Text('إبلاغ'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.blueGrey,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ],
