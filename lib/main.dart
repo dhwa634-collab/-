@@ -1381,7 +1381,9 @@ class _StudyNotesScreenState extends State<StudyNotesScreen> {
         await prefs.setString(_key, jsonEncode(items));
       }
     }
-    if (mounted) setState(() { _notes = items; _loading = false; });
+    if (mounted) {
+      setState(() { _notes = items; _loading = false; });
+    }
   }
   Future<void> _save() async {
     final body = _entry.text.trim();
@@ -1467,7 +1469,7 @@ class _StudyNotesScreenState extends State<StudyNotesScreen> {
         FilledButton.icon(onPressed: _loading || _saving ? null : _save,
           icon: const Icon(Icons.save_rounded), label: const Text('حفظ الملاحظات')),
         const SizedBox(height: 18),
-        Text('ملاحظاتي المحفوظة (' + _notes.length.toString() + ')',
+        Text('ملاحظاتي المحفوظة (${_notes.length})',
           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
         const SizedBox(height: 8),
         if (_loading) const Center(child: CircularProgressIndicator()),
