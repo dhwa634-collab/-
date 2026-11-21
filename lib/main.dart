@@ -596,7 +596,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
                 const SizedBox(width: 12),
                 Expanded(child: Text('أرشيف ${widget.subject.name}',
                   style: const TextStyle(fontSize: 18,
-                    fontWeight: FontWeight.w900, color: navy))),
+                    fontWeight: FontWeight.w900, ))),
               ]),
             ),
             const SizedBox(height: 22),
@@ -606,7 +606,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
             DropdownButtonFormField<String>(
               initialValue: year,
               decoration: InputDecoration(
-                filled: true, fillColor: Colors.white,
+                filled: true, fillColor: Theme.of(context).cardColor,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(13),
                   borderSide: BorderSide.none,
@@ -634,7 +634,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
             if ((widget.subject.name == 'الكيمياء' || widget.subject.name == 'اللغة العربية') && images.isNotEmpty) ...[
               Text('أسئلة ${widget.subject.name} • $academicYear • $kind',
                 style: const TextStyle(fontSize: 17,
-                  fontWeight: FontWeight.w900, color: navy)),
+                  fontWeight: FontWeight.w900, )),
               const SizedBox(height: 12),
               ...images.asMap().entries.map((entry) => Padding(
                 padding: const EdgeInsets.only(bottom: 14),
@@ -720,7 +720,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
                   const Text('لا توجد صورة مصنفة لهذا الاختيار حالياً',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 17,
-                      fontWeight: FontWeight.w900, color: navy)),
+                      fontWeight: FontWeight.w900, )),
                   const SizedBox(height: 8),
                   Text(
                     (widget.subject.name == 'الكيمياء' || widget.subject.name == 'اللغة العربية')
@@ -754,7 +754,7 @@ class Saved extends StatelessWidget {
               Icon(Icons.bookmark_border, size: 55, color: Colors.blueGrey),
               SizedBox(height: 12),
               Text('المحفوظات', style: TextStyle(
-                fontSize: 21, fontWeight: FontWeight.w900, color: navy)),
+                fontSize: 21, fontWeight: FontWeight.w900, )),
               SizedBox(height: 5),
               Text('احفظ أوراق الامتحانات لتصل إليها بسرعة هنا',
                 style: TextStyle(color: Colors.blueGrey)),
@@ -765,7 +765,7 @@ class Saved extends StatelessWidget {
           padding: const EdgeInsets.all(18),
           children: [
             const Text('أوراقي المحفوظة', style: TextStyle(
-              fontSize: 23, fontWeight: FontWeight.w900, color: navy)),
+              fontSize: 23, fontWeight: FontWeight.w900, )),
             const SizedBox(height: 5),
             Text('${saved.length} ورقة محفوظة للمراجعة',
               style: const TextStyle(color: Colors.blueGrey)),
@@ -831,7 +831,7 @@ class About extends StatelessWidget {
       children: [
         const SizedBox(height: 12),
         const Text('حول التطبيق', style: TextStyle(
-          fontSize: 25, fontWeight: FontWeight.w900, color: navy)),
+          fontSize: 25, fontWeight: FontWeight.w900, )),
         const SizedBox(height: 16),
         const Text(
           'منصة تعليمية مستقلة لمساعدة طلبة الثالث متوسط في العراق على مراجعة أوراق الامتحانات والاستفادة من المساعد الذكي.',
@@ -922,7 +922,7 @@ class PrivacyScreen extends StatelessWidget {
                 SizedBox(width: 12),
                 Expanded(child: Text(
                   'يمكنك الاطلاع على سياسة الخصوصية الكاملة والمحدّثة للتطبيق، بما في ذلك البيانات التي تتم معالجتها، والمساعد الذكي، والبلاغات، ومدة الاحتفاظ بالمعلومات.',
-                  style: TextStyle(color: navy, height: 1.7),
+                  style: TextStyle(, height: 1.7),
                 )),
               ],
             ),
@@ -1391,7 +1391,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 SizedBox(width: 9),
                 Expanded(child: Text(
                   'اسأل وتابع بنفس المحادثة. تنبيه: الردود مولّدة بالذكاء الاصطناعي وقد تحتوي على أخطاء؛ راجع الحلول الدراسية والوزارية مع الكتاب المدرسي أو مدرسك، ولا تعتمد عليها وحدها.',
-                  style: TextStyle(color: navy, fontSize: 12, height: 1.55),
+                  style: TextStyle(, fontSize: 12, height: 1.55),
                 )),
               ],
             ),
