@@ -58,7 +58,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
       _tick();
     } else {
-      _remainingSeconds = _remainingSeconds.clamp(0, 7200);
+      _remainingSeconds = _remainingSeconds.clamp(0, 7200).toInt();
     }
   }
   Future<void> _persist() async {
@@ -105,7 +105,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
         ((_deadlineMs! - DateTime.now().millisecondsSinceEpoch) / 1000).ceil();
       _ticker?.cancel();
       setState(() {
-        _remainingSeconds = left.clamp(0, 7200);
+        _remainingSeconds = left.clamp(0, 7200).toInt();
         _isRunning = false; _deadlineMs = null;
       });
     } else {
@@ -174,7 +174,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final total = (_isBreak ? _breakMinutes : _studyMinutes) * 60;
-    final progress = total == 0 ? 0.0 : (1 - (_remainingSeconds / total)).clamp(0.0, 1.0);
+    final progress = total == 0 ? 0.0 : (1 - (_remainingSeconds / total)).clamp(0.0, 1.0).toDouble();
     return Directionality(textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(title: const Text('مؤقت الدراسة والاستراحة')),
