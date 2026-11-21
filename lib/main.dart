@@ -142,24 +142,177 @@ class StudyApp extends StatelessWidget {
       home: const Shell()));
 }
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
-class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const About()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Colors.white,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.info_outline),label:'حول')])));}}
-class Home extends StatelessWidget{final ValueChanged<Subject> onOpen;final VoidCallback onAll;const Home({super.key,required this.onOpen,required this.onAll});@override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(20),children:[
- Row(children:[Container(width:48,height:48,decoration:BoxDecoration(color:blue,borderRadius:BorderRadius.circular(15)),child:const Icon(Icons.school,color:Colors.white,size:28)),const SizedBox(width:12),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('دليلك للنجاح',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900,color:navy)),Text('الثالث متوسط • العراق',style:TextStyle(color:Colors.blueGrey))])),IconButton(tooltip:'البحث في الأرشيف',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const ArchiveSearchScreen())),icon:const Icon(Icons.search,color:navy))]),
- const SizedBox(height:22),
- Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(gradient:const LinearGradient(colors:[Color(0xFF173D78),Color(0xFF2675E8)]),borderRadius:BorderRadius.circular(25)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('منصة المراجعة الشاملة',style:TextStyle(color:Colors.white70)),const SizedBox(height:12),const Text('استعد للوزاري\nبخطوات واثقة',style:TextStyle(color:Colors.white,fontSize:28,fontWeight:FontWeight.w900,height:1.35)),const SizedBox(height:8),const Text('الأسئلة الوزارية والتمهيدية مع الحلول النموذجية',style:TextStyle(color:Colors.white70,height:1.6)),const SizedBox(height:15),FilledButton.icon(onPressed:onAll,style:FilledButton.styleFrom(backgroundColor:Colors.white,foregroundColor:navy),icon:const Icon(Icons.arrow_back),label:const Text('تصفح المواد'))])),
- const SizedBox(height:18),
- Container(padding:const EdgeInsets.all(16),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(18)),child:Row(children:[Container(width:46,height:46,decoration:BoxDecoration(color:blue.withValues(alpha:.10),borderRadius:BorderRadius.circular(14)),child:const Icon(Icons.auto_awesome,color:blue)),const SizedBox(width:12),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('المساعد الذكي',style:TextStyle(fontWeight:FontWeight.w900,color:navy,fontSize:16)),Text('اسأل عن أي مادة واحصل على شرح خطوة بخطوة',style:TextStyle(color:Colors.blueGrey,fontSize:12))])),FilledButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const AiAssistantScreen())),child:const Text('افتح'))])),
- const SizedBox(height:24),Row(children:[const Expanded(child:Text('المواد الدراسية',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900,color:navy))),TextButton(onPressed:onAll,child:const Text('عرض الكل'))]),const SizedBox(height:8),
- GridView.builder(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),itemCount:subjects.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,crossAxisSpacing:11,mainAxisSpacing:11,childAspectRatio:1.65),itemBuilder:(_,i)=>SubjectTile(subject:subjects[i],onTap:()=>onOpen(subjects[i]))),
- const SizedBox(height:24),const Text('مميزات التطبيق',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900,color:navy)),const SizedBox(height:12),
- Feature(icon:Icons.history_edu,title:'أرشيف حسب السنة والدور',desc:'وزاري وتمهيدي بترتيب واضح',onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const ArchiveSearchScreen()))),
- Feature(icon:Icons.fact_check_outlined,title:'حلول نموذجية مفصلة',desc:'شرح السؤال خطوة بخطوة بالمساعد الذكي',onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const SolutionsHubScreen()))),
- Feature(icon:Icons.search,title:'بحث وحفظ سريع',desc:'ابحث في الأوراق المصنفة واحفظها للمراجعة',onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const SearchSaveScreen()))),
- const SizedBox(height:12),Container(padding:const EdgeInsets.all(14),decoration:BoxDecoration(color:const Color(0xFFFFF5DF),borderRadius:BorderRadius.circular(15)),child:const Text('تنبيه: الأرشيف يجري تجهيزه والتحقق من مصادره. لن ننسب أسئلة تجريبية إلى الامتحانات الوزارية.',style:TextStyle(color:Color(0xFF76551B),height:1.6,fontSize:12)))
- ]);}
-class SubjectTile extends StatelessWidget{final Subject subject;final VoidCallback onTap;const SubjectTile({super.key,required this.subject,required this.onTap});@override Widget build(BuildContext context)=>Material(color:Colors.white,borderRadius:BorderRadius.circular(18),child:InkWell(onTap:onTap,borderRadius:BorderRadius.circular(18),child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[Container(width:42,height:42,decoration:BoxDecoration(color:subject.color.withValues(alpha:.12),borderRadius:BorderRadius.circular(13)),child:Icon(subject.icon,color:subject.color)),const SizedBox(width:9),Expanded(child:Text(subject.name,style:const TextStyle(fontWeight:FontWeight.w800,color:navy,fontSize:13))),const Icon(Icons.chevron_left,color:Colors.blueGrey)]))));}
-class Catalog extends StatelessWidget{final ValueChanged<Subject> onOpen;const Catalog({super.key,required this.onOpen});@override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.all(20),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const SizedBox(height:12),const Text('المواد الدراسية',style:TextStyle(fontSize:25,fontWeight:FontWeight.w900,color:navy)),const SizedBox(height:6),const Text('اختر المادة للوصول إلى أرشيفها'),const SizedBox(height:18),Expanded(child:GridView.builder(itemCount:subjects.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,crossAxisSpacing:11,mainAxisSpacing:11,childAspectRatio:1.55),itemBuilder:(_,i)=>SubjectTile(subject:subjects[i],onTap:()=>onOpen(subjects[i]))))]));}
-
+class _ShellState extends State<Shell>{int tab=0; void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s))); @override Widget build(BuildContext context){final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const Saved(),const About()];return Directionality(textDirection:TextDirection.rtl,child:Scaffold(body:SafeArea(child:IndexedStack(index:tab,children:pages)),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),backgroundColor:Theme.of(context).colorScheme.surface,destinations:const [NavigationDestination(icon:Icon(Icons.home_rounded),label:'الرئيسية'),NavigationDestination(icon:Icon(Icons.grid_view_rounded),label:'المواد'),NavigationDestination(icon:Icon(Icons.bookmark_rounded),label:'المحفوظات'),NavigationDestination(icon:Icon(Icons.info_outline),label:'حول')])));}}
+class Home extends StatelessWidget {
+  final ValueChanged<Subject> onOpen;
+  final VoidCallback onAll;
+  const Home({super.key, required this.onOpen, required this.onAll});
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
+    children: [
+      Row(children: [
+        Container(width: 48, height: 48,
+          decoration: BoxDecoration(gradient: const LinearGradient(
+            colors: [Color(0xFF17427E), Color(0xFF347FE8)]),
+            borderRadius: BorderRadius.circular(15)),
+          child: const Icon(Icons.school_rounded, color: Colors.white, size: 27)),
+        const SizedBox(width: 11),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('دليلك للنجاح', style: TextStyle(fontSize: 21,
+              fontWeight: FontWeight.w900,
+              color: Theme.of(context).colorScheme.onSurface)),
+            Text('الثالث متوسط • العراق', style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ])),
+        IconButton(tooltip: 'البحث في الأرشيف',
+          onPressed: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => const ArchiveSearchScreen())),
+          icon: const Icon(Icons.search_rounded)),
+        ValueListenableBuilder<bool>(
+          valueListenable: ThemeController.isDark,
+          builder: (context, isDark, _) => IconButton(
+            tooltip: isDark ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي',
+            onPressed: () => ThemeController.toggle(!isDark),
+            icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded)),
+        ),
+      ]),
+      const SizedBox(height: 20),
+      Container(padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [Color(0xFF173D78), Color(0xFF2675E8)]),
+          borderRadius: BorderRadius.circular(25)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('منصة المراجعة الشاملة',
+            style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 11),
+          const Text('استعد للوزاري\nبخطوات واثقة',
+            style: TextStyle(color: Colors.white, fontSize: 27,
+              fontWeight: FontWeight.w900, height: 1.35)),
+          const SizedBox(height: 8),
+          const Text('الأسئلة الوزارية والتمهيدية مع الحلول النموذجية',
+            style: TextStyle(color: Colors.white70, height: 1.6)),
+          const SizedBox(height: 15),
+          FilledButton.icon(onPressed: onAll,
+            style: FilledButton.styleFrom(backgroundColor: Colors.white,
+              foregroundColor: navy),
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: const Text('تصفح المواد')),
+        ])),
+      const SizedBox(height: 16),
+      Material(color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(padding: const EdgeInsets.all(15),
+          child: Row(children: [
+            Container(width: 44, height: 44,
+              decoration: BoxDecoration(color: blue.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(13)),
+              child: const Icon(Icons.auto_awesome_rounded, color: blue)),
+            const SizedBox(width: 11),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('المساعد الذكي', style: TextStyle(fontWeight: FontWeight.w900,
+                  color: Theme.of(context).colorScheme.onSurface, fontSize: 16)),
+                Text('اسأل عن أي مادة واحصل على شرح خطوة بخطوة',
+                  style: TextStyle(fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ])),
+            FilledButton(onPressed: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const AiAssistantScreen())),
+              child: const Text('افتح')),
+          ]))),
+      const SizedBox(height: 22),
+      Row(children: [
+        Expanded(child: Text('المواد الدراسية', style: TextStyle(fontSize: 19,
+          fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface))),
+        TextButton(onPressed: onAll, child: const Text('عرض الكل')),
+      ]),
+      const SizedBox(height: 9),
+      GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+        itemCount: subjects.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11,
+          childAspectRatio: 1.48),
+        itemBuilder: (_, i) => SubjectTile(subject: subjects[i],
+          onTap: () => onOpen(subjects[i]))),
+      const SizedBox(height: 22),
+      Text('مميزات التطبيق', style: TextStyle(fontSize: 18,
+        fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface)),
+      const SizedBox(height: 12),
+      Feature(icon: Icons.history_edu, title: 'أرشيف حسب السنة والدور',
+        desc: 'وزاري وتمهيدي بترتيب واضح',
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => const ArchiveSearchScreen()))),
+      Feature(icon: Icons.fact_check_outlined, title: 'حلول نموذجية مفصلة',
+        desc: 'شرح السؤال خطوة بخطوة بالمساعد الذكي',
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => const SolutionsHubScreen()))),
+      Feature(icon: Icons.search_rounded, title: 'بحث وحفظ سريع',
+        desc: 'ابحث في الأوراق المصنفة واحفظها للمراجعة',
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => const SearchSaveScreen()))),
+      const SizedBox(height: 8),
+      Container(padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF3B321F) : const Color(0xFFFFF5DF),
+          borderRadius: BorderRadius.circular(15)),
+        child: Text('تنبيه: الأرشيف يجري تجهيزه والتحقق من مصادره. لن ننسب أسئلة تجريبية إلى الامتحانات الوزارية.',
+          style: TextStyle(color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFFFFD98A) : const Color(0xFF76551B),
+            height: 1.6, fontSize: 12))),
+    ]);
+}
+class SubjectTile extends StatelessWidget {
+  final Subject subject; final VoidCallback onTap;
+  const SubjectTile({super.key, required this.subject, required this.onTap});
+  @override Widget build(BuildContext context) => Material(
+    color: Theme.of(context).cardColor,
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18),
+      child: Padding(padding: const EdgeInsets.all(12),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              Container(width: 39, height: 39,
+                decoration: BoxDecoration(color: subject.color.withValues(alpha: .13),
+                  borderRadius: BorderRadius.circular(12)),
+                child: Icon(subject.icon, color: subject.color, size: 22)),
+              const Spacer(),
+              Icon(Icons.arrow_outward_rounded, size: 17,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ]),
+            const SizedBox(height: 9),
+            Text(subject.name, maxLines: 2, softWrap: true,
+              overflow: TextOverflow.visible,
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13,
+                height: 1.25, color: Theme.of(context).colorScheme.onSurface)),
+          ]))));
+}
+class Catalog extends StatelessWidget {
+  final ValueChanged<Subject> onOpen;
+  const Catalog({super.key, required this.onOpen});
+  @override Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(18),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: 12),
+      Text('المواد الدراسية', style: TextStyle(fontSize: 25,
+        fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface)),
+      const SizedBox(height: 6),
+      Text('اختر المادة للوصول إلى أرشيفها',
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      const SizedBox(height: 18),
+      Expanded(child: GridView.builder(itemCount: subjects.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11,
+          childAspectRatio: 1.48),
+        itemBuilder: (_, i) => SubjectTile(subject: subjects[i],
+          onTap: () => onOpen(subjects[i])))),
+    ]));
+}
 class ArchiveSearchScreen extends StatefulWidget {
   const ArchiveSearchScreen({super.key});
 
@@ -214,7 +367,7 @@ class _ArchiveSearchScreenState extends State<ArchiveSearchScreen> {
                 hintText: 'ابحث باسم المادة أو السنة أو الدور',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: Theme.of(context).cardColor,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(15),
                   borderSide: BorderSide.none,
@@ -247,7 +400,7 @@ class _ArchiveSearchScreenState extends State<ArchiveSearchScreen> {
             ),
             const SizedBox(height: 16),
             Text('النتائج: ${items.length}',
-              style: const TextStyle(fontWeight: FontWeight.w900, color: navy)),
+              style: const TextStyle(fontWeight: FontWeight.w900, )),
             const SizedBox(height: 8),
             if (items.isEmpty)
               const Padding(
@@ -486,7 +639,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
               ...images.asMap().entries.map((entry) => Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: Material(
-                  color: Colors.white,
+                  color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(18),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
@@ -559,7 +712,7 @@ class _SubjectScreenState extends State<SubjectScreen> {
               Container(
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
-                  color: Colors.white, borderRadius: BorderRadius.circular(18)),
+                  color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(18)),
                 child: Column(children: [
                   Icon(Icons.photo_library_outlined, size: 48,
                       color: widget.subject.color),
@@ -1292,7 +1445,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SelectableText(messageText, style: TextStyle(
-                          color: isUser ? Colors.white : navy,
+                          color: isUser ? Colors.white : Theme.of(context).colorScheme.onSurface,
                           height: 1.7, fontSize: 14.5)),
                         if (!isUser) ...[
                           const SizedBox(height: 5),
