@@ -40,13 +40,22 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: StudyNotesScreen()));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'قانون مهم للمراجعة');
-    await tester.tap(find.text('حفظ الملاحظات'));
+    // Notes now use a separate editor with a title and a full body.
+    await tester.tap(find.text('ملاحظة جديدة'));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    expect(fields, findsNWidgets(2));
+    await tester.enterText(fields.at(0), 'قوانين الفصل الأول');
+    await tester.enterText(fields.at(1), 'قانون مهم للمراجعة');
+    await tester.tap(find.text('حفظ الملاحظة'));
     await tester.pumpAndSettle();
 
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('dalilak_subject_note_v1_التربية الإسلامية'),
-      'قانون مهم للمراجعة');
+    final saved = prefs.getString('dalilak_subject_notes_v2_التربية الإسلامية');
+    expect(saved, isNotNull);
+    expect(saved, contains('قوانين الفصل الأول'));
+    expect(saved, contains('قانون مهم للمراجعة'));
   });
 
   testWidgets('archive search screen loads and shows available archive results', (tester) async {
