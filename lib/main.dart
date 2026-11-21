@@ -305,7 +305,8 @@ class StudyApp extends StatelessWidget {
           )),
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(fontScale)),
+            textScaler: TextScaler.linear(fontScale),
+            disableAnimations: !ThemeController.motionEnabled.value),
           child: Stack(children: [
             child ?? const SizedBox.shrink(),
             if (ThemeController.eyeCare.value)
@@ -619,6 +620,7 @@ class Catalog extends StatelessWidget {
             builder: (_) => BooksLibraryScreen(
               cardStyle: ThemeController.bookCardStyle.value,
               accentColor: ThemeController.accent,
+              cardRadius: ThemeController.cardRadius.value,
             )))),
         const SizedBox(height: 12),
         GridView.builder(
@@ -637,6 +639,7 @@ class Catalog extends StatelessWidget {
                 subject: subjects[i],
                 cardStyle: ThemeController.bookCardStyle.value,
                 accentColor: ThemeController.accent,
+                cardRadius: ThemeController.cardRadius.value,
               )))),
         ),
         const SizedBox(height: 14),
