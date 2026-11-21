@@ -198,7 +198,6 @@ class StudyApp extends StatelessWidget {
           brightness: Brightness.light,
           scaffoldBackgroundColor: lightBackground,
           colorScheme: ColorScheme.fromSeed(seedColor: palette),
-          textTheme: ThemeData.light().textTheme.apply(fontSizeFactor: fontScale),
           cardTheme: CardThemeData(
             color: Colors.white,
             elevation: 0,
@@ -218,7 +217,6 @@ class StudyApp extends StatelessWidget {
             brightness: Brightness.dark,
             surface: const Color(0xFF182437)),
           cardColor: const Color(0xFF1B2A40),
-          textTheme: ThemeData.dark().textTheme.apply(fontSizeFactor: fontScale),
           cardTheme: CardThemeData(
             color: const Color(0xFF1B2A40),
             elevation: 0,
@@ -247,6 +245,11 @@ class StudyApp extends StatelessWidget {
             border: OutlineInputBorder(
               borderRadius: BorderRadius.all(Radius.circular(14))),
           )),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(fontScale)),
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: const Shell());
     },
   );
