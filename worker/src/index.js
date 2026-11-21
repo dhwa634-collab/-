@@ -8,8 +8,8 @@ const corsHeaders = {
 
 function sanitizeStudentText(value, maxLength) {
   return String(value || "")
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, "[بريد محذوف]")
-    .replace(/(?:\\+?964|0)7[0-9]{9}/g, "[رقم هاتف محذوف]")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[بريد محذوف]")
+    .replace(/(?:\+?964|0)7[0-9]{9}/g, "[رقم هاتف محذوف]")
     .slice(0, maxLength);
 }
 
