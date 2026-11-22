@@ -348,7 +348,6 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       StudyNotificationService.instance.onAppResumed();
     }
-    }
   }
 
   @override
