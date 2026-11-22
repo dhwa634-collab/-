@@ -2891,9 +2891,6 @@ class MoreScreen extends StatelessWidget {
             ]),
           ),
 
-
-          ),
-
           _sectionTitle(context, 'المظهر والتخصيص', Icons.palette_outlined),
           _actionTile(
             context: context,
