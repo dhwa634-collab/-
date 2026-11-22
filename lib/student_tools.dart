@@ -698,17 +698,7 @@ class Subject {
 const List<Subject> subjects = [
   // قائمة المواد الوزارية تبقى ست مواد فقط.
   Subject('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24)),
-  Subject('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9),
-    parts: [
-      BookPdfPart(
-        title: 'كتاب الطالب',
-        pdfUrl: 'https://bk2.shr4.com/books/bb3/2023-2024/كتاب%20الانكليزي%20%28الطالب%29%20الثالث%20المتوسط.pdf',
-      ),
-      BookPdfPart(
-        title: 'كتاب النشاط',
-        pdfUrl: 'https://bk2.shr4.com/books/bb3/2023-2024/كتاب%20الانكليزي%20%28النشاط%29%20الثالث%20المتوسط.pdf',
-      ),
-    ]),
+  Subject('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9)),
   Subject('الاجتماعيات', Icons.public_rounded, Color(0xFFB65C69),
     pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الاجتماعيات%20الثالث%20متوسط.pdf'),
   Subject('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25),
@@ -739,7 +729,17 @@ const List<Subject> bookSubjects = [
         pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20العربي%20الثالث%20متوسط%20الجزء%20الثاني.pdf',
       ),
     ]),
-  Subject('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9)),
+Subject('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9),
+    parts: [
+      BookPdfPart(
+        title: 'كتاب الطالب',
+        pdfUrl: 'https://bk2.shr4.com/books/bb3/2023-2024/كتاب%20الانكليزي%20%28الطالب%29%20الثالث%20المتوسط.pdf',
+      ),
+      BookPdfPart(
+        title: 'كتاب النشاط',
+        pdfUrl: 'https://bk2.shr4.com/books/bb3/2023-2024/كتاب%20الانكليزي%20%28النشاط%29%20الثالث%20المتوسط.pdf',
+      ),
+    ]),
   Subject('الاجتماعيات', Icons.public_rounded, Color(0xFFB65C69),
     pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الاجتماعيات%20الثالث%20متوسط.pdf'),
   Subject('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25),
