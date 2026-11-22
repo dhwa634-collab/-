@@ -44,10 +44,19 @@ class StudyNotificationService {
     if (!_initialized) await initialize();
     try {
       final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      final androidGranted = await android?.requestNotificationsPermission();
       final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-      final iosGranted = await ios?.requestPermissions(alert: true, badge: true, sound: true);
-      return androidGranted ?? iosGranted ?? true;
+      bool granted;
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        granted = await ios?.requestPermissions(
+              alert: true, badge: true, sound: true) ??
+            false;
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        granted = await android?.requestNotificationsPermission() ?? true;
+      } else {
+        granted = false;
+      }
+      _permissionGranted = granted;
+      return granted;
     } catch (error) {
       debugPrint('Notification permission request failed: $error');
       return false;
