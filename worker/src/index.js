@@ -1,7 +1,7 @@
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Accept, Cache-Control",
   "Cache-Control": "no-store",
 };
 
@@ -23,15 +23,20 @@ const NEWS_FALLBACK_URL =
 const NEWS_CATEGORIES = ["updates", "tips", "students", "app"];
 
 async function readNewsFeed(env) {
-  if (env.AI_REPORTS) {
-    const stored = await env.AI_REPORTS.get(NEWS_FEED_KEY);
-    if (stored) {
-      try {
+  // Prefer KV. If KV is unavailable or empty, the public news page may use
+  // the read-only GitHub feed as a fallback.
+  try {
+    if (env.AI_REPORTS) {
+      const stored = await env.AI_REPORTS.get(NEWS_FEED_KEY);
+      if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && Array.isArray(parsed.posts)) return parsed;
-      } catch (_) {}
+      }
     }
+  } catch (_) {
+    // Continue to the public read-only fallback below.
   }
+
   try {
     const response = await fetch(NEWS_FALLBACK_URL, {
       headers: { "Accept": "application/json", "Cache-Control": "no-cache" },
@@ -41,7 +46,12 @@ async function readNewsFeed(env) {
       if (parsed && Array.isArray(parsed.posts)) return parsed;
     }
   } catch (_) {}
-  return { version: 1, updatedAt: new Date().toISOString().slice(0, 10), posts: [] };
+
+  return {
+    version: 1,
+    updatedAt: new Date().toISOString().slice(0, 10),
+    posts: [],
+  };
 }
 
 async function handleNewsAdmin(request, env) {
@@ -56,11 +66,29 @@ async function handleNewsAdmin(request, env) {
     if (String(body.pin || "") !== String(env.NEWS_ADMIN_PIN)) {
       return json({ error: "رمز المطوّر غير صحيح." }, 401);
     }
-    const feed = await readNewsFeed(env);
+    let feed;
+    try {
+      const stored = await env.AI_REPORTS.get(NEWS_FEED_KEY);
+      if (stored) {
+        feed = JSON.parse(stored);
+        if (!feed || !Array.isArray(feed.posts)) {
+          return json({ error: "بيانات الأخبار المخزنة في KV غير صالحة." }, 503);
+        }
+      } else {
+        feed = await readNewsFeed({ ...env, AI_REPORTS: null });
+      }
+    } catch (_) {
+      return json({ error: "تعذر قراءة الأخبار من KV. تحقق من ربط AI_REPORTS." }, 503);
+    }
     const posts = Array.isArray(feed.posts) ? feed.posts : [];
-    const requestedAction = String(body.action || "").trim();
-    const actionAliases = { edit: "update", toggle_pin: "togglePin" };
-    const action = actionAliases[requestedAction] || requestedAction;
+    const requestedAction = String(body.action || body.operation || "").trim();
+    const actionAliases = {
+      edit: "update",
+      toggle_pin: "togglePin",
+      togglepin: "togglePin",
+      remove: "delete",
+    };
+    const action = actionAliases[requestedAction.toLowerCase()] || requestedAction;
     const today = new Date().toISOString().slice(0, 10);
 
     if (action === "publish") {
@@ -180,7 +208,12 @@ export default {
     if (request.method === "POST" && url.pathname === "/news/admin") {
       return handleNewsAdmin(request, env);
     }
-    if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+    if (request.method === "GET") {
+      return json({ error: "المسار غير موجود." }, 404);
+    }
+    if (request.method !== "POST") {
+      return json({ error: "طريقة الطلب غير مدعومة لهذا المسار." }, 405);
+    }
     if (url.pathname === "/report") {
       if (!env.AI_REPORTS) return json({ error: "خدمة استقبال البلاغات غير مهيأة على الخادم بعد." }, 503);
       try {
