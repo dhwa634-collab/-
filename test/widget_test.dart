@@ -81,7 +81,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('أوراقي المحفوظة'), findsOneWidget);
-    expect(find.text('الكيمياء'), findsOneWidget);
+    expect(find.text('الفيزياء'), findsOneWidget);
     expect(tester.takeException(), isNull);
     SavedExamsStore.items.value = [];
   });
