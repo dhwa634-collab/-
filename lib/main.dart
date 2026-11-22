@@ -349,6 +349,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     const askedKey = 'smart_study_reminders_permission_primer_v1';
     if (prefs.getBool(askedKey) == true || !mounted) return;
     await prefs.setBool(askedKey, true);
+    if (!mounted) return;
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => Directionality(
