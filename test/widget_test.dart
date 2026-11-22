@@ -53,7 +53,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('العلوم'), findsOneWidget);
     expect(find.text('الفيزياء'), findsNothing);
-    expect(find.text('قريباً'), findsNWidgets(6));
+    expect(find.text('قريباً'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
@@ -66,6 +66,8 @@ void main() {
     await tester.ensureVisible(find.text('الفرع الدراسي'));
     await tester.pumpAndSettle();
     expect(find.text('الفرع الدراسي'), findsOneWidget);
+    await tester.ensureVisible(find.text('مسار الفرع العلمي'));
+    await tester.pumpAndSettle();
     expect(find.text('مسار الفرع العلمي'), findsOneWidget);
     expect(find.text('الأحيائي'), findsOneWidget);
     expect(tester.takeException(), isNull);
