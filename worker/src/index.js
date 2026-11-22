@@ -78,6 +78,33 @@ async function handleNewsAdmin(request, env) {
         pinned: input.pinned === true,
       };
       posts.unshift(post);
+    } else if (action === "update") {
+      const id = String(body.id || "").slice(0, 160);
+      const input = body.post && typeof body.post === "object" ? body.post : {};
+      const title = sanitizeStudentText(input.title, 100).trim();
+      const content = sanitizeStudentText(input.body, 2000).trim();
+      const category = NEWS_CATEGORIES.includes(input.category) ? input.category : null;
+      if (!id || !title || !content || !category) {
+        return json({ error: "بيانات تعديل الخبر غير مكتملة." }, 400);
+      }
+      const index = posts.findIndex((post) => String(post.id || "") === id);
+      if (index < 0) return json({ error: "لم يتم العثور على الخبر المطلوب." }, 404);
+      posts[index] = {
+        ...posts[index],
+        title,
+        body: content,
+        category,
+        pinned: input.pinned === true,
+        updatedAt: today,
+      };
+    } else if (action === "togglePin") {
+      const id = String(body.id || "").slice(0, 160);
+      if (!id || typeof body.pinned !== "boolean") {
+        return json({ error: "بيانات تثبيت الخبر غير صالحة." }, 400);
+      }
+      const index = posts.findIndex((post) => String(post.id || "") === id);
+      if (index < 0) return json({ error: "لم يتم العثور على الخبر المطلوب." }, 404);
+      posts[index] = { ...posts[index], pinned: body.pinned, updatedAt: today };
     } else if (action === "delete") {
       const id = String(body.id || "").slice(0, 160);
       if (!id) return json({ error: "معرّف الخبر غير صالح." }, 400);
@@ -105,6 +132,27 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
+    }
+    if (request.method === "GET" && url.pathname === "/news/status") {
+      if (!env.AI_REPORTS) {
+        return json({ success: false, connected: false, storage: "fallback",
+          error: "ربط KV باسم AI_REPORTS غير مهيأ." }, 503);
+      }
+      try {
+        const feed = await readNewsFeed(env);
+        const posts = Array.isArray(feed.posts) ? feed.posts : [];
+        return json({
+          success: true,
+          connected: true,
+          storage: "AI_REPORTS",
+          postCount: posts.length,
+          pinnedCount: posts.filter((post) => post.pinned === true).length,
+          checkedAt: new Date().toISOString(),
+        });
+      } catch (_) {
+        return json({ success: false, connected: false, storage: "AI_REPORTS",
+          error: "تعذر الاتصال بتخزين الأخبار KV." }, 503);
+      }
     }
     if (request.method === "GET" && url.pathname === "/news") {
       if (!env.AI_REPORTS) {
