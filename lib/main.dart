@@ -345,7 +345,12 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   }
 
   Future<void> _showNotificationPermissionPrimer() async {
-    final prefs = await SharedPreferences.getInstance();
+    late final SharedPreferences prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+    } catch (_) {
+      return;
+    }
     const askedKey = 'smart_study_reminders_permission_primer_v1';
     if (prefs.getBool(askedKey) == true || !mounted) return;
     await prefs.setBool(askedKey, true);
