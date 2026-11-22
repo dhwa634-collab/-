@@ -46,7 +46,7 @@ void main() {
   testWidgets('sixth primary catalog shows only its own subjects and pending state',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(
-      home: StageCatalogScreen(stage: AcademicStage.primarySixth),
+      home: Scaffold(body: StageCatalogScreen(stage: AcademicStage.primarySixth)),
     ));
     expect(find.text('السادس الابتدائي'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('العلوم'), 180, scrollable: find.byType(Scrollable).last);
@@ -60,7 +60,7 @@ void main() {
   testWidgets('sixth preparatory catalog offers branch and track selection',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(
-      home: StageCatalogScreen(stage: AcademicStage.preparatorySixth),
+      home: Scaffold(body: StageCatalogScreen(stage: AcademicStage.preparatorySixth)),
     ));
     expect(find.text('السادس الإعدادي'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('الفرع الدراسي'), 180, scrollable: find.byType(Scrollable).last);
