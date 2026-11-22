@@ -2516,10 +2516,12 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
         }
       });
     } catch (_) {
-      if(mounted)setState(() {
-        _kvConnected=false;
-        _workerStatus='تعذر الوصول إلى Worker';
-      });
+      if (mounted) {
+        setState(() {
+          _kvConnected = false;
+          _workerStatus = 'تعذر الوصول إلى Worker';
+        });
+      }
     }
   }
   Future<void> _loadExisting() async {
