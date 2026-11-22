@@ -75,7 +75,7 @@ async function handleNewsAdmin(request, env) {
           return json({ error: "بيانات الأخبار المخزنة في KV غير صالحة." }, 503);
         }
       } else {
-        feed = await readNewsFeed({ ...env, AI_REPORTS: null });
+        feed = await readNewsFeed({ AI_REPORTS: null });
       }
     } catch (_) {
       return json({ error: "تعذر قراءة الأخبار من KV. تحقق من ربط AI_REPORTS." }, 503);
