@@ -54,7 +54,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('dalilak_subject_notes_v2_التربية الإسلامية');
+    final saved = prefs.getString('dalilak_subject_notes_v2_اللغة العربية');
     expect(saved, isNotNull);
     expect(saved, contains('قوانين الفصل الأول'));
     expect(saved, contains('قانون مهم للمراجعة'));
@@ -74,7 +74,7 @@ void main() {
   testWidgets('saved screen renders saved items even when the asset is missing', (tester) async {
     SharedPreferences.setMockInitialValues({});
     SavedExamsStore.items.value = [
-      {'path': 'assets/not_existing_exam.png', 'subject': 'الكيمياء',
+      {'path': 'assets/not_existing_exam.png', 'subject': 'الفيزياء',
        'year': '2025', 'round': 'الدور الأول'},
     ];
     await tester.pumpWidget(const MaterialApp(home: Saved()));
@@ -97,9 +97,9 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: ArchiveSearchScreen()));
     await tester.tap(find.byType(DropdownButtonFormField<String>).first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('الكيمياء').last);
+    await tester.tap(find.text('الفيزياء').last);
     await tester.pumpAndSettle();
-    expect(find.text('الكيمياء'), findsWidgets);
+    expect(find.text('الفيزياء'), findsWidgets);
     expect(find.text('اللغة العربية'), findsNothing);
   });
 }
