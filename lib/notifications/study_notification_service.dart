@@ -69,6 +69,16 @@ class StudyNotificationService {
     await rescheduleFromNow();
   }
 
+  Future<void> _cancelScheduledReminders() async {
+    try {
+      for (var i = 0; i < 4; i++) {
+        await _plugin.cancel(_firstNotificationId + i);
+      }
+    } catch (error) {
+      debugPrint('Cancel scheduled reminders failed: $error');
+    }
+  }
+
   Future<void> cancelAll() async {
     try { await _plugin.cancelAll(); }
     catch (error) { debugPrint('Cancel notifications failed: $error'); }
@@ -78,7 +88,7 @@ class StudyNotificationService {
   Future<void> onAppResumed() async {
     if (!_initialized) await initialize();
     if (!_initialized) return;
-    await cancelAll();
+    await _cancelScheduledReminders();
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lastOpenedKey, DateTime.now().toIso8601String());
@@ -108,7 +118,7 @@ class StudyNotificationService {
     if (!_initialized) await initialize();
     if (!_initialized || !enabled.value) return;
     try {
-      await _plugin.cancelAll();
+      await _cancelScheduledReminders();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lastOpenedKey, DateTime.now().toIso8601String());
       final recent = (prefs.getStringList(_recentMessagesKey) ?? const <String>[])
