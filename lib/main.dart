@@ -824,7 +824,7 @@ class _ArchiveSearchScreenState extends State<ArchiveSearchScreen> {
             DropdownButtonFormField<String>(
               value: subjectFilter,
               decoration: const InputDecoration(labelText: 'المادة'),
-              items: ['كل المواد', ...subjects.map((s) => s.name)]
+              items: ['كل المواد', ...archiveSubjects.map((s) => s.name)]
                 .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
               onChanged: (v) => setState(() => subjectFilter = v ?? 'كل المواد'),
             ),
@@ -3318,7 +3318,7 @@ List<_ArchiveSearchItem> _getAvailableArchiveItems() {
     }
   }
   for (final entry in chemistryExams.entries) {
-    final subject = subjects.firstWhere((item) => item.name == 'الكيمياء');
+    final subject = archiveSubjects.firstWhere((item) => item.name == 'الكيمياء');
     for (final round in entry.value.entries) {
       for (final path in round.value) {
         result.add(_ArchiveSearchItem(subject, entry.key, round.key, path));
@@ -3326,7 +3326,7 @@ List<_ArchiveSearchItem> _getAvailableArchiveItems() {
     }
   }
   for (final entry in unclassifiedExamImages.entries) {
-    final subject = subjects.firstWhere((item) => item.name == entry.key);
+    final subject = archiveSubjects.firstWhere((item) => item.name == entry.key);
     for (final path in entry.value) {
       result.add(_ArchiveSearchItem(subject, 'غير مصنف', 'كل الصور', path));
     }
