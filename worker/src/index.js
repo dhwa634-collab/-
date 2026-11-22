@@ -58,7 +58,9 @@ async function handleNewsAdmin(request, env) {
     }
     const feed = await readNewsFeed(env);
     const posts = Array.isArray(feed.posts) ? feed.posts : [];
-    const action = String(body.action || "");
+    const requestedAction = String(body.action || "").trim();
+    const actionAliases = { edit: "update", toggle_pin: "togglePin" };
+    const action = actionAliases[requestedAction] || requestedAction;
     const today = new Date().toISOString().slice(0, 10);
 
     if (action === "publish") {
@@ -97,14 +99,16 @@ async function handleNewsAdmin(request, env) {
         pinned: input.pinned === true,
         updatedAt: today,
       };
-    } else if (action === "togglePin") {
+    } else if (action === "togglePin" || action === "pin" || action === "unpin") {
       const id = String(body.id || "").slice(0, 160);
-      if (!id || typeof body.pinned !== "boolean") {
-        return json({ error: "بيانات تثبيت الخبر غير صالحة." }, 400);
-      }
+      if (!id) return json({ error: "معرّف الخبر غير صالح." }, 400);
       const index = posts.findIndex((post) => String(post.id || "") === id);
       if (index < 0) return json({ error: "لم يتم العثور على الخبر المطلوب." }, 404);
-      posts[index] = { ...posts[index], pinned: body.pinned, updatedAt: today };
+      const pinned = action === "pin" ? true
+        : action === "unpin" ? false
+        : typeof body.pinned === "boolean" ? body.pinned
+        : posts[index].pinned !== true;
+      posts[index] = { ...posts[index], pinned, updatedAt: today };
     } else if (action === "delete") {
       const id = String(body.id || "").slice(0, 160);
       if (!id) return json({ error: "معرّف الخبر غير صالح." }, 400);
@@ -133,18 +137,28 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
-    if (request.method === "GET" && url.pathname === "/news/status") {
+    if (request.method === "GET" &&
+        (url.pathname === "/news/status" || url.pathname === "/news/admin/status")) {
       if (!env.AI_REPORTS) {
         return json({ success: false, connected: false, storage: "fallback",
           error: "ربط KV باسم AI_REPORTS غير مهيأ." }, 503);
       }
       try {
-        const feed = await readNewsFeed(env);
-        const posts = Array.isArray(feed.posts) ? feed.posts : [];
+        // Probe KV directly; never report connected based on the GitHub fallback.
+        const stored = await env.AI_REPORTS.get(NEWS_FEED_KEY);
+        let feed = { posts: [] };
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed && Array.isArray(parsed.posts)) feed = parsed;
+          } catch (_) {
+            return json({ success: false, connected: false, storage: "AI_REPORTS",
+              error: "بيانات الأخبار المخزنة في KV غير صالحة." }, 503);
+          }
+        }
+        const posts = feed.posts;
         return json({
-          success: true,
-          connected: true,
-          storage: "AI_REPORTS",
+          success: true, connected: true, storage: "AI_REPORTS",
           postCount: posts.length,
           pinnedCount: posts.filter((post) => post.pinned === true).length,
           checkedAt: new Date().toISOString(),
