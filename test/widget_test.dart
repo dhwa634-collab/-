@@ -4,8 +4,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:third_intermediate_iraq/main.dart';
+import 'package:third_intermediate_iraq/student_tools.dart';
 
 void main() {
+
+  test('textbook catalog contains chemistry, biology and Islamic books only', () {
+    final bookNames = bookSubjects.map((book) => book.name).toSet();
+    final examNames = subjects.map((subject) => subject.name).toSet();
+
+    expect(bookNames, containsAll(['الكيمياء', 'الأحياء', 'التربية الإسلامية']));
+    expect(examNames, isNot(contains('التربية الإسلامية')));
+    expect(examNames, isNot(contains('الكيمياء')));
+    expect(bookSubjects.firstWhere((book) => book.name == 'الكيمياء').hasPdf, isTrue);
+    expect(bookSubjects.firstWhere((book) => book.name == 'الأحياء').hasPdf, isTrue);
+    expect(bookSubjects.firstWhere((book) => book.name == 'التربية الإسلامية').hasPdf, isTrue);
+  });
+
+
   testWidgets('home screen loads', (tester) async {
     await tester.pumpWidget(const StudyApp());
 
