@@ -346,31 +346,6 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
         : sixthPreparatorySubjects;
   }
 
-  Future<void> _openSource(String url, {required String label}) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('رابط المصدر غير صالح حالياً.')),
-        );
-      }
-      return;
-    }
-    try {
-      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!opened && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر فتح مصدر $label. حاول مرة ثانية.')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ما قدرنا نفتح مصدر $label. تحقق من الإنترنت.')),
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
