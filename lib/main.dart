@@ -369,10 +369,8 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
             DropdownButtonFormField<String>(
               value: _branch,
               decoration: const InputDecoration(labelText: 'الفرع الدراسي'),
-              items: const [
-                DropdownMenuItem(value: 'العلمي', child: Text('العلمي')),
-                DropdownMenuItem(value: 'الأدبي', child: Text('الأدبي')),
-              ],
+              items: sixthPreparatoryBranches.map((branch) =>
+                DropdownMenuItem(value: branch, child: Text(branch))).toList(),
               onChanged: (value) => setState(() {
                 _branch = value ?? 'العلمي';
                 _scientificTrack = 'الأحيائي';
@@ -463,7 +461,7 @@ class StudyApp extends StatelessWidget {
       final darkCard = ThemeController.darkCardSurfaces[paletteIndex];
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'دليلك للنجاح — الثالث متوسط • العراق',
+        title: 'دليلك للنجاح — العراق',
         themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
         theme: ThemeData(
           useMaterial3: true,
