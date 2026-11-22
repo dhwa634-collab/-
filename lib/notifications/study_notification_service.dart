@@ -74,6 +74,21 @@ class StudyNotificationService {
     catch (error) { debugPrint('Cancel notifications failed: $error'); }
   }
 
+  /// عند عودة الطالب للتطبيق نلغي كل المواعيد حتى لا تصله تذكيرات وهو يستخدمه.
+  Future<void> onAppResumed() async {
+    if (!_initialized) await initialize();
+    if (!_initialized) return;
+    await cancelAll();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+    } catch (error) {
+      debugPrint('Saving last opened time failed: $error');
+    }
+  }
+
+  /// تبدأ سلسلة الغياب من لحظة خروج التطبيق إلى الخلفية.
+  Future<void> onAppPaused() => rescheduleFromNow();
+
   int? get _daysUntilNextExam {
     final today = DateTime.now();
     final start = DateTime(today.year, today.month, today.day);
