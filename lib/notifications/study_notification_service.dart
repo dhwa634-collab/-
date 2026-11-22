@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import 'notification_messages.dart';
+import 'package:third_intermediate_iraq/student_tools.dart' show ExamDates;
 
 /// تذكيرات محلية فقط؛ لا ترسل بيانات الطالب إلى أي خادم.
 class StudyNotificationService {
@@ -73,6 +74,20 @@ class StudyNotificationService {
     catch (error) { debugPrint('Cancel notifications failed: $error'); }
   }
 
+  int? get _daysUntilNextExam {
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+    final dates = <DateTime?>[ExamDates.preparatory, ExamDates.ministerial]
+        .whereType<DateTime>()
+        .map((date) => DateTime(date.year, date.month, date.day))
+        .where((date) => !date.isBefore(start))
+        .toList()..sort();
+    return dates.isEmpty ? null : dates.first.difference(start).inDays;
+  }
+
+  String _renderBody(String template) => template.replaceAll(
+    '{days}', _daysUntilNextExam?.toString() ?? 'لم يُعلن موعده بعد');
+
   Future<void> rescheduleFromNow() async {
     if (!_initialized) await initialize();
     if (!_initialized || !enabled.value) return;
@@ -91,7 +106,7 @@ class StudyNotificationService {
         final message = studyReminderMessages[messageIndex];
         final scheduled = _nextAllowedTime(tz.TZDateTime.now(tz.local).add(intervals[i]));
         await _plugin.zonedSchedule(
-          _firstNotificationId + i, message.title, message.body, scheduled,
+          _firstNotificationId + i, message.title, _renderBody(message.body), scheduled,
           const NotificationDetails(
             android: AndroidNotificationDetails(
               'study_retention_reminders', 'تذكيرات السچ والدراسة',
@@ -130,7 +145,7 @@ class StudyNotificationService {
     if (!_initialized) return;
     final message = studyReminderMessages[Random().nextInt(studyReminderMessages.length)];
     await _plugin.show(
-      _testNotificationId, message.title, message.body,
+      _testNotificationId, message.title, _renderBody(message.body),
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'study_retention_reminders', 'تذكيرات السچ والدراسة',
