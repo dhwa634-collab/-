@@ -65,7 +65,7 @@ void main() {
       home: Scaffold(body: StageCatalogScreen(stage: AcademicStage.primarySixth)),
     ));
     expect(find.text('السادس الابتدائي'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('العلوم'), 180, scrollable: find.byType(Scrollable).last);
+    await tester.scrollUntilVisible(find.text('العلوم'), 180, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.text('العلوم'), findsOneWidget);
     expect(find.text('الفيزياء'), findsNothing);
