@@ -30,7 +30,6 @@ class StudyNotificationService {
       );
       await _plugin.initialize(settings,
         onDidReceiveNotificationResponse: _onNotificationTap);
-      final prefs = await SharedPreferences.getInstance();
       _initialized = true;
     } catch (error) {
       debugPrint('Study notifications initialization failed: $error');
