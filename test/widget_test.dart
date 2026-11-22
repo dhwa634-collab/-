@@ -7,8 +7,66 @@ import 'package:third_intermediate_iraq/main.dart';
 import 'package:third_intermediate_iraq/student_tools.dart';
 import 'package:third_intermediate_iraq/exam_archive_data.dart';
 import 'package:third_intermediate_iraq/review_quiz.dart';
+import 'package:third_intermediate_iraq/academic_stages.dart';
 
 void main() {
+  test('academic stage choice is saved locally and restored', () async {
+    SharedPreferences.setMockInitialValues({});
+    await AcademicStageController.load();
+    expect(AcademicStageController.current.value,
+        AcademicStage.intermediateThird);
+
+    await AcademicStageController.select(AcademicStage.primarySixth);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('dalilak_selected_academic_stage_v1'),
+        AcademicStage.primarySixth.name);
+
+    await AcademicStageController.load();
+    expect(AcademicStageController.current.value,
+        AcademicStage.primarySixth);
+    await AcademicStageController.select(AcademicStage.intermediateThird);
+  });
+
+  test('new stage data is isolated and uses explicit pending content', () {
+    expect(sixthPrimarySubjects.map((s) => s.name), containsAll([
+      'التربية الإسلامية', 'اللغة العربية', 'اللغة الإنكليزية',
+      'الرياضيات', 'العلوم', 'الاجتماعيات',
+    ]));
+    expect(sixthPreparatorySubjects.map((s) => s.name), containsAll([
+      'التربية الإسلامية', 'اللغة العربية', 'اللغة الإنكليزية',
+      'الرياضيات', 'الفيزياء', 'الكيمياء', 'الأحياء',
+    ]));
+    expect(sixthPreparatoryBranches, containsAll(['العلمي', 'الأدبي']));
+    expect(sixthPreparatoryScientificTracks, containsAll(['الأحيائي', 'التطبيقي']));
+    expect(stageContentPendingMessage, contains('قيد التجهيز'));
+    expect(subjects, hasLength(6));
+    expect(bookSubjects, hasLength(8));
+  });
+
+  testWidgets('sixth primary catalog shows only its own subjects and pending state',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: StageCatalogScreen(stage: AcademicStage.primarySixth),
+    ));
+    expect(find.text('السادس الابتدائي'), findsOneWidget);
+    expect(find.text('العلوم'), findsOneWidget);
+    expect(find.text('الفيزياء'), findsNothing);
+    expect(find.text('قريباً'), findsNWidgets(6));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('sixth preparatory catalog offers branch and track selection',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: StageCatalogScreen(stage: AcademicStage.preparatorySixth),
+    ));
+    expect(find.text('السادس الإعدادي'), findsOneWidget);
+    expect(find.text('الفرع الدراسي'), findsOneWidget);
+    expect(find.text('مسار الفرع العلمي'), findsOneWidget);
+    expect(find.text('الأحيائي'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 
   test('textbook catalog keeps eight books separate from six exam subjects', () {
     final bookNames = bookSubjects.map((book) => book.name).toSet();
