@@ -2491,17 +2491,35 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
   }
   Future<void> _checkWorker() async {
     try {
-      final response=await http.get(_workerStatusUri,headers:const {'Accept':'application/json'})
-        .timeout(const Duration(seconds:8));
-      final decoded=jsonDecode(utf8.decode(response.bodyBytes));
-      final connected=response.statusCode==200 && decoded is Map && decoded['connected']==true;
+      final response=await http.get(_workerStatusUri,headers:const {
+        'Accept':'application/json',
+        'Cache-Control':'no-cache',
+      }).timeout(const Duration(seconds:10));
+      Map<String,dynamic> decoded={};
+      try {
+        final value=jsonDecode(utf8.decode(response.bodyBytes));
+        if(value is Map) decoded=Map<String,dynamic>.from(value);
+      } catch (_) {}
+      final connected=response.statusCode==200 &&
+          decoded['success']==true && decoded['connected']==true &&
+          decoded['storage']=='AI_REPORTS';
       if(!mounted)return;
       setState((){
         _kvConnected=connected;
-        _workerStatus = connected ? 'متصل • KV يعمل' : 'غير متصل بـ KV • ${response.statusCode}';
+        if(connected) {
+          _workerStatus='متصل • KV يعمل';
+        } else if(response.statusCode==405) {
+          _workerStatus='Worker يحتاج نشر النسخة المحدّثة • 405';
+        } else {
+          final detail=(decoded['error']??'HTTP ${response.statusCode}').toString();
+          _workerStatus='غير متصل بـ KV • $detail';
+        }
       });
     } catch (_) {
-      if(mounted)setState(() { _kvConnected = false; _workerStatus = 'تعذر الوصول إلى Worker'; });
+      if(mounted)setState(() {
+        _kvConnected=false;
+        _workerStatus='تعذر الوصول إلى Worker';
+      });
     }
   }
   Future<void> _loadExisting() async {
@@ -2576,7 +2594,12 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     final id=(post['id']??'').toString();if(id.isEmpty)return;
     setState(()=>_working=true);
     try{final result=await _send({'action':'togglePin','id':id,'pinned':post['pinned']!=true});
-      _apply(result);if(mounted)setState((){});
+      _apply(result);
+      if(mounted){
+        setState((){});
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content:Text(post['pinned']==true?'تم إلغاء تثبيت الخبر.':'تم تثبيت الخبر بنجاح.')));
+      }
     }catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تغيير التثبيت: $error')));}
     finally{if(mounted)setState(()=>_working=false);}
   }
@@ -2602,7 +2625,12 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     if(yes!=true||!mounted)return;
     setState(()=>_working=true);
     try{final result=await _send({'action':'delete','id':id});_apply(result);
-      if(_editingId==id)_clearEditor();if(mounted)setState((){});
+      if(_editingId==id)_clearEditor();
+      if(mounted){
+        setState((){});
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:Text('تم حذف الخبر بنجاح.')));
+      }
     }catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حذف الخبر: $error')));}
     finally{if(mounted)setState(()=>_working=false);}
   }
