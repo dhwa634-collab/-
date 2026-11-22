@@ -59,6 +59,8 @@ jobs:
               gradle = gradle_kts.read_text()
               gradle = re.sub(r'compileSdk\s*=\s*flutter\.compileSdkVersion', 'compileSdk = 36', gradle)
               gradle = re.sub(r'targetSdk\s*=\s*flutter\.targetSdkVersion', 'targetSdk = 36', gradle)
+              if "multiDexEnabled" not in gradle:
+                  gradle = re.sub(r'defaultConfig\s*\{', 'defaultConfig {\n        multiDexEnabled = true', gradle, count=1)
               if "isCoreLibraryDesugaringEnabled" not in gradle:
                   gradle = re.sub(r'compileOptions\s*\{', 'compileOptions {\n        isCoreLibraryDesugaringEnabled = true', gradle, count=1)
               if "coreLibraryDesugaring(" not in gradle:
@@ -72,6 +74,8 @@ jobs:
               gradle = gradle_groovy.read_text()
               gradle = re.sub(r'compileSdkVersion\s+flutter\.compileSdkVersion', 'compileSdkVersion 36', gradle)
               gradle = re.sub(r'targetSdkVersion\s+flutter\.targetSdkVersion', 'targetSdkVersion 36', gradle)
+              if "multiDexEnabled" not in gradle:
+                  gradle = re.sub(r'defaultConfig\s*\{', 'defaultConfig {\n        multiDexEnabled true', gradle, count=1)
               if "coreLibraryDesugaringEnabled" not in gradle:
                   gradle = re.sub(r'compileOptions\s*\{', 'compileOptions {\n        coreLibraryDesugaringEnabled true', gradle, count=1)
               if "coreLibraryDesugaring" not in gradle:
