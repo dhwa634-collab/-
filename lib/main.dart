@@ -2457,283 +2457,255 @@ class NewsAdminScreen extends StatefulWidget {
   const NewsAdminScreen({super.key});
   @override State<NewsAdminScreen> createState() => _NewsAdminScreenState();
 }
-
 class _NewsAdminScreenState extends State<NewsAdminScreen> {
-  static final Uri _workerNewsUri = Uri.parse(
-    'https://wispy-union-276e.dhwa634.workers.dev/news');
-  static final Uri _workerAdminUri = Uri.parse(
-    'https://wispy-union-276e.dhwa634.workers.dev/news/admin');
-  static final Uri _fallbackFeedUri = Uri.parse(
-    'https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json');
-
-  final _title = TextEditingController();
-  final _body = TextEditingController();
-  String _category = 'updates';
-  bool _pinned = false, _loading = true, _working = false;
-  List<Map<String,dynamic>> _existing = [];
-
-  @override void initState() { super.initState(); _loadExisting(); }
-
+  static final Uri _workerNewsUri = Uri.parse('https://wispy-union-276e.dhwa634.workers.dev/news');
+  static final Uri _workerAdminUri = Uri.parse('https://wispy-union-276e.dhwa634.workers.dev/news/admin');
+  static final Uri _workerStatusUri = Uri.parse('https://wispy-union-276e.dhwa634.workers.dev/news/status');
+  static final Uri _fallbackFeedUri = Uri.parse('https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json');
+  static const Map<String,String> _categories = {
+    'updates':'المستجدات','tips':'نصائح دراسية',
+    'students':'تنويهات الطلبة / الخارجي','app':'إرشادات التطبيق',
+  };
+  final _title=TextEditingController(), _body=TextEditingController();
+  String _category='updates', _workerStatus='جارٍ الفحص...';
+  bool _pinned=false, _loading=true, _working=false, _kvConnected=false;
+  String? _editingId;
+  List<Map<String,dynamic>> _existing=[];
+  int get _pinnedCount => _existing.where((p)=>p['pinned']==true).length;
+  Map<String,int> get _categoryCounts {
+    final result=<String,int>{for(final key in _categories.keys) key:0};
+    for(final post in _existing) {
+      final key=(post['category']??'updates').toString();
+      if(result.containsKey(key)) result[key]=result[key]!+1;
+    }
+    return result;
+  }
+  @override void initState(){super.initState();_loadExisting();}
   Future<Map<String,dynamic>?> _readFeed(Uri uri) async {
-    final response = await http.get(uri,
-      headers: const {'Accept':'application/json', 'Cache-Control':'no-cache'})
-      .timeout(const Duration(seconds: 12));
-    if (response.statusCode != 200) return null;
-    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-    if (decoded is! Map || decoded['posts'] is! List) return null;
+    final response=await http.get(uri,headers:const {'Accept':'application/json','Cache-Control':'no-cache'})
+      .timeout(const Duration(seconds:12));
+    if(response.statusCode!=200)return null;
+    final decoded=jsonDecode(utf8.decode(response.bodyBytes));
+    if(decoded is! Map || decoded['posts'] is! List)return null;
     return Map<String,dynamic>.from(decoded);
   }
-
-  Future<void> _loadExisting() async {
+  Future<void> _checkWorker() async {
     try {
-      var feed = await _readFeed(_workerNewsUri);
-      feed ??= await _readFeed(_fallbackFeedUri);
-      if (feed != null) {
-        _existing = (feed['posts'] as List)
-          .whereType<Map>()
-          .map((e) => Map<String,dynamic>.from(e))
-          .toList();
+      final response=await http.get(_workerStatusUri,headers:const {'Accept':'application/json'})
+        .timeout(const Duration(seconds:8));
+      final decoded=jsonDecode(utf8.decode(response.bodyBytes));
+      final connected=response.statusCode==200 && decoded is Map && decoded['connected']==true;
+      if(!mounted)return;
+      setState((){
+        _kvConnected=connected;
+        _workerStatus=connected?'متصل • KV يعمل':'غير متصل بـ KV • '+response.statusCode.toString();
+      });
+    } catch (_) {
+      if(mounted)setState(()=>{_kvConnected=false,_workerStatus='تعذر الوصول إلى Worker'});
+    }
+  }
+  Future<void> _loadExisting() async {
+    if(mounted)setState(()=>_loading=true);
+    await _checkWorker();
+    try {
+      var feed=await _readFeed(_workerNewsUri);
+      feed??=await _readFeed(_fallbackFeedUri);
+      if(feed!=null){
+        _existing=(feed['posts'] as List).whereType<Map>()
+          .map((e)=>Map<String,dynamic>.from(e)).toList();
+        _existing.sort((x,y){
+          final xp=x['pinned']==true, yp=y['pinned']==true;
+          if(xp!=yp)return xp?-1:1;
+          return (y['date']??'').toString().compareTo((x['date']??'').toString());
+        });
       }
     } catch (_) {}
-    if (mounted) setState(() => _loading = false);
+    if(mounted)setState(()=>_loading=false);
   }
-
-  Future<Map<String,dynamic>> _sendAdminAction(
-    Map<String,dynamic> payload,
-  ) async {
-    final response = await http.post(
-      _workerAdminUri,
-      headers: const {'Content-Type':'application/json', 'Accept':'application/json'},
-      body: jsonEncode({...payload, 'pin': kNewsAdminPin}),
-    ).timeout(const Duration(seconds: 18));
-    Map<String,dynamic> decoded = {};
-    try {
-      final value = jsonDecode(utf8.decode(response.bodyBytes));
-      if (value is Map) decoded = Map<String,dynamic>.from(value);
-    } catch (_) {}
-    if (response.statusCode != 200 || decoded['success'] != true) {
-      throw Exception((decoded['error'] ?? 'تعذر تنفيذ العملية على خادم الأخبار').toString());
-    }
+  Future<Map<String,dynamic>> _send(Map<String,dynamic> payload) async {
+    final response=await http.post(_workerAdminUri,
+      headers:const {'Content-Type':'application/json','Accept':'application/json'},
+      body:jsonEncode({...payload,'pin':kNewsAdminPin}))
+      .timeout(const Duration(seconds:18));
+    Map<String,dynamic> decoded={};
+    try {final value=jsonDecode(utf8.decode(response.bodyBytes));if(value is Map)decoded=Map<String,dynamic>.from(value);}catch(_){}
+    if(response.statusCode!=200 || decoded['success']!=true)
+      throw Exception((decoded['error']??'تعذر تنفيذ العملية على خادم الأخبار').toString());
     return decoded;
   }
-
-  Future<void> _publish() async {
-    final title = _title.text.trim(), body = _body.text.trim();
-    if (title.isEmpty || body.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('اكتب عنوان الخبر ونصه أولاً.')),
-      );
-      return;
+  void _apply(Map<String,dynamic> result){
+    final feed=result['feed'];
+    if(feed is Map && feed['posts'] is List)
+      _existing=(feed['posts'] as List).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+  }
+  void _clearEditor(){_title.clear();_body.clear();_category='updates';_pinned=false;_editingId=null;}
+  void _edit(Map<String,dynamic> post){
+    setState((){
+      _editingId=(post['id']??'').toString();
+      _title.text=(post['title']??'').toString();
+      _body.text=(post['body']??'').toString();
+      final c=(post['category']??'updates').toString();
+      _category=_categories.containsKey(c)?c:'updates';
+      _pinned=post['pinned']==true;
+    });
+  }
+  Future<void> _save() async {
+    final title=_title.text.trim(), body=_body.text.trim();
+    if(title.isEmpty||body.isEmpty){
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اكتب عنوان الخبر ونصه أولاً.')));return;
     }
-    setState(() => _working = true);
-    try {
-      final result = await _sendAdminAction({
-        'action':'publish',
-        'post': {
-          'title': title,
-          'body': body,
-          'category': _category,
-          'pinned': _pinned,
-        },
+    setState(()=>_working=true);
+    try{
+      final editing=_editingId!=null && _editingId!.isNotEmpty;
+      final result=await _send({
+        'action':editing?'update':'publish',
+        if(editing)'id':_editingId,
+        'post':{'title':title,'body':body,'category':_category,'pinned':_pinned},
       });
-      final feed = result['feed'];
-      if (feed is Map && feed['posts'] is List) {
-        _existing = (feed['posts'] as List)
-          .whereType<Map>()
-          .map((e) => Map<String,dynamic>.from(e))
-          .toList();
-      }
-      _title.clear();
-      _body.clear();
-      if (mounted) {
-        setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم نشر الخبر بنجاح وتحديث قائمة الأخبار.')),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر نشر الخبر: $error')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _working = false);
+      _apply(result);_clearEditor();await _checkWorker();
+      if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content:Text(editing?'تم تعديل الخبر بنجاح.':'تم نشر الخبر بنجاح.')));}
+    }catch(error){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حفظ الخبر: $error')));
+    }finally{if(mounted)setState(()=>_working=false);}
+  }
+  Future<void> _togglePin(Map<String,dynamic> post) async {
+    final id=(post['id']??'').toString();if(id.isEmpty)return;
+    setState(()=>_working=true);
+    try{final result=await _send({'action':'togglePin','id':id,'pinned':post['pinned']!=true});
+      _apply(result);if(mounted)setState((){});
+    }catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تغيير التثبيت: $error')));}
+    finally{if(mounted)setState(()=>_working=false);}
+  }
+  Future<void> _sharePost(Map<String,dynamic> post) async {
+    final title=(post['title']??'').toString(), body=(post['body']??'').toString();
+    final text='$title\n\n$body\n\nمن تطبيق دليلك للنجاح — الثالث متوسط • العراق';
+    try{await Share.share(text,subject:title);}catch(_){
+      await Clipboard.setData(ClipboardData(text:text));
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم نسخ الخبر للمشاركة.')));
     }
   }
-
-  Future<void> _deletePost(Map<String,dynamic> post) async {
-    final id = (post['id'] ?? '').toString();
-    if (id.isEmpty) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          title: const Text('تأكيد حذف الخبر'),
-          content: Text('هل تريد حذف الخبر «${post['title'] ?? ''}» نهائياً من قائمة الأخبار؟'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('إلغاء'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Theme.of(dialogContext).colorScheme.error),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('حذف الخبر'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    setState(() => _working = true);
-    try {
-      final result = await _sendAdminAction({'action':'delete', 'id':id});
-      final feed = result['feed'];
-      if (feed is Map && feed['posts'] is List) {
-        _existing = (feed['posts'] as List)
-          .whereType<Map>()
-          .map((e) => Map<String,dynamic>.from(e))
-          .toList();
-      } else {
-        _existing.removeWhere((item) => item['id'] == id);
-      }
-      if (mounted) {
-        setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم حذف الخبر بنجاح.')),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر حذف الخبر: $error')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
+  Future<void> _delete(Map<String,dynamic> post) async {
+    final id=(post['id']??'').toString();if(id.isEmpty)return;
+    final yes=await showDialog<bool>(context:context,builder:(ctx)=>Directionality(
+      textDirection:TextDirection.rtl,child:AlertDialog(
+        title:const Text('تأكيد حذف الخبر'),
+        content:Text('هل تريد حذف الخبر «'+(post['title']??'').toString()+'» نهائياً؟'),
+        actions:[
+          TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),
+          FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف الخبر')),
+        ],
+      )));
+    if(yes!=true||!mounted)return;
+    setState(()=>_working=true);
+    try{final result=await _send({'action':'delete','id':id});_apply(result);
+      if(_editingId==id)_clearEditor();if(mounted)setState((){});
+    }catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حذف الخبر: $error')));}
+    finally{if(mounted)setState(()=>_working=false);}
   }
-
-  @override void dispose() {
-    _title.dispose();
-    _body.dispose();
-    super.dispose();
-  }
-
-  @override Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Directionality(
-      textDirection:TextDirection.rtl,
-      child:Scaffold(
-        appBar:AppBar(title:const Text('استوديو أخبار دليلك')),
-        body:ListView(
-          physics:const BouncingScrollPhysics(),
-          padding:const EdgeInsets.all(16),
-          children:[
-            Card(
-              child:Padding(
-                padding:const EdgeInsets.all(14),
-                child:Row(children:[
-                  Icon(Icons.admin_panel_settings_rounded,color:colors.primary,size:28),
-                  const SizedBox(width:10),
-                  Expanded(child:Text(
-                    'لوحة المطوّر متصلة بخادم الأخبار. النشر والحذف يُحفظان في KV على Cloudflare وتظهر التغييرات للطلاب بعد تحديث الصفحة.',
-                    style:TextStyle(height:1.55,color:colors.onSurfaceVariant),
-                  )),
-                ]),
-              ),
-            ),
-            const SizedBox(height:14),
-            TextField(
-              controller:_title,
-              maxLength:100,
-              decoration:const InputDecoration(
-                labelText:'عنوان الخبر',
-                border:OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height:12),
-            DropdownButtonFormField<String>(
-              value:_category,
-              decoration:const InputDecoration(labelText:'تصنيف الخبر',border:OutlineInputBorder()),
-              items:const [
-                DropdownMenuItem(value:'updates',child:Text('المستجدات')),
-                DropdownMenuItem(value:'tips',child:Text('نصائح دراسية')),
-                DropdownMenuItem(value:'students',child:Text('تنويهات الطلبة / الخارجي')),
-                DropdownMenuItem(value:'app',child:Text('إرشادات التطبيق')),
-              ],
-              onChanged:(value)=>setState(()=>_category=value??'updates'),
-            ),
-            const SizedBox(height:12),
-            TextField(
-              controller:_body,
-              minLines:5,
-              maxLines:9,
-              maxLength:2000,
-              decoration:const InputDecoration(
-                labelText:'نص الخبر',
-                hintText:'اكتب الخبر أو التنويه هنا...',
-                alignLabelWithHint:true,
-                border:OutlineInputBorder(),
-              ),
-            ),
-            SwitchListTile(
-              contentPadding:EdgeInsets.zero,
-              value:_pinned,
-              onChanged:(value)=>setState(()=>_pinned=value),
-              title:const Text('تثبيت الخبر في أعلى القائمة'),
-            ),
-            const SizedBox(height:12),
-            FilledButton.icon(
-              onPressed:_working?null:_publish,
-              icon:_working
-                ? const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2))
-                : const Icon(Icons.publish_rounded),
-              label:Text(_working?'جارٍ النشر...':'نشر الخبر'),
-            ),
-            const SizedBox(height:20),
-            Row(children:[
-              Expanded(child:Text(
-                'المنشورات الحالية',
-                style:TextStyle(fontSize:18,fontWeight:FontWeight.w900,color:colors.onSurface),
-              )),
-              IconButton(
-                tooltip:'تحديث القائمة',
-                onPressed:_working?null:() async {
-                  setState(()=>_loading=true);
-                  await _loadExisting();
-                },
-                icon:const Icon(Icons.refresh_rounded),
-              ),
+  @override void dispose(){_title.dispose();_body.dispose();super.dispose();}
+  Widget _stat(String title,String value,IconData icon,Color color)=>Expanded(child:Card(
+    child:Padding(padding:const EdgeInsets.symmetric(vertical:12,horizontal:8),
+      child:Column(children:[Icon(icon,color:color),const SizedBox(height:5),
+        Text(value,style:TextStyle(fontWeight:FontWeight.w900,fontSize:19,color:color)),
+        Text(title,textAlign:TextAlign.center,style:TextStyle(fontSize:10,color:Theme.of(context).colorScheme.onSurfaceVariant)),
+      ]))));
+  @override Widget build(BuildContext context){
+    final colors=Theme.of(context).colorScheme;
+    final previewTitle=_title.text.trim(), previewBody=_body.text.trim();
+    return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
+      appBar:AppBar(title:const Text('استوديو أخبار دليلك')),
+      body:ListView(padding:const EdgeInsets.all(16),children:[
+        Card(child:Padding(padding:const EdgeInsets.all(13),child:Column(children:[
+          Row(children:[
+            Icon(Icons.admin_panel_settings_rounded,color:colors.primary),
+            const SizedBox(width:8),
+            const Expanded(child:Text('إدارة الأخبار وفحص اتصال التخزين السحابي.')),
+            IconButton(tooltip:'فحص Worker وKV',onPressed:_working?null:_checkWorker,icon:const Icon(Icons.cloud_sync_rounded)),
+          ]),
+          Row(children:[
+            Icon(_kvConnected?Icons.cloud_done_rounded:Icons.cloud_off_rounded,
+              color:_kvConnected?const Color(0xFF16866A):colors.error),
+            const SizedBox(width:7),Expanded(child:Text(_workerStatus,
+              style:TextStyle(fontWeight:FontWeight.w800,color:_kvConnected?const Color(0xFF16866A):colors.error))),
+          ]),
+        ]))),
+        Row(children:[
+          _stat('كل الأخبار',_existing.length.toString(),Icons.article_rounded,colors.primary),
+          _stat('المثبّتة',_pinnedCount.toString(),Icons.push_pin_rounded,const Color(0xFFD49A2A)),
+        ]),
+        Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(
+          crossAxisAlignment:CrossAxisAlignment.start,children:[
+            const Text('التوزيع حسب التصنيف',style:TextStyle(fontWeight:FontWeight.w900)),
+            Wrap(spacing:6,runSpacing:5,children:_categories.entries.map((e)=>Chip(
+              avatar:CircleAvatar(radius:10,child:Text(_categoryCounts[e.key].toString(),style:const TextStyle(fontSize:10))),
+              label:Text(e.value),visualDensity:VisualDensity.compact,
+            )).toList()),
+          ]))),
+        TextField(controller:_title,onChanged:(_)=>setState((){}),maxLength:100,
+          decoration:const InputDecoration(labelText:'عنوان الخبر',border:OutlineInputBorder())),
+        const SizedBox(height:10),
+        DropdownButtonFormField<String>(value:_category,
+          decoration:const InputDecoration(labelText:'تصنيف الخبر',border:OutlineInputBorder()),
+          items:const[
+            DropdownMenuItem(value:'updates',child:Text('المستجدات')),
+            DropdownMenuItem(value:'tips',child:Text('نصائح دراسية')),
+            DropdownMenuItem(value:'students',child:Text('تنويهات الطلبة / الخارجي')),
+            DropdownMenuItem(value:'app',child:Text('إرشادات التطبيق')),
+          ],onChanged:(v)=>setState(()=>_category=v??'updates')),
+        const SizedBox(height:10),
+        TextField(controller:_body,onChanged:(_)=>setState((){}),minLines:4,maxLines:8,maxLength:2000,
+          decoration:const InputDecoration(labelText:'نص الخبر',alignLabelWithHint:true,border:OutlineInputBorder())),
+        SwitchListTile(contentPadding:EdgeInsets.zero,value:_pinned,
+          onChanged:(v)=>setState(()=>_pinned=v),title:const Text('تثبيت الخبر في أعلى القائمة')),
+        if(previewTitle.isNotEmpty||previewBody.isNotEmpty)Card(child:Padding(
+          padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            const Text('معاينة بطاقة الخبر',style:TextStyle(fontWeight:FontWeight.w900)),
+            Wrap(spacing:6,children:[
+              Chip(label:Text(_categories[_category]??'المستجدات'),visualDensity:VisualDensity.compact),
+              if(_pinned)const Chip(avatar:Icon(Icons.push_pin_rounded,size:14),label:Text('مثبّت'),visualDensity:VisualDensity.compact),
             ]),
-            if (_loading) const LinearProgressIndicator(),
-            if (!_loading && _existing.isEmpty)
-              Padding(
-                padding:const EdgeInsets.all(18),
-                child:Text('لا توجد أخبار محفوظة في المصدر الحالي.',
-                  textAlign:TextAlign.center,
-                  style:TextStyle(color:colors.onSurfaceVariant)),
-              ),
-            ..._existing.map((post)=>Card(
-              margin:const EdgeInsets.only(bottom:9),
-              child:ListTile(
-                title:Text((post['title'] ?? 'خبر بلا عنوان').toString(),
-                  maxLines:2,overflow:TextOverflow.ellipsis,
-                  style:const TextStyle(fontWeight:FontWeight.w800)),
-                subtitle:Text('${post['date'] ?? ''} • ${post['category'] ?? ''}'),
-                trailing:IconButton(
-                  tooltip:'حذف الخبر',
-                  onPressed:_working?null:()=>_deletePost(post),
-                  icon:const Icon(Icons.delete_outline_rounded,color:Colors.redAccent),
-                ),
-              ),
-            )),
-          ],
-        ),
-      ),
-    );
+            Text(previewTitle.isEmpty?'عنوان الخبر':previewTitle,style:const TextStyle(fontWeight:FontWeight.w900,fontSize:16)),
+            const SizedBox(height:6),Text(previewBody),
+          ]))),
+        FilledButton.icon(onPressed:_working?null:_save,
+          icon:_working?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2))
+            :Icon(_editingId==null?Icons.publish_rounded:Icons.save_rounded),
+          label:Text(_working?'جارٍ الحفظ...':_editingId==null?'نشر الخبر':'حفظ التعديلات')),
+        if(_editingId!=null)TextButton(onPressed:_working?null:()=>setState(_clearEditor),
+          child:const Text('إلغاء التعديل')),
+        const SizedBox(height:18),
+        Row(children:[
+          const Expanded(child:Text('المنشورات الحالية',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900))),
+          IconButton(tooltip:'تحديث القائمة',onPressed:_working?null:_loadExisting,icon:const Icon(Icons.refresh_rounded)),
+        ]),
+        if(_loading)const LinearProgressIndicator(),
+        if(!_loading&&_existing.isEmpty)const Padding(padding:EdgeInsets.all(18),
+          child:Text('لا توجد أخبار محفوظة في المصدر الحالي.',textAlign:TextAlign.center)),
+        ..._existing.map((post)=>Card(margin:const EdgeInsets.only(bottom:9),
+          child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Row(children:[
+              Expanded(child:Text((post['title']??'خبر بلا عنوان').toString(),maxLines:2,overflow:TextOverflow.ellipsis,
+                style:const TextStyle(fontWeight:FontWeight.w900))),
+              if(post['pinned']==true)const Icon(Icons.push_pin_rounded,color:Color(0xFFD49A2A)),
+            ]),
+            Wrap(spacing:6,crossAxisAlignment:WrapCrossAlignment.center,children:[
+              Chip(label:Text(_categories[(post['category']??'updates').toString()]??'مستجدات'),visualDensity:VisualDensity.compact),
+              Text((post['date']??'').toString(),style:TextStyle(fontSize:11,color:colors.onSurfaceVariant)),
+            ]),
+            Text((post['body']??'').toString(),maxLines:3,overflow:TextOverflow.ellipsis),
+            const Divider(height:14),
+            Wrap(spacing:2,children:[
+              TextButton.icon(onPressed:_working?null:()=>_edit(post),icon:const Icon(Icons.edit_rounded,size:17),label:const Text('تعديل')),
+              TextButton.icon(onPressed:_working?null:()=>_togglePin(post),
+                icon:const Icon(Icons.push_pin_rounded,size:17),label:Text(post['pinned']==true?'إلغاء التثبيت':'تثبيت')),
+              TextButton.icon(onPressed:_working?null:()=>_sharePost(post),icon:const Icon(Icons.share_rounded,size:17),label:const Text('مشاركة')),
+              TextButton.icon(onPressed:_working?null:()=>_delete(post),icon:const Icon(Icons.delete_outline_rounded,size:17,color:Colors.redAccent),
+                label:const Text('حذف',style:TextStyle(color:Colors.redAccent))),
+            ]),
+          ])))),
+      ]),
+    ));
   }
 }
 
