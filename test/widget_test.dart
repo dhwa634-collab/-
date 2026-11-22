@@ -92,6 +92,22 @@ void main() {
   });
 
 
+  testWidgets('new-stage review and archive screens remain inside the app', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: StageInternalArchiveScreen(
+        stage: AcademicStage.primarySixth,
+        subjects: sixthPrimarySubjects,
+        isReview: true,
+      ),
+    ));
+    expect(find.textContaining('المراجعة المركزة'), findsOneWidget);
+    expect(find.text('اللغة العربية'), findsOneWidget);
+    await tester.tap(find.text('اللغة العربية'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('لا توجد حالياً صور أو ملفات'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   test('new-stage saved book resources are isolated by academic stage', () async {
     SharedPreferences.setMockInitialValues({});
     await StageResourceBookmarks.save(
