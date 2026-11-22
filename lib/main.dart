@@ -1553,8 +1553,12 @@ class Saved extends StatelessWidget {
   const Saved({super.key, this.onOpenCatalog});
 
   void _openArchive(BuildContext context) {
+    final stage = AcademicStageController.current.value;
     Navigator.push(context, MaterialPageRoute(
-      builder: (_) => const ArchiveSearchScreen(),
+      builder: (_) => stage == AcademicStage.intermediateThird
+          ? const ArchiveSearchScreen()
+          : StageContentPlaceholderScreen(stage: stage,
+              title: 'الأرشيف الوزاري'),
     ));
   }
 
