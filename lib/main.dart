@@ -2498,7 +2498,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
       if(!mounted)return;
       setState((){
         _kvConnected=connected;
-        _workerStatus=connected?'متصل • KV يعمل':'غير متصل بـ KV • '+response.statusCode.toString();
+        _workerStatus = connected ? 'متصل • KV يعمل' : 'غير متصل بـ KV • ${response.statusCode}';
       });
     } catch (_) {
       if(mounted)setState(() { _kvConnected = false; _workerStatus = 'تعذر الوصول إلى Worker'; });
@@ -2529,14 +2529,17 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
       .timeout(const Duration(seconds:18));
     Map<String,dynamic> decoded={};
     try {final value=jsonDecode(utf8.decode(response.bodyBytes));if(value is Map)decoded=Map<String,dynamic>.from(value);}catch(_){}
-    if(response.statusCode!=200 || decoded['success']!=true)
-      throw Exception((decoded['error']??'تعذر تنفيذ العملية على خادم الأخبار').toString());
+    if (response.statusCode != 200 || decoded['success'] != true) {
+      throw Exception((decoded['error'] ?? 'تعذر تنفيذ العملية على خادم الأخبار').toString());
+    }
     return decoded;
   }
   void _apply(Map<String,dynamic> result){
     final feed=result['feed'];
-    if(feed is Map && feed['posts'] is List)
-      _existing=(feed['posts'] as List).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+    if (feed is Map && feed['posts'] is List) {
+      _existing = (feed['posts'] as List).whereType<Map>()
+          .map((e) => Map<String,dynamic>.from(e)).toList();
+    }
   }
   void _clearEditor(){_title.clear();_body.clear();_category='updates';_pinned=false;_editingId=null;}
   void _edit(Map<String,dynamic> post){
@@ -2590,7 +2593,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     final yes=await showDialog<bool>(context:context,builder:(ctx)=>Directionality(
       textDirection:TextDirection.rtl,child:AlertDialog(
         title:const Text('تأكيد حذف الخبر'),
-        content:Text('هل تريد حذف الخبر «'+(post['title']??'').toString()+'» نهائياً؟'),
+        content:Text('هل تريد حذف الخبر «${(post['title'] ?? '').toString()}» نهائياً؟'),
         actions:[
           TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),
           FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف الخبر')),
