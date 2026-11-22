@@ -19,8 +19,10 @@ void main() {
       'اللغة العربية', 'التربية الإسلامية', 'اللغة الإنكليزية',
       'الاجتماعيات', 'الفيزياء', 'الكيمياء', 'الأحياء', 'الرياضيات',
     ]));
-    expect(subjects, hasLength(7));
-    expect(examNames, contains('الكيمياء'));
+    expect(subjects, hasLength(6));
+    expect(archiveSubjects, hasLength(7));
+    expect(archiveSubjects.map((s) => s.name), contains('الكيمياء'));
+    expect(examNames, isNot(contains('الكيمياء')));
     expect(examNames, isNot(contains('التربية الإسلامية')));
     expect(bookSubjects.firstWhere((book) => book.name == 'اللغة الإنكليزية').availableParts, hasLength(2));
     expect(chemistryExams, isNotEmpty);
