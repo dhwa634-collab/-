@@ -877,8 +877,22 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                   : StageContentPlaceholderScreen(stage: stage,
                       title: 'الأرشيف الوزاري')));
           }),
-          _HomeToolTile(icon: Icons.fact_check_outlined, title: 'الحلول النموذجية', subtitle: 'شرح وخطوات الحل', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SolutionsHubScreen()))),
-          _HomeToolTile(icon: Icons.search_rounded, title: 'بحث وحفظ سريع', subtitle: 'ابحث واحتفظ للمراجعة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchSaveScreen()))),
+          _HomeToolTile(icon: Icons.fact_check_outlined, title: 'الحلول النموذجية', subtitle: 'شرح وخطوات الحل', onTap: () {
+            final stage = AcademicStageController.current.value;
+            Navigator.push(context, MaterialPageRoute(builder: (_) =>
+              stage == AcademicStage.intermediateThird
+                  ? const SolutionsHubScreen()
+                  : StageContentPlaceholderScreen(stage: stage,
+                      title: 'الحلول النموذجية')));
+          }),
+          _HomeToolTile(icon: Icons.search_rounded, title: 'بحث وحفظ سريع', subtitle: 'ابحث واحتفظ للمراجعة', onTap: () {
+            final stage = AcademicStageController.current.value;
+            Navigator.push(context, MaterialPageRoute(builder: (_) =>
+              stage == AcademicStage.intermediateThird
+                  ? const SearchSaveScreen()
+                  : StageContentPlaceholderScreen(stage: stage,
+                      title: 'البحث والحفظ')));
+          }),
           _HomeToolTile(icon: Icons.edit_note_rounded, title: 'مفكرة المراجعة', subtitle: 'أضف وعدّل ملاحظاتك', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyNotesScreen()))),
           _HomeToolTile(icon: Icons.bookmarks_rounded, title: 'المحفوظات', subtitle: 'أوراقك المحفوظة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Saved(onOpenCatalog: widget.onAll)))),
           _HomeToolTile(icon: Icons.quiz_rounded, title: 'مراجعة', subtitle: 'اختبر معلوماتك حسب الفصل', onTap: () {
