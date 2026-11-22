@@ -501,10 +501,21 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
                           style: TextStyle(fontSize: 10,
                             color: colors.onSurfaceVariant)),
                         const Spacer(),
-                        Align(
-                          alignment: AlignmentDirectional.centerEnd,
-                          child: Icon(Icons.arrow_forward_rounded,
-                            size: 19, color: colors.primary),
+                        Row(
+                          children: [
+                            Icon(Icons.arrow_forward_rounded,
+                              size: 19, color: colors.primary),
+                            const Spacer(),
+                            IconButton(
+                              tooltip: 'حفظ الكتاب في محفوظات المرحلة',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: available
+                                  ? () => StageResourceBookmarks.save(
+                                      widget.stage, subject)
+                                  : null,
+                              icon: const Icon(Icons.bookmark_add_outlined),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -518,8 +529,8 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
             icon: Icons.bookmarks_rounded,
             title: 'المحفوظات',
             desc: 'عرض أوراقك ومواردك المحفوظة على هذا الجهاز',
-            onTap: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const Saved())),
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => StageSavedResourcesScreen(stage: widget.stage))),
           ),
           Feature(
             icon: Icons.edit_note_rounded,
@@ -533,6 +544,151 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
             )),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class StageResourceBookmarks {
+  static String _key(AcademicStage stage) =>
+      'dalilak_stage_saved_resources_${stage.name}';
+
+  static Future<List<Map<String, String>>> load(AcademicStage stage) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_key(stage));
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return decoded.whereType<Map>()
+          .map((item) => Map<String, String>.from(item))
+          .where((item) => (item['url'] ?? '').startsWith('https://'))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> save(
+      AcademicStage stage, StageSubjectInfo subject) async {
+    if (!subject.hasResource) return;
+    final items = await load(stage);
+    if (items.any((item) => item['url'] == subject.resourceUrl)) return;
+    items.insert(0, {
+      'title': subject.name,
+      'url': subject.resourceUrl!,
+      'edition': subject.edition,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key(stage), jsonEncode(items));
+  }
+
+  static Future<void> remove(
+      AcademicStage stage, String url) async {
+    final items = await load(stage);
+    items.removeWhere((item) => item['url'] == url);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key(stage), jsonEncode(items));
+  }
+}
+
+class StageSavedResourcesScreen extends StatefulWidget {
+  final AcademicStage stage;
+  const StageSavedResourcesScreen({super.key, required this.stage});
+
+  @override
+  State<StageSavedResourcesScreen> createState() =>
+      _StageSavedResourcesScreenState();
+}
+
+class _StageSavedResourcesScreenState extends State<StageSavedResourcesScreen> {
+  List<Map<String, String>> _items = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final items = await StageResourceBookmarks.load(widget.stage);
+    if (!mounted) return;
+    setState(() {
+      _items = items;
+      _loading = false;
+    });
+  }
+
+  Future<void> _open(String url, String title) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return;
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر فتح $title. حاول مرة ثانية.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ما قدرنا نفتح $title حالياً.')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: Text('محفوظات ${widget.stage.label}')),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _items.isEmpty
+                ? Center(child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.bookmarks_outlined, size: 54,
+                        color: colors.primary),
+                      const SizedBox(height: 12),
+                      const Text('ما عندك كتب محفوظة بعد',
+                        style: TextStyle(fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 6),
+                      Text('اضغط علامة الحفظ على بطاقة أي مادة حتى تضيف مصدرها هنا.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: colors.onSurfaceVariant)),
+                    ]),
+                  ))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _items.length,
+                    itemBuilder: (context, index) {
+                      final item = _items[index];
+                      final title = item['title'] ?? 'كتاب';
+                      final url = item['url'] ?? '';
+                      return Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.picture_as_pdf_rounded),
+                          title: Text(title,
+                            style: const TextStyle(fontWeight: FontWeight.w800)),
+                          subtitle: Text(item['edition'] ?? ''),
+                          onTap: () => _open(url, title),
+                          trailing: IconButton(
+                            tooltip: 'إزالة من المحفوظات',
+                            icon: const Icon(Icons.bookmark_remove_outlined),
+                            onPressed: () async {
+                              await StageResourceBookmarks.remove(widget.stage, url);
+                              await _load();
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
       ),
     );
   }
