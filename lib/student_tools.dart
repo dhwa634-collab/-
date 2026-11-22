@@ -717,6 +717,11 @@ const List<Subject> subjects = [
     pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الاحياء%20الثالث%20متوسط.pdf'),
   Subject('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7),
     pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الرياضيات%20الثالث%20متوسط.pdf'),
+];
+ 
+/// مواد الأرشيف الوزاري فقط؛ تبقى قائمة المواد الدراسية الأخرى دون تغيير.
+const List<Subject> archiveSubjects = [
+  ...subjects,
   Subject('الكيمياء', Icons.science_rounded, Color(0xFF2787B8)),
 ];
 
