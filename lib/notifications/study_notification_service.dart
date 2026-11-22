@@ -11,12 +11,10 @@ import 'package:third_intermediate_iraq/student_tools.dart' show ExamDates;
 class StudyNotificationService {
   StudyNotificationService._();
   static final StudyNotificationService instance = StudyNotificationService._();
-  static const _enabledKey = 'smart_study_reminders_enabled_v1';
   static const _recentMessagesKey = 'smart_study_reminders_recent_messages_v1';
   static const _lastOpenedKey = 'smart_study_reminders_last_opened_v1';
   static const int _firstNotificationId = 4100;
   static const int _testNotificationId = 4199;
-  static final ValueNotifier<bool> enabled = ValueNotifier<bool>(true);
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
@@ -32,7 +30,6 @@ class StudyNotificationService {
       await _plugin.initialize(settings,
         onDidReceiveNotificationResponse: _onNotificationTap);
       final prefs = await SharedPreferences.getInstance();
-      enabled.value = prefs.getBool(_enabledKey) ?? true;
       _initialized = true;
     } catch (error) {
       debugPrint('Study notifications initialization failed: $error');
@@ -58,9 +55,6 @@ class StudyNotificationService {
   }
 
   Future<void> setEnabled(bool value) async {
-    enabled.value = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_enabledKey, value);
     if (!value) {
       await cancelAll();
       return;
@@ -88,16 +82,16 @@ class StudyNotificationService {
   Future<void> onAppResumed() async {
     if (!_initialized) await initialize();
     if (!_initialized) return;
-    await _cancelScheduledReminders();
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_lastOpenedKey, DateTime.now().toIso8601String());
-    } catch (error) {
-      debugPrint('Saving last opened time failed: $error');
+    // Android 13+ يعرض إذن النظام مباشرةً دون نافذة إعدادات داخل التطبيق.
+    final granted = await requestPermission();
+    if (!granted) {
+      await _cancelScheduledReminders();
+      return;
     }
+    await rescheduleFromNow();
   }
 
-  /// تبدأ سلسلة الغياب من لحظة خروج التطبيق إلى الخلفية.
+  /// إعادة ضبط دورة الغياب عند انتقال التطبيق إلى الخلفية.
   Future<void> onAppPaused() => rescheduleFromNow();
 
   int? get _daysUntilNextExam {
@@ -116,7 +110,7 @@ class StudyNotificationService {
 
   Future<void> rescheduleFromNow() async {
     if (!_initialized) await initialize();
-    if (!_initialized || !enabled.value) return;
+    if (!_initialized) return;
     try {
       await _cancelScheduledReminders();
       final prefs = await SharedPreferences.getInstance();
@@ -129,7 +123,7 @@ class StudyNotificationService {
         indices = List<int>.generate(studyReminderMessages.length, (i) => i);
       }
       indices.shuffle(Random());
-      const intervals = <Duration>[Duration(hours: 24), Duration(hours: 48), Duration(days: 4), Duration(days: 7)];
+      const intervals = <Duration>[Duration(hours: 12), Duration(hours: 24), Duration(hours: 48), Duration(days: 4), Duration(days: 7)];
       for (var i = 0; i < intervals.length; i++) {
         final messageIndex = indices[i];
         final message = studyReminderMessages[messageIndex];
@@ -160,12 +154,13 @@ class StudyNotificationService {
 
   tz.TZDateTime _nextAllowedTime(tz.TZDateTime candidate) {
     final minutes = candidate.hour * 60 + candidate.minute;
-    if (minutes < 600) {
-      return tz.TZDateTime(tz.local, candidate.year, candidate.month, candidate.day, 10);
+    // نافذة هدوء الليل: لا نرسل قبل 08:30 أو بعد 21:30 بتوقيت بغداد.
+    if (minutes < 510) {
+      return tz.TZDateTime(tz.local, candidate.year, candidate.month, candidate.day, 8, 30);
     }
     if (minutes > 1290) {
       final tomorrow = candidate.add(const Duration(days: 1));
-      return tz.TZDateTime(tz.local, tomorrow.year, tomorrow.month, tomorrow.day, 10);
+      return tz.TZDateTime(tz.local, tomorrow.year, tomorrow.month, tomorrow.day, 8, 30);
     }
     return candidate;
   }
