@@ -700,8 +700,19 @@ const List<Subject> subjects = [
   Subject('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9)),
   Subject('الاجتماعيات', Icons.public_rounded, Color(0xFFB65C69)),
   Subject('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25)),
-  Subject('الأحياء', Icons.biotech_rounded, Color(0xFF269B75)),
+  Subject('الأحياء', Icons.biotech_rounded, Color(0xFF269B75),
+    pdfUrl: 'https://derasaty.net/download.php?file=1761133290.pdf&type=application%2Fpdf'),
   Subject('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7)),
+];
+
+/// فهرس الكتب مستقل عن مواد الأسئلة الوزارية.
+/// الكيمياء والإسلامية يظهران هنا ككتب دراسية فقط، ولا يدخلان قائمة الوزاريات.
+const List<Subject> bookSubjects = [
+  ...subjects,
+  Subject('الكيمياء', Icons.science_rounded, Color(0xFF2787B8),
+    pdfUrl: 'https://www.stadiraq.com/PDF/1761834142.pdf'),
+  Subject('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A),
+    pdfUrl: 'https://derasaty.net/download.php?file=1737565764.pdf&type=application%2Fpdf'),
 ];
 
 class BooksLibraryScreen extends StatefulWidget {
@@ -743,7 +754,7 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
   }
 
   Future<void> _refreshDownloaded() async {
-    for (final book in subjects) {
+    for (final book in bookSubjects) {
       for (final part in book.availableParts) {
         if (!part.isAvailable) continue;
         try {
@@ -900,7 +911,7 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final visibleBooks = widget.subject == null ? subjects : <Subject>[widget.subject!];
+    final visibleBooks = widget.subject == null ? bookSubjects : <Subject>[widget.subject!];
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
