@@ -350,7 +350,6 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final isPrimary = widget.stage == AcademicStage.primarySixth;
     final isPreparatory = widget.stage == AcademicStage.preparatorySixth;
     final subjectsForNotes = _stageSubjects.map((subject) => subject.name).toList();
 
@@ -920,8 +919,12 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             Navigator.push(context, MaterialPageRoute(builder: (_) =>
               stage == AcademicStage.intermediateThird
                   ? const ArchiveSearchScreen()
-                  : StageContentPlaceholderScreen(stage: stage,
-                      title: 'الأرشيف الوزاري')));
+                  : StageInternalArchiveScreen(
+                      stage: stage,
+                      subjects: (stage == AcademicStage.primarySixth
+                        ? sixthPrimarySubjects : sixthPreparatorySubjects),
+                      isReview: false,
+                    )));
           },
           icon: const Icon(Icons.search_rounded)),
         ValueListenableBuilder<bool>(
