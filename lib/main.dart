@@ -347,8 +347,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       StudyNotificationService.instance.onAppResumed();
-    } else if (state == AppLifecycleState.paused) {
-      StudyNotificationService.instance.onAppPaused();
+    }
     }
   }
 
