@@ -696,19 +696,34 @@ class Subject {
 }
 
 const List<Subject> subjects = [
+  // قائمة المواد الوزارية تبقى ست مواد فقط.
   Subject('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24)),
   Subject('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9)),
-  Subject('الاجتماعيات', Icons.public_rounded, Color(0xFFB65C69)),
-  Subject('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25)),
+  Subject('الاجتماعيات', Icons.public_rounded, Color(0xFFB65C69),
+    pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الاجتماعيات%20الثالث%20متوسط.pdf'),
+  Subject('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25),
+    pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الفيزياء%20الثالث%20متوسط.pdf'),
   Subject('الأحياء', Icons.biotech_rounded, Color(0xFF269B75),
     pdfUrl: 'https://derasaty.net/download.php?file=1761133290.pdf&type=application%2Fpdf'),
-  Subject('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7)),
+  Subject('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7),
+    pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الرياضيات%20الثالث%20متوسط.pdf'),
 ];
 
 /// فهرس الكتب مستقل عن مواد الأسئلة الوزارية.
 /// الكيمياء والإسلامية يظهران هنا ككتب دراسية فقط، ولا يدخلان قائمة الوزاريات.
 const List<Subject> bookSubjects = [
-  ...subjects,
+  Subject('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24),
+    parts: [
+      BookPdfPart(
+        title: 'الجزء الأول',
+        pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20العربي%20الثالث%20متوسط%20الجزء%20الاول.pdf',
+      ),
+      BookPdfPart(
+        title: 'الجزء الثاني',
+        pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20العربي%20الثالث%20متوسط%20الجزء%20الثاني.pdf',
+      ),
+    ]),
+  ...subjects.where((subject) => subject.name != 'اللغة العربية'),
   Subject('الكيمياء', Icons.science_rounded, Color(0xFF2787B8),
     pdfUrl: 'https://www.stadiraq.com/PDF/1761834142.pdf'),
   Subject('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A),
@@ -803,6 +818,18 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
     if (selected != null && mounted) await _downloadAndOpen(book, selected);
   }
 
+  Future<bool> _isValidPdf(File file) async {
+    try {
+      if (!await file.exists() || await file.length() < 5) return false;
+      final header = await file.openRead(0, 5).fold<List<int>>(
+        <int>[], (all, chunk) => all..addAll(chunk));
+      return header.length >= 4 &&
+          String.fromCharCodes(header.take(4)) == '%PDF';
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _downloadAndOpen(Subject book, BookPdfPart part) async {
     final key = _fileKey(book, part);
     if (_downloading.contains(key)) return;
@@ -812,10 +839,14 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
     });
     try {
       final file = await _localFile(book, part);
-      if (await file.exists() && await file.length() > 0) {
-        if (!mounted) return;
-        await _openViewer(book, part, file);
-        return;
+      if (await file.exists()) {
+        if (await _isValidPdf(file)) {
+          if (!mounted) return;
+          await _openViewer(book, part, file);
+          return;
+        }
+        // احذف النسخة التالفة فقط ثم نزّل نسخة سليمة من المصدر.
+        await file.delete();
       }
 
       await file.parent.create(recursive: true);
@@ -843,7 +874,8 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
         var received = 0;
         final sink = temporary.openWrite();
         try {
-          await for (final chunk in response.stream) {
+          await for (final chunk in response.stream.timeout(
+            const Duration(seconds: 35))) {
             sink.add(chunk);
             received += chunk.length;
             if (mounted && total > 0) {
@@ -873,8 +905,14 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
       final partial = File('${temporary.path}.part');
       if (await partial.exists()) await partial.delete();
       if (mounted) {
+        final message = error is TimeoutException
+            ? 'الاتصال بطيء أو انقطع. تأكد من الإنترنت وحاول مرة ثانية.'
+            : error is SocketException || error is http.ClientException
+                ? 'ما قدرنا نتصل بمصدر الكتاب. افحص اتصال الإنترنت وحاول مجدداً.'
+                : 'ملف الكتاب غير مكتمل أو غير صالح حالياً. حاول مرة ثانية لاحقاً.';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('تعذر تجهيز الكتاب: ${error.toString().replaceFirst('Exception: ', '')}'),
+          content: Text(message),
+          duration: const Duration(seconds: 5),
           action: SnackBarAction(
             label: 'إعادة المحاولة',
             onPressed: () => _downloadAndOpen(book, part),
