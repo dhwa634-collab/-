@@ -1146,16 +1146,11 @@ class _SubjectScreenState extends State<SubjectScreen> {
                         Image.asset(
                           entry.value,
                           fit: BoxFit.contain,
-                          loadingBuilder: (context, child, progress) {
-                            if (progress == null) return child;
-                            return SizedBox(
+                          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                            if (wasSynchronouslyLoaded || frame != null) return child;
+                            return const SizedBox(
                               height: 190,
-                              child: Center(child: CircularProgressIndicator(
-                                value: progress.expectedTotalBytes == null
-                                    ? null
-                                    : progress.cumulativeBytesLoaded /
-                                        progress.expectedTotalBytes!,
-                              )),
+                              child: Center(child: CircularProgressIndicator()),
                             );
                           },
                           errorBuilder: (_, __, ___) => const Padding(
@@ -1257,8 +1252,8 @@ class _ExamImageViewerState extends State<_ExamImageViewer> {
               child: Image.asset(
                 widget.images[index],
                 fit: BoxFit.contain,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded || frame != null) return child;
                   return const Center(child: CircularProgressIndicator(
                     color: Colors.white,
                   ));
