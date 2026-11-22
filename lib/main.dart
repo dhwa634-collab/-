@@ -10,8 +10,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'student_tools.dart';
 import 'exam_archive_data.dart';
 import 'review_quiz.dart';
+import 'academic_stages.dart';
 import 'notifications/study_notification_service.dart';
-Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); await ThemeController.load(); await StudyNotificationService.instance.initialize(); runApp(const StudyApp()); }
+Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); await ThemeController.load(); await AcademicStageController.load(); await StudyNotificationService.instance.initialize(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 class SavedExamsStore {
   static const String _storageKey = 'saved_exam_sheets_v1';
@@ -237,6 +238,200 @@ class ThemeController {
   }
 }
 
+class AcademicStageController {
+  static const _storageKey = 'dalilak_selected_academic_stage_v1';
+  static final ValueNotifier<AcademicStage> current =
+      ValueNotifier<AcademicStage>(AcademicStage.intermediateThird);
+
+  static Future<void> load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      current.value = AcademicStage.fromStorage(prefs.getString(_storageKey));
+    } catch (_) {
+      current.value = AcademicStage.intermediateThird;
+    }
+  }
+
+  static Future<void> select(AcademicStage stage) async {
+    current.value = stage;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_storageKey, stage.name);
+  }
+}
+
+class AcademicStagePicker extends StatelessWidget {
+  const AcademicStagePicker({super.key});
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<AcademicStage>(
+    valueListenable: AcademicStageController.current,
+    builder: (context, selected, _) => Card(
+      margin: const EdgeInsets.only(top: 12, bottom: 4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        child: Row(children: [
+          Icon(Icons.school_rounded, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('المرحلة الدراسية',
+            style: TextStyle(fontWeight: FontWeight.w800))),
+          DropdownButton<AcademicStage>(
+            value: selected,
+            underline: const SizedBox.shrink(),
+            borderRadius: BorderRadius.circular(14),
+            items: AcademicStage.values.map((stage) => DropdownMenuItem(
+              value: stage, child: Text(stage.label,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            )).toList(),
+            onChanged: (stage) {
+              if (stage != null) AcademicStageController.select(stage);
+            },
+          ),
+        ]),
+      ),
+    ),
+  );
+}
+
+class StageContentPlaceholderScreen extends StatelessWidget {
+  final AcademicStage stage;
+  final String title;
+  final String description;
+  const StageContentPlaceholderScreen({
+    super.key, required this.stage, required this.title,
+    this.description = stageContentPendingMessage,
+  });
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.menu_book_rounded, size: 58,
+            color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 14),
+          Text(stage.label, style: const TextStyle(
+            fontSize: 21, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 8),
+          Text(description, textAlign: TextAlign.center,
+            style: TextStyle(height: 1.7,
+              color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 14),
+          const Chip(label: Text('قيد التوفير')),
+        ]),
+      )),
+    ),
+  );
+}
+
+class StageCatalogScreen extends StatefulWidget {
+  final AcademicStage stage;
+  const StageCatalogScreen({super.key, required this.stage});
+  @override
+  State<StageCatalogScreen> createState() => _StageCatalogScreenState();
+}
+
+class _StageCatalogScreenState extends State<StageCatalogScreen> {
+  String _branch = 'العلمي';
+  String _scientificTrack = 'الأحيائي';
+
+  List<StageSubjectInfo> get _stageSubjects =>
+      widget.stage == AcademicStage.primarySixth
+          ? sixthPrimarySubjects
+          : sixthPreparatorySubjects;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final isPreparatory = widget.stage == AcademicStage.preparatorySixth;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: ListView(
+        key: PageStorageKey<String>('stage_catalog_${widget.stage.name}'),
+        padding: const EdgeInsets.all(16),
+        children: [
+          const AcademicStagePicker(),
+          Text(widget.stage.label, style: TextStyle(
+            fontSize: 24, fontWeight: FontWeight.w900, color: colors.onSurface)),
+          const SizedBox(height: 6),
+          Text('المواد والكتب والمراجعة الخاصة بهذه المرحلة فقط',
+            style: TextStyle(color: colors.onSurfaceVariant)),
+          if (isPreparatory) ...[
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _branch,
+              decoration: const InputDecoration(labelText: 'الفرع الدراسي'),
+              items: const [
+                DropdownMenuItem(value: 'العلمي', child: Text('العلمي')),
+                DropdownMenuItem(value: 'الأدبي', child: Text('الأدبي')),
+              ],
+              onChanged: (value) => setState(() {
+                _branch = value ?? 'العلمي';
+                _scientificTrack = 'الأحيائي';
+              }),
+            ),
+            if (_branch == 'العلمي') ...[
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _scientificTrack,
+                decoration: const InputDecoration(labelText: 'مسار الفرع العلمي'),
+                items: sixthPreparatoryScientificTracks.map((track) =>
+                  DropdownMenuItem(value: track, child: Text(track))).toList(),
+                onChanged: (value) => setState(() =>
+                  _scientificTrack = value ?? 'الأحيائي'),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(_branch == 'الأدبي'
+                ? 'المواد الأدبية ستظهر هنا بعد إضافة ملفاتها المعتمدة.'
+                : 'المسار: $_scientificTrack — ستُعرض مواده عند توفر ملفاتها المعتمدة.',
+              style: TextStyle(color: colors.onSurfaceVariant)),
+          ],
+          const SizedBox(height: 18),
+          Feature(
+            icon: Icons.history_edu_rounded,
+            title: 'الأسئلة الوزارية',
+            desc: 'أرشيف هذه المرحلة — قيد التوفير',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
+              StageContentPlaceholderScreen(stage: widget.stage,
+                title: 'الأرشيف الوزاري'))),
+          ),
+          const SizedBox(height: 18),
+          Text('كتب المواد الدراسية', style: TextStyle(
+            fontSize: 19, fontWeight: FontWeight.w900, color: colors.onSurface)),
+          const SizedBox(height: 10),
+          ..._stageSubjects.map((subject) => Card(
+            margin: const EdgeInsets.only(bottom: 9),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: subject.color.withValues(alpha: .13),
+                child: Icon(subject.icon, color: subject.color)),
+              title: Text(subject.name,
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: const Text('ملف الكتاب قيد التوفير'),
+              trailing: const Chip(label: Text('قريباً')),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                StageContentPlaceholderScreen(stage: widget.stage,
+                  title: 'كتاب ${subject.name}'))),
+            ),
+          )),
+          const SizedBox(height: 10),
+          Feature(
+            icon: Icons.quiz_rounded,
+            title: 'المراجعة والاختبارات',
+            desc: 'أسئلة تدريبية خاصة بالمرحلة — قيد الإعداد',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
+              StageContentPlaceholderScreen(stage: widget.stage,
+                title: 'مراجعة ${widget.stage.label}'))),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class StudyApp extends StatelessWidget {
   const StudyApp({super.key});
 
@@ -443,12 +638,22 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             Text('دليلك للنجاح', style: TextStyle(fontSize: 21,
               fontWeight: FontWeight.w900,
               color: Theme.of(context).colorScheme.onSurface)),
-            Text('الثالث متوسط • العراق', style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ValueListenableBuilder<AcademicStage>(
+              valueListenable: AcademicStageController.current,
+              builder: (context, stage, _) => Text('${stage.label} • العراق',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ),
           ])),
         IconButton(tooltip: 'البحث في الأرشيف',
-          onPressed: () => Navigator.push(context, MaterialPageRoute(
-            builder: (_) => const ArchiveSearchScreen())),
+          onPressed: () {
+            final stage = AcademicStageController.current.value;
+            Navigator.push(context, MaterialPageRoute(builder: (_) =>
+              stage == AcademicStage.intermediateThird
+                  ? const ArchiveSearchScreen()
+                  : StageContentPlaceholderScreen(stage: stage,
+                      title: 'الأرشيف الوزاري')));
+          },
           icon: const Icon(Icons.search_rounded)),
         ValueListenableBuilder<bool>(
           valueListenable: ThemeController.isDark,
@@ -457,7 +662,8 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             onPressed: () => ThemeController.toggle(!isDark),
             icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded)),
         ),
-      ]),
+      ]]),
+      const AcademicStagePicker(),
       if (_showWelcome)
         SizeTransition(
           sizeFactor: _welcomeSize,
@@ -596,7 +802,12 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
         ),
       ),
       const SizedBox(height: 12),
-      const ExamCountdownSection(),
+      ValueListenableBuilder<AcademicStage>(
+        valueListenable: AcademicStageController.current,
+        builder: (context, stage, _) => stage == AcademicStage.intermediateThird
+            ? const ExamCountdownSection()
+            : const SizedBox.shrink(),
+      ),
       const SizedBox(height: 12),
       ValueListenableBuilder<List<Map<String, String>>>(
         valueListenable: SavedExamsStore.items,
@@ -652,12 +863,26 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
         mainAxisSpacing: 10,
         childAspectRatio: 1.55,
         children: [
-          _HomeToolTile(icon: Icons.history_edu_rounded, title: 'الأرشيف حسب السنة والدور', subtitle: 'وزاري وتمهيدي', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ArchiveSearchScreen()))),
+          _HomeToolTile(icon: Icons.history_edu_rounded, title: 'الأرشيف حسب السنة والدور', subtitle: 'وزاري وتمهيدي', onTap: () {
+            final stage = AcademicStageController.current.value;
+            Navigator.push(context, MaterialPageRoute(builder: (_) =>
+              stage == AcademicStage.intermediateThird
+                  ? const ArchiveSearchScreen()
+                  : StageContentPlaceholderScreen(stage: stage,
+                      title: 'الأرشيف الوزاري')));
+          }),
           _HomeToolTile(icon: Icons.fact_check_outlined, title: 'الحلول النموذجية', subtitle: 'شرح وخطوات الحل', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SolutionsHubScreen()))),
           _HomeToolTile(icon: Icons.search_rounded, title: 'بحث وحفظ سريع', subtitle: 'ابحث واحتفظ للمراجعة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchSaveScreen()))),
           _HomeToolTile(icon: Icons.edit_note_rounded, title: 'مفكرة المراجعة', subtitle: 'أضف وعدّل ملاحظاتك', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyNotesScreen()))),
           _HomeToolTile(icon: Icons.bookmarks_rounded, title: 'المحفوظات', subtitle: 'أوراقك المحفوظة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Saved(onOpenCatalog: widget.onAll)))),
-          _HomeToolTile(icon: Icons.quiz_rounded, title: 'مراجعة', subtitle: 'اختبر معلوماتك حسب الفصل', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReviewQuizScreen()))),
+          _HomeToolTile(icon: Icons.quiz_rounded, title: 'مراجعة', subtitle: 'اختبر معلوماتك حسب الفصل', onTap: () {
+            final stage = AcademicStageController.current.value;
+            Navigator.push(context, MaterialPageRoute(builder: (_) =>
+              stage == AcademicStage.intermediateThird
+                  ? const ReviewQuizScreen()
+                  : StageContentPlaceholderScreen(stage: stage,
+                      title: 'المراجعة والاختبارات')));
+          }),
         ],
       ),
       const SizedBox(height: 8),
@@ -696,69 +921,81 @@ class Catalog extends StatelessWidget {
   const Catalog({super.key, required this.onOpen});
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: CustomScrollView(
-        key: const PageStorageKey<String>('subjects_catalog_scroll'),
-        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
-            sliver: SliverToBoxAdapter(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('المواد الدراسية', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900, color: colors.onSurface)),
-                const SizedBox(height: 6),
-                Text('اختر المادة لفتح كتابها، أو ابدأ بمراجعة الأسئلة الوزارية', style: TextStyle(color: colors.onSurfaceVariant)),
-                const SizedBox(height: 18),
-                Feature(
-                  icon: Icons.history_edu_rounded,
-                  title: 'الأسئلة الوزارية للسنين السابقة',
-                  desc: 'تصفح الأوراق الامتحانية حسب المادة والسنة والدور',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ArchiveSearchScreen())),
+  Widget build(BuildContext context) =>
+      ValueListenableBuilder<AcademicStage>(
+        valueListenable: AcademicStageController.current,
+        builder: (context, stage, _) {
+          if (stage != AcademicStage.intermediateThird) {
+            return StageCatalogScreen(
+              key: ValueKey('catalog_${stage.name}'),
+              stage: stage,
+            );
+          }
+          final colors = Theme.of(context).colorScheme;
+          return Directionality(
+            textDirection: TextDirection.rtl,
+            child: CustomScrollView(
+              key: const PageStorageKey<String>('subjects_catalog_scroll'),
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const AcademicStagePicker(),
+                      Text('المواد الدراسية', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900, color: colors.onSurface)),
+                      const SizedBox(height: 6),
+                      Text('اختر المادة لفتح كتابها، أو ابدأ بمراجعة الأسئلة الوزارية', style: TextStyle(color: colors.onSurfaceVariant)),
+                      const SizedBox(height: 18),
+                      Feature(
+                        icon: Icons.history_edu_rounded,
+                        title: 'الأسئلة الوزارية للسنين السابقة',
+                        desc: 'تصفح الأوراق الامتحانية حسب المادة والسنة والدور',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ArchiveSearchScreen())),
+                      ),
+                      const SizedBox(height: 18),
+                      Text('كتب المواد الدراسية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: colors.onSurface)),
+                      const SizedBox(height: 5),
+                      Text('اختر المادة للوصول إلى كتابها وملفات PDF', style: TextStyle(color: colors.onSurfaceVariant)),
+                    ]),
+                  ),
                 ),
-                const SizedBox(height: 18),
-                Text('كتب المواد الدراسية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: colors.onSurface)),
-                const SizedBox(height: 5),
-                Text('اختر المادة للوصول إلى كتابها وملفات PDF', style: TextStyle(color: colors.onSurfaceVariant)),
-              ]),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11, childAspectRatio: 1.34),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => SubjectTile(
-                  subject: bookSubjects[index],
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BooksLibraryScreen(
-                    subject: bookSubjects[index],
-                    cardStyle: ThemeController.bookCardStyle.value,
-                    accentColor: ThemeController.accent,
-                    cardRadius: ThemeController.cardRadius.value,
-                  ))),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11, childAspectRatio: 1.34),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => SubjectTile(
+                        subject: bookSubjects[index],
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BooksLibraryScreen(
+                          subject: bookSubjects[index],
+                          cardStyle: ThemeController.bookCardStyle.value,
+                          accentColor: ThemeController.accent,
+                          cardRadius: ThemeController.cardRadius.value,
+                        ))),
+                      ),
+                      childCount: bookSubjects.length,
+                    ),
+                  ),
                 ),
-                childCount: bookSubjects.length,
-              ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+                  sliver: SliverToBoxAdapter(
+                    child: Feature(
+                      icon: Icons.edit_note_rounded,
+                      title: 'مفكرة المراجعة الخاصة بي',
+                      desc: 'سجّل القوانين والأسئلة الصعبة والملاحظات لكل مادة واحفظها على جهازك',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyNotesScreen())),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
-            sliver: SliverToBoxAdapter(
-              child: Feature(
-                icon: Icons.edit_note_rounded,
-                title: 'مفكرة المراجعة الخاصة بي',
-                desc: 'سجّل القوانين والأسئلة الصعبة والملاحظات لكل مادة واحفظها على جهازك',
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyNotesScreen())),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          );
+        },
+      );
 }
+
 class ArchiveSearchScreen extends StatefulWidget {
   const ArchiveSearchScreen({super.key});
 
