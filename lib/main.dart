@@ -341,50 +341,6 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     StudyNotificationService.instance.onAppResumed();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showNotificationPermissionPrimer());
-  }
-
-  Future<void> _showNotificationPermissionPrimer() async {
-    late final SharedPreferences prefs;
-    try {
-      prefs = await SharedPreferences.getInstance();
-    } catch (_) {
-      return;
-    }
-    const askedKey = 'smart_study_reminders_permission_primer_v1';
-    if (prefs.getBool(askedKey) == true || !mounted) return;
-    await prefs.setBool(askedKey, true);
-    if (!mounted) return;
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          icon: const Icon(Icons.notifications_active_outlined),
-          title: const Text('نفعّل تذكيرات الدراسة؟'),
-          content: const Text(
-            'نرسل لك تذكيرات محلية خفيفة إذا غبت عن التطبيق، وبأوقات مناسبة بين العاشرة صباحاً والتاسعة والنصف مساءً. تگدر توقفها بأي وقت من صفحة المزيد.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('مو هسه'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('تفعيل التذكيرات'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (accepted == true && mounted) {
-      final granted = await StudyNotificationService.instance.requestPermission();
-      if (!granted && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('إذن الإشعارات غير مفعّل. تگدر تفعّله لاحقاً من إعدادات الجهاز.'),
-        ));
-      }
-    }
   }
 
   @override
@@ -2937,60 +2893,7 @@ class MoreScreen extends StatelessWidget {
             ]),
           ),
 
-          _sectionTitle(context, 'التذكيرات الذكية', Icons.notifications_active_outlined),
-          Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: Column(children: [
-              ValueListenableBuilder<bool>(
-                valueListenable: StudyNotificationService.enabled,
-                builder: (context, isEnabled, _) => SwitchListTile(
-                  secondary: Icon(Icons.school_outlined, color: colors.primary),
-                  title: const Text('تذكيرات السچ والدراسة الذكية',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                  subtitle: const Text(
-                    'تذكيرات عراقية خفيفة إذا غبت عن التطبيق، وبأوقات نهارية ومسائية مناسبة.',
-                    style: TextStyle(height: 1.45, fontSize: 12)),
-                  value: isEnabled,
-                  onChanged: (value) async {
-                    await StudyNotificationService.instance.setEnabled(value);
-                    if (context.mounted && value) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('تم تفعيل التذكيرات. إذا كان إذن الإشعارات مرفوضاً، فعّله من إعدادات الجهاز.'),
-                      ));
-                    }
-                  },
-                ),
-              ),
-              const Divider(height: 1, indent: 16, endIndent: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 7, 12, 10),
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.notifications_active_outlined, size: 18),
-                    label: const Text('جرّب إشعار الآن'),
-                    onPressed: () async {
-                      try {
-                        final granted = await StudyNotificationService.instance.requestPermission();
-                        if (!granted && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                            content: Text('إذن الإشعارات غير متاح. افحص إعدادات إشعارات التطبيق بالجهاز.'),
-                          ));
-                          return;
-                        }
-                        await StudyNotificationService.instance.showTestNotification();
-                      } catch (_) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                            content: Text('تعذر عرض الإشعار التجريبي حالياً.'),
-                          ));
-                        }
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ]),
+
           ),
 
           _sectionTitle(context, 'المظهر والتخصيص', Icons.palette_outlined),
