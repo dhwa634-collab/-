@@ -729,15 +729,15 @@ class Catalog extends StatelessWidget {
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 11, mainAxisSpacing: 11, childAspectRatio: 1.34),
               delegate: SliverChildBuilderDelegate(
                 (context, index) => SubjectTile(
-                  subject: subjects[index],
+                  subject: bookSubjects[index],
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BooksLibraryScreen(
-                    subject: subjects[index],
+                    subject: bookSubjects[index],
                     cardStyle: ThemeController.bookCardStyle.value,
                     accentColor: ThemeController.accent,
                     cardRadius: ThemeController.cardRadius.value,
                   ))),
                 ),
-                childCount: subjects.length,
+                childCount: bookSubjects.length,
               ),
             ),
           ),
