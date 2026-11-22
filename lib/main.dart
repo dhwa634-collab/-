@@ -472,7 +472,7 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w900)),
                         const SizedBox(height: 5),
-                        Text(available ? 'مصادر PDF • ${subject.edition}' : 'المصدر غير متوفر',
+                        Text(available ? 'صفحة مصدر • ${subject.edition}' : 'المصدر غير متوفر',
                           textAlign: TextAlign.center,
                           maxLines: 2,
                           style: TextStyle(fontSize: 10,
