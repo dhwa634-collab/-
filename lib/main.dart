@@ -2066,7 +2066,7 @@ class _StudyNotesScreenState extends State<StudyNotesScreen> {
 
   String get _key => widget.storageScope.isEmpty
       ? '$_prefix$_subject'
-      : '${_prefix}${widget.storageScope}_$_subject';
+      : '$_prefix${widget.storageScope}_$_subject';
 
   @override
   void initState() {
