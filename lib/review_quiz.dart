@@ -406,6 +406,12 @@ class _ReviewQuizScreenState extends State<ReviewQuizScreen> {
             label: Text(_questionIndex + 1 == _questions.length
                 ? 'عرض النتيجة' : 'السؤال التالي'),
           ),
+          if (_selected != question.correctIndex)
+            TextButton.icon(
+              onPressed: () => setState(() => _selected = null),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('إعادة المحاولة'),
+            ),
         ],
       ],
     );
