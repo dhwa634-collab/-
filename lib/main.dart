@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'student_tools.dart';
 import 'exam_archive_data.dart';
+import 'review_quiz.dart';
 import 'notifications/study_notification_service.dart';
 Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); await ThemeController.load(); await StudyNotificationService.instance.initialize(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
@@ -656,6 +657,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
           _HomeToolTile(icon: Icons.search_rounded, title: 'بحث وحفظ سريع', subtitle: 'ابحث واحتفظ للمراجعة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchSaveScreen()))),
           _HomeToolTile(icon: Icons.edit_note_rounded, title: 'مفكرة المراجعة', subtitle: 'أضف وعدّل ملاحظاتك', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudyNotesScreen()))),
           _HomeToolTile(icon: Icons.bookmarks_rounded, title: 'المحفوظات', subtitle: 'أوراقك المحفوظة', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Saved(onOpenCatalog: widget.onAll)))),
+          _HomeToolTile(icon: Icons.quiz_rounded, title: 'مراجعة', subtitle: 'اختبر معلوماتك حسب الفصل', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReviewQuizScreen()))),
         ],
       ),
       const SizedBox(height: 8),
@@ -952,8 +954,14 @@ class _SubjectScreenState extends State<SubjectScreen> {
 
 
   List<String> get availableYears {
-    if (widget.subject.name == 'اللغة العربية') {
-      final values = arabicExams.keys.toList()
+    final Map<String, Map<String, List<String>>>? classified =
+        widget.subject.name == 'اللغة العربية'
+            ? arabicExams
+            : widget.subject.name == 'الكيمياء'
+                ? chemistryExams
+                : null;
+    if (classified != null) {
+      final values = classified.keys.toList()
         ..sort((a, b) => int.parse(b).compareTo(int.parse(a)));
       if ((unclassifiedExamImages[widget.subject.name] ?? const []).isNotEmpty) {
         values.add('غير مصنف');
@@ -967,7 +975,13 @@ class _SubjectScreenState extends State<SubjectScreen> {
 
   List<String> get availableRounds {
     if (year == 'غير مصنف') return const ['كل الصور'];
-    final available = arabicExams[year]?.keys.toSet() ?? <String>{};
+    final Map<String, List<String>>? selectedYear =
+        widget.subject.name == 'اللغة العربية'
+            ? arabicExams[year]
+            : widget.subject.name == 'الكيمياء'
+                ? chemistryExams[year]
+                : null;
+    final available = selectedYear?.keys.toSet() ?? <String>{};
     return rounds.where(available.contains).toList();
   }
 
@@ -975,10 +989,13 @@ class _SubjectScreenState extends State<SubjectScreen> {
     if (year == 'غير مصنف') {
       return unclassifiedExamImages[widget.subject.name] ?? const <String>[];
     }
-    if (widget.subject.name == 'اللغة العربية') {
-      return arabicExams[year]?[kind] ?? const <String>[];
-    }
-    return const <String>[];
+    final Map<String, List<String>>? selectedYear =
+        widget.subject.name == 'اللغة العربية'
+            ? arabicExams[year]
+            : widget.subject.name == 'الكيمياء'
+                ? chemistryExams[year]
+                : null;
+    return selectedYear?[kind] ?? const <String>[];
   }
 
   String get academicYear {
@@ -2405,8 +2422,18 @@ class _NewsScreenState extends State<NewsScreen> {
                     const Text('مثبّت',style:TextStyle(fontSize:11,fontWeight:FontWeight.w900,color:Color(0xFFD49A2A))),
                     const SizedBox(width:8),
                   ],
-                  Expanded(child:Text(_categories[post.category] ?? 'مستجدات',
-                    style:TextStyle(fontSize:11,color:colors.primary,fontWeight:FontWeight.w800))),
+                  Expanded(child:Align(
+                    alignment:AlignmentDirectional.centerStart,
+                    child:Container(
+                      padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),
+                      decoration:BoxDecoration(
+                        color:colors.primaryContainer.withValues(alpha:.72),
+                        borderRadius:BorderRadius.circular(20),
+                      ),
+                      child:Text(_categories[post.category] ?? 'مستجدات',
+                        style:TextStyle(fontSize:11,color:colors.onPrimaryContainer,fontWeight:FontWeight.w800)),
+                    ),
+                  )),
                   Text(post.date,style:TextStyle(fontSize:11,color:colors.onSurfaceVariant)),
                 ]),
                 const SizedBox(height:8),
@@ -3315,6 +3342,14 @@ List<_ArchiveSearchItem> _getAvailableArchiveItems() {
       }
     }
   }
+  for (final entry in chemistryExams.entries) {
+    final subject = subjects.firstWhere((item) => item.name == 'الكيمياء');
+    for (final round in entry.value.entries) {
+      for (final path in round.value) {
+        result.add(_ArchiveSearchItem(subject, entry.key, round.key, path));
+      }
+    }
+  }
   for (final entry in unclassifiedExamImages.entries) {
     final subject = subjects.firstWhere((item) => item.name == entry.key);
     for (final path in entry.value) {
@@ -3362,6 +3397,58 @@ class Feature extends StatelessWidget {
           ]))))); 
 }
 
+
+class _StudyThinkingIndicator extends StatefulWidget {
+  const _StudyThinkingIndicator();
+
+  @override
+  State<_StudyThinkingIndicator> createState() => _StudyThinkingIndicatorState();
+}
+
+class _StudyThinkingIndicatorState extends State<_StudyThinkingIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1050),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      ...List.generate(3, (index) => AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final phase = (_controller.value * 3 - index).clamp(0.0, 1.0);
+          final scale = .65 + .35 * Curves.easeInOut.transform(phase);
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Transform.scale(scale: scale, child: child),
+          );
+        },
+        child: Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: colors.primary.withValues(alpha: .45 + index * .2),
+            shape: BoxShape.circle,
+          ),
+        ),
+      )),
+      const SizedBox(width: 9),
+      Text('جاري التفكير...', style: TextStyle(
+        color: colors.onSurfaceVariant,
+        fontWeight: FontWeight.w700,
+      )),
+    ]);
+  }
+}
 
 class AiAssistantScreen extends StatefulWidget {
   final String? initialPrompt;
@@ -3664,16 +3751,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     alignment: Alignment.centerRight,
                     child: Padding(
                       padding: EdgeInsets.all(12),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(width: 17, height: 17,
-                            child: CircularProgressIndicator(strokeWidth: 2)),
-                          SizedBox(width: 9),
-                          Text('جاري التفكير...',
-                            style: TextStyle()),
-                        ],
-                      ),
+                      child: _StudyThinkingIndicator(),
                     ),
                   );
                 }
