@@ -3400,7 +3400,7 @@ class _StudyThinkingIndicatorState extends State<_StudyThinkingIndicator>
       ...List.generate(3, (index) => AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
-          final phase = (_controller.value * 3 - index).clamp(0.0, 1.0);
+          final phase = (_controller.value * 3 - index).clamp(0.0, 1.0).toDouble();
           final scale = .65 + .35 * Curves.easeInOut.transform(phase);
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 2),
