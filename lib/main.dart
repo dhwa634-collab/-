@@ -340,7 +340,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    StudyNotificationService.instance.rescheduleFromNow();
+    StudyNotificationService.instance.onAppResumed();
     WidgetsBinding.instance.addPostFrameCallback((_) => _showNotificationPermissionPrimer());
   }
 
@@ -390,7 +390,9 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      StudyNotificationService.instance.rescheduleFromNow();
+      StudyNotificationService.instance.onAppResumed();
+    } else if (state == AppLifecycleState.paused) {
+      StudyNotificationService.instance.onAppPaused();
     }
   }
 
