@@ -17,44 +17,102 @@ enum AcademicStage {
       );
 }
 
-/// بيانات فهرس المواد للمرحلتين المضافتين.
-/// لا تُضاف روابط أو أوراق وزارية غير موجودة وموثقة في المستودع.
 class StageSubjectInfo {
   final String name;
   final IconData icon;
   final Color color;
-  const StageSubjectInfo(this.name, this.icon, this.color);
+  /// صفحة مصدر الكتاب التي تعرض ملف PDF وإصداره؛ ليست رابط PDF مباشراً.
+  final String? resourceUrl;
+  final String edition;
+
+  const StageSubjectInfo(
+    this.name,
+    this.icon,
+    this.color, {
+    this.resourceUrl,
+    this.edition = '2026–2027',
+  });
+
+  bool get hasResource => resourceUrl != null && resourceUrl!.startsWith('https://');
 }
 
+const String primaryBooksCatalogUrl =
+    'https://iraqedu.net/الكتب-السادس-الابتدائي/';
+const String preparatoryBooksCatalogUrl =
+    'https://iraqedu.net/كتب-السادس-الاعدادي/';
+
 const List<StageSubjectInfo> sixthPrimarySubjects = [
-  StageSubjectInfo('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A)),
-  StageSubjectInfo('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24)),
-  StageSubjectInfo('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9)),
-  StageSubjectInfo('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7)),
-  StageSubjectInfo('العلوم', Icons.science_rounded, Color(0xFF2787B8)),
-  StageSubjectInfo('الاجتماعيات', Icons.public_rounded, Color(0xFFB65C69)),
+  StageSubjectInfo('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A),
+    resourceUrl: 'https://iraqedu.net/كتاب-اسلامية-للصف-السادس-الابتدائي/'),
+  StageSubjectInfo('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24),
+    resourceUrl: 'https://iraqedu.net/كتاب-قراءة-للصف-السادس-الابتدائي/'),
+  StageSubjectInfo('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9),
+    resourceUrl: 'https://iraqedu.net/كتاب-الانكليزي-للصف-السادس-الابتدائي/'),
+  StageSubjectInfo('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7),
+    resourceUrl: 'https://iraqedu.net/كتاب-رياضيات-للصف-السادس-الابتدائي/'),
+  StageSubjectInfo('العلوم', Icons.science_rounded, Color(0xFF2787B8),
+    resourceUrl: 'https://iraqedu.net/كتاب-العلوم-للصف-السادس-الابتدائي/'),
+  StageSubjectInfo('الاجتماعيات', Icons.public_rounded, Color(0xFFB65C69),
+    resourceUrl: 'https://iraqedu.net/كتاب-اجتماعيات-للصف-السادس-الابتدائي/'),
 ];
 
+/// الكتب العلمية المتاحة في فهرس الكتب؛ بعض المواد ما زالت معروضة بطبعة 2025–2026.
 const List<StageSubjectInfo> sixthPreparatorySubjects = [
-  StageSubjectInfo('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A)),
-  StageSubjectInfo('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24)),
-  StageSubjectInfo('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9)),
-  StageSubjectInfo('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7)),
-  StageSubjectInfo('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25)),
-  StageSubjectInfo('الكيمياء', Icons.science_rounded, Color(0xFF2787B8)),
-  StageSubjectInfo('الأحياء', Icons.biotech_rounded, Color(0xFF269B75)),
+  StageSubjectInfo('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A),
+    resourceUrl: 'https://iraqedu.net/كتاب-الاسلامية-للصف-السادس-العلمي/',
+    edition: '2025–2026'),
+  StageSubjectInfo('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24),
+    resourceUrl: 'https://iraqedu.net/كتب-السادس-الاعدادي/',
+    edition: 'الجزآن 2025–2026'),
+  StageSubjectInfo('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9),
+    resourceUrl: 'https://iraqedu.net/كتاب-ادب-الانكليزي-السادس-الاعدادي/',
+    edition: '2026–2027'),
+  StageSubjectInfo('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7),
+    resourceUrl: 'https://iraqedu.net/كتاب-الرياضيات-للصف-السادس-العلمي/'),
+  StageSubjectInfo('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25),
+    resourceUrl: 'https://iraqedu.net/كتاب-الفيزياء-للصف-السادس-العلمي/'),
+  StageSubjectInfo('الكيمياء', Icons.science_rounded, Color(0xFF2787B8),
+    resourceUrl: 'https://iraqedu.net/كتاب-الكيمياء-للصف-السادس-العلمي/',
+    edition: '2025–2026'),
+  StageSubjectInfo('الأحياء', Icons.biotech_rounded, Color(0xFF269B75),
+    resourceUrl: 'https://iraqedu.net/كتاب-الاحياء-للصف-السادس-العلمي/'),
 ];
 
-const List<String> sixthPreparatoryBranches = [
-  'العلمي',
-  'الأدبي',
+const List<StageSubjectInfo> sixthPreparatoryLiterarySubjects = [
+  StageSubjectInfo('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A),
+    resourceUrl: 'https://iraqedu.net/كتاب-الاسلامية-للصف-السادس-الادبي/',
+    edition: '2025–2026'),
+  StageSubjectInfo('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24),
+    resourceUrl: 'https://iraqedu.net/كتب-السادس-الاعدادي/',
+    edition: 'الجزآن 2025–2026'),
+  StageSubjectInfo('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9),
+    resourceUrl: 'https://iraqedu.net/كتاب-ادب-الانكليزي-السادس-الاعدادي/',
+    edition: '2026–2027'),
+  StageSubjectInfo('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7),
+    resourceUrl: 'https://iraqedu.net/كتاب-الرياضيات-للصف-السادس-الادبي/',
+    edition: '2025–2026'),
+  StageSubjectInfo('التاريخ', Icons.history_edu_rounded, Color(0xFF9B6842),
+    resourceUrl: 'https://iraqedu.net/كتاب-التاريخ-للصف-السادس-الادبي/',
+    edition: '2025–2026'),
+  StageSubjectInfo('الجغرافية', Icons.public_rounded, Color(0xFFB65C69),
+    resourceUrl: 'https://iraqedu.net/كتاب-الجغرافية-للصف-السادس-الادبي/',
+    edition: '2025–2026'),
+  StageSubjectInfo('الاقتصاد', Icons.account_balance_rounded, Color(0xFF268477),
+    resourceUrl: 'https://iraqedu.net/كتاب-الاقتصاد-للصف-السادس-الادبي/',
+    edition: '2025–2026'),
 ];
 
-const List<String> sixthPreparatoryScientificTracks = [
-  'الأحيائي',
-  'التطبيقي',
-];
+const List<String> sixthPreparatoryBranches = ['العلمي', 'الأدبي'];
+const List<String> sixthPreparatoryScientificTracks = ['الأحيائي', 'التطبيقي'];
 
-/// يوضح أن الفهرس موجود لكن الملفات لم تُرفع أو تُراجع بعد.
+const String sixthPrimaryArchiveUrl =
+    'https://iraqedu.net/ملزمة-وزاريات-السادس-الابتدائي-طابعي/';
+const String sixthPreparatoryArchiveUrl =
+    'https://iraqedu.net/وزاريات-السادس-الاعدادي/';
+const String sixthPrimaryReviewUrl = 'https://talemiq.com/sdsb6';
+const String sixthPreparatoryReviewUrl =
+    'https://iraqedu.net/المراجعات-المركزة-السادس-الاعدادي/';
+
+/// يوضح للطالب عند غياب رابط موثوق، دون عرض استثناء تقني.
 const String stageContentPendingMessage =
-    'المحتوى الخاص بهذه المرحلة قيد التجهيز والتحقق، وسيُضاف هنا عند توفر الملفات الموثوقة.';
+    'لم نعثر بعد على رابط موثوق لهذا المحتوى. يمكنك الرجوع لاحقاً بعد تحديث المصادر.';
