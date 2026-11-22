@@ -81,6 +81,7 @@ class StudyNotificationService {
     await cancelAll();
     try {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastOpenedKey, DateTime.now().toIso8601String());
     } catch (error) {
       debugPrint('Saving last opened time failed: $error');
     }
