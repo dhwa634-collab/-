@@ -49,6 +49,8 @@ void main() {
       home: StageCatalogScreen(stage: AcademicStage.primarySixth),
     ));
     expect(find.text('السادس الابتدائي'), findsOneWidget);
+    await tester.ensureVisible(find.text('العلوم'));
+    await tester.pumpAndSettle();
     expect(find.text('العلوم'), findsOneWidget);
     expect(find.text('الفيزياء'), findsNothing);
     expect(find.text('قريباً'), findsNWidgets(6));
@@ -61,6 +63,8 @@ void main() {
       home: StageCatalogScreen(stage: AcademicStage.preparatorySixth),
     ));
     expect(find.text('السادس الإعدادي'), findsOneWidget);
+    await tester.ensureVisible(find.text('الفرع الدراسي'));
+    await tester.pumpAndSettle();
     expect(find.text('الفرع الدراسي'), findsOneWidget);
     expect(find.text('مسار الفرع العلمي'), findsOneWidget);
     expect(find.text('الأحيائي'), findsOneWidget);
@@ -107,7 +111,7 @@ void main() {
     // The subjects catalog is intentionally displayed in its own bottom tab,
     // not on the home screen. Keep this test focused on the home screen.
     expect(find.text('دليلك للنجاح'), findsOneWidget);
-    expect(find.text('الثالث متوسط • العراق'), findsOneWidget);
+    expect(find.text('الثالث المتوسط • العراق'), findsOneWidget);
     expect(find.text('المساعد الذكي'), findsOneWidget);
     expect(find.text('ابدأ المحادثة الآن'), findsOneWidget);
   });
