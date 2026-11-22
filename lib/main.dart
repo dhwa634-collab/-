@@ -341,17 +341,44 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
     if (widget.stage == AcademicStage.primarySixth) {
       return sixthPrimarySubjects;
     }
-    if (_branch == 'الأدبي') {
-      return sixthPreparatorySubjects.where((subject) =>
-        !['الفيزياء', 'الكيمياء', 'الأحياء'].contains(subject.name)).toList();
+    return _branch == 'الأدبي'
+        ? sixthPreparatoryLiterarySubjects
+        : sixthPreparatorySubjects;
+  }
+
+  Future<void> _openSource(String url, {required String label}) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('رابط المصدر غير صالح حالياً.')),
+        );
+      }
+      return;
     }
-    return sixthPreparatorySubjects;
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر فتح مصدر $label. حاول مرة ثانية.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ما قدرنا نفتح مصدر $label. تحقق من الإنترنت.')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final isPrimary = widget.stage == AcademicStage.primarySixth;
     final isPreparatory = widget.stage == AcademicStage.preparatorySixth;
+    final subjectsForNotes = _stageSubjects.map((subject) => subject.name).toList();
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: ListView(
@@ -362,7 +389,7 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
           Text(widget.stage.label, style: TextStyle(
             fontSize: 24, fontWeight: FontWeight.w900, color: colors.onSurface)),
           const SizedBox(height: 6),
-          Text('المواد والكتب والمراجعة الخاصة بهذه المرحلة فقط',
+          Text('كتب وموارد وأدوات مخصصة لهذه المرحلة فقط',
             style: TextStyle(color: colors.onSurfaceVariant)),
           if (isPreparatory) ...[
             const SizedBox(height: 16),
@@ -389,46 +416,121 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
             ],
             const SizedBox(height: 8),
             Text(_branch == 'الأدبي'
-                ? 'المواد الأدبية ستظهر هنا بعد إضافة ملفاتها المعتمدة.'
-                : 'المسار: $_scientificTrack — ستُعرض مواده عند توفر ملفاتها المعتمدة.',
+                ? 'يعرض هذا القسم كتب الفرع الأدبي المتاحة في فهرس المصادر.'
+                : 'المسار: $_scientificTrack — يعرض الكتب العلمية المدرجة حالياً.',
               style: TextStyle(color: colors.onSurfaceVariant)),
           ],
           const SizedBox(height: 18),
           Feature(
             icon: Icons.history_edu_rounded,
-            title: 'الأسئلة الوزارية',
-            desc: 'أرشيف هذه المرحلة — قيد التوفير',
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
-              StageContentPlaceholderScreen(stage: widget.stage,
-                title: 'الأرشيف الوزاري'))),
-          ),
-          const SizedBox(height: 18),
-          Text('كتب المواد الدراسية', style: TextStyle(
-            fontSize: 19, fontWeight: FontWeight.w900, color: colors.onSurface)),
-          const SizedBox(height: 10),
-          ..._stageSubjects.map((subject) => Card(
-            margin: const EdgeInsets.only(bottom: 9),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: subject.color.withValues(alpha: .13),
-                child: Icon(subject.icon, color: subject.color)),
-              title: Text(subject.name,
-                style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: const Text('ملف الكتاب قيد التوفير'),
-              trailing: const Chip(label: Text('قريباً')),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
-                StageContentPlaceholderScreen(stage: widget.stage,
-                  title: 'كتاب ${subject.name}'))),
+            title: 'الأسئلة الوزارية والحلول',
+            desc: isPrimary
+                ? 'فتح فهرس وزاريات السادس الابتدائي'
+                : 'فتح فهرس وزاريات السادس الإعدادي العلمي والأدبي',
+            onTap: () => _openSource(
+              isPrimary ? sixthPrimaryArchiveUrl : sixthPreparatoryArchiveUrl,
+              label: 'الأسئلة الوزارية',
             ),
-          )),
-          const SizedBox(height: 10),
+          ),
           Feature(
             icon: Icons.quiz_rounded,
-            title: 'المراجعة والاختبارات',
-            desc: 'أسئلة تدريبية خاصة بالمرحلة — قيد الإعداد',
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
-              StageContentPlaceholderScreen(stage: widget.stage,
-                title: 'مراجعة ${widget.stage.label}'))),
+            title: 'المراجعة المركزة',
+            desc: 'فتح مصادر المراجعات الخاصة بالمرحلة',
+            onTap: () => _openSource(
+              isPrimary ? sixthPrimaryReviewUrl : sixthPreparatoryReviewUrl,
+              label: 'المراجعة',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text('كتب المواد الدراسية', style: TextStyle(
+            fontSize: 19, fontWeight: FontWeight.w900, color: colors.onSurface)),
+          const SizedBox(height: 5),
+          Text('اختر بطاقة المادة لفتح صفحة الكتاب وملفات PDF المتاحة.',
+            style: TextStyle(color: colors.onSurfaceVariant)),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _stageSubjects.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 11,
+              mainAxisSpacing: 11,
+              childAspectRatio: 1.08,
+            ),
+            itemBuilder: (context, index) {
+              final subject = _stageSubjects[index];
+              final available = subject.hasResource;
+              return Card(
+                margin: EdgeInsets.zero,
+                clipBehavior: Clip.antiAlias,
+                color: ThemeController.bookCardColor(subject.color, colors),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(ThemeController.cardRadius.value),
+                  side: BorderSide(color: subject.color.withValues(alpha: .35)),
+                ),
+                child: InkWell(
+                  onTap: available
+                      ? () => _openSource(subject.resourceUrl!, label: subject.name)
+                      : () => ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(stageContentPendingMessage))),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 54,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            color: subject.color.withValues(alpha: .14),
+                            borderRadius: BorderRadius.circular(17),
+                          ),
+                          child: Icon(subject.icon, size: 31, color: subject.color),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(subject.name,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 5),
+                        Text(available ? 'مصادر PDF • ${subject.edition}' : 'المصدر غير متوفر',
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          style: TextStyle(fontSize: 10,
+                            color: colors.onSurfaceVariant)),
+                        const Spacer(),
+                        Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: Icon(Icons.arrow_forward_rounded,
+                            size: 19, color: colors.primary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+          Feature(
+            icon: Icons.bookmarks_rounded,
+            title: 'المحفوظات',
+            desc: 'عرض أوراقك ومواردك المحفوظة على هذا الجهاز',
+            onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const Saved())),
+          ),
+          Feature(
+            icon: Icons.edit_note_rounded,
+            title: 'مفكرة هذه المرحلة',
+            desc: 'احفظ ملاحظاتك منفصلة حسب مواد المرحلة المختارة',
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => StudyNotesScreen(
+                subjectNames: subjectsForNotes,
+                storageScope: widget.stage.name,
+              ),
+            )),
           ),
         ],
       ),
