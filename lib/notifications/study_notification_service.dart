@@ -12,7 +12,7 @@ class StudyNotificationService {
   StudyNotificationService._();
   static final StudyNotificationService instance = StudyNotificationService._();
   static const _enabledKey = 'smart_study_reminders_enabled_v1';
-  static const _lastMessageKey = 'smart_study_reminders_last_message_v1';
+  static const _recentMessagesKey = 'smart_study_reminders_recent_messages_v1';
   static const _lastOpenedKey = 'smart_study_reminders_last_opened_v1';
   static const int _firstNotificationId = 4100;
   static const int _testNotificationId = 4199;
@@ -95,11 +95,14 @@ class StudyNotificationService {
       await _plugin.cancelAll();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lastOpenedKey, DateTime.now().toIso8601String());
-      final indices = List<int>.generate(studyReminderMessages.length, (i) => i)..shuffle(Random());
-      final previous = prefs.getInt(_lastMessageKey);
-      if (indices.length > 1 && indices.first == previous) {
-        final first = indices[0]; indices[0] = indices[1]; indices[1] = first;
+      final recent = (prefs.getStringList(_recentMessagesKey) ?? const <String>[])
+          .map(int.tryParse).whereType<int>().toSet();
+      var indices = List<int>.generate(studyReminderMessages.length, (i) => i)
+          .where((index) => !recent.contains(index)).toList();
+      if (indices.length < 4) {
+        indices = List<int>.generate(studyReminderMessages.length, (i) => i);
       }
+      indices.shuffle(Random());
       const intervals = <Duration>[Duration(hours: 24), Duration(hours: 48), Duration(days: 4), Duration(days: 7)];
       for (var i = 0; i < intervals.length; i++) {
         final messageIndex = indices[i];
@@ -122,7 +125,8 @@ class StudyNotificationService {
           payload: 'study-reminder',
         );
       }
-      await prefs.setInt(_lastMessageKey, indices.first);
+      await prefs.setStringList(_recentMessagesKey,
+          indices.take(intervals.length).map((index) => index.toString()).toList());
     } catch (error) {
       debugPrint('Scheduling study reminders failed: $error');
     }
