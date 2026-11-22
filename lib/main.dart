@@ -424,22 +424,24 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
           Feature(
             icon: Icons.history_edu_rounded,
             title: 'الأسئلة الوزارية والحلول',
-            desc: isPrimary
-                ? 'فتح فهرس وزاريات السادس الابتدائي'
-                : 'فتح فهرس وزاريات السادس الإعدادي العلمي والأدبي',
-            onTap: () => _openSource(
-              isPrimary ? sixthPrimaryArchiveUrl : sixthPreparatoryArchiveUrl,
-              label: 'الأسئلة الوزارية',
-            ),
+            desc: 'تصفح الأرشيف الداخلي للمرحلة دون مغادرة التطبيق',
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => StageInternalArchiveScreen(
+                stage: widget.stage, subjects: _stageSubjects,
+                isReview: false,
+              ),
+            )),
           ),
           Feature(
             icon: Icons.quiz_rounded,
             title: 'المراجعة المركزة',
-            desc: 'فتح مصادر المراجعات الخاصة بالمرحلة',
-            onTap: () => _openSource(
-              isPrimary ? sixthPrimaryReviewUrl : sixthPreparatoryReviewUrl,
-              label: 'المراجعة',
-            ),
+            desc: 'فتح مكتبة المراجعة الداخلية للمرحلة',
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => StageInternalArchiveScreen(
+                stage: widget.stage, subjects: _stageSubjects,
+                isReview: true,
+              ),
+            )),
           ),
           const SizedBox(height: 8),
           Text('كتب المواد الدراسية', style: TextStyle(
@@ -470,10 +472,11 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
                   side: BorderSide(color: subject.color.withValues(alpha: .35)),
                 ),
                 child: InkWell(
-                  onTap: available
-                      ? () => _openSource(subject.resourceUrl!, label: subject.name)
-                      : () => ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(stageContentPendingMessage))),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => StageBookResourceScreen(
+                      stage: widget.stage, subject: subject,
+                    ),
+                  )),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                     child: Column(
@@ -503,17 +506,39 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
                         const Spacer(),
                         Row(
                           children: [
-                            Icon(Icons.arrow_forward_rounded,
+                            Icon(Icons.arrow_outward_rounded,
                               size: 19, color: colors.primary),
                             const Spacer(),
-                            IconButton(
-                              tooltip: 'حفظ الكتاب في محفوظات المرحلة',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: available
-                                  ? () => StageResourceBookmarks.save(
-                                      widget.stage, subject)
-                                  : null,
-                              icon: const Icon(Icons.bookmark_add_outlined),
+                            FutureBuilder<List<Map<String, String>>>(
+                              future: StageResourceBookmarks.load(widget.stage),
+                              builder: (context, snapshot) {
+                                final isSaved = (snapshot.data ?? const [])
+                                    .any((item) => item['url'] == subject.resourceUrl);
+                                return IconButton(
+                                  tooltip: isSaved ? 'إزالة من المحفوظات' : 'حفظ المادة',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () async {
+                                    if (isSaved) {
+                                      await StageResourceBookmarks.remove(
+                                        widget.stage, subject.resourceUrl ?? '');
+                                    } else {
+                                      await StageResourceBookmarks.save(
+                                        widget.stage, subject);
+                                    }
+                                    if (mounted) setState(() {});
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text(isSaved
+                                          ? 'أزيلت المادة من المحفوظات'
+                                          : 'تم حفظ المادة في محفوظات المرحلة')),
+                                      );
+                                    }
+                                  },
+                                  icon: Icon(isSaved
+                                    ? Icons.bookmark_added_rounded
+                                    : Icons.bookmark_add_outlined),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -621,22 +646,29 @@ class _StageSavedResourcesScreenState extends State<StageSavedResourcesScreen> {
   }
 
   Future<void> _open(String url, String title) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return;
-    try {
-      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!opened && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر فتح $title. حاول مرة ثانية.')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ما قدرنا نفتح $title حالياً.')),
-        );
-      }
-    }
+    if (!mounted) return;
+    final item = _items.firstWhere(
+      (entry) => entry['url'] == url,
+      orElse: () => <String, String>{},
+    );
+    final description = item['edition'] ?? '';
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(
+          'تم حفظ مصدر هذه المادة في محفوظاتك. $description\\n'
+          'المصدر الحالي صفحة فهرس وليس ملف PDF مباشراً؛ لذلك لم نفتح متصفحاً '
+          'ولم نعرض ملفاً غير متحقق منه. أضف رابط PDF مباشر أو ملفاً داخل التطبيق '
+          'حتى يتاح فتحه هنا.',
+          textDirection: TextDirection.rtl,
+        ),
+        actions: [TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('حسناً'),
+        )],
+      ),
+    );
   }
 
   @override
@@ -1138,8 +1170,13 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             Navigator.push(context, MaterialPageRoute(builder: (_) =>
               stage == AcademicStage.intermediateThird
                   ? const SolutionsHubScreen()
-                  : StageContentPlaceholderScreen(stage: stage,
-                      title: 'الحلول النموذجية')));
+                  : SolutionsHubScreen(
+                      stageLabel: stage.label,
+                      availableSubjects: (stage == AcademicStage.primarySixth
+                        ? sixthPrimarySubjects : sixthPreparatorySubjects)
+                        .map((item) => Subject(item.name, item.icon, item.color))
+                        .toList(),
+                    )));
           }),
           _HomeToolTile(icon: Icons.search_rounded, title: 'بحث وحفظ سريع', subtitle: 'ابحث واحتفظ للمراجعة', onTap: () {
             final stage = AcademicStageController.current.value;
@@ -3757,12 +3794,115 @@ class PrivacyScreen extends StatelessWidget {
   );
 }
 
+class StageBookResourceScreen extends StatelessWidget {
+  final AcademicStage stage;
+  final StageSubjectInfo subject;
+  const StageBookResourceScreen({
+    super.key, required this.stage, required this.subject,
+  });
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: Text('كتاب ${subject.name}')),
+      body: Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.picture_as_pdf_rounded, size: 58,
+            color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 14),
+          Text('كتاب ${subject.name} — ${stage.label}',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            textAlign: TextAlign.center),
+          const SizedBox(height: 10),
+          Text(
+            'المصدر المدرج حالياً هو صفحة فهرس وليست وصلة PDF مباشرة. '
+            'حتى لا نفتح رابطاً خارجياً أو ننزّل صفحة ويب على أنها كتاب، '
+            'سيظهر هنا خيار القراءة الداخلية فور إضافة ملف PDF موثوق.',
+            textAlign: TextAlign.center,
+            style: TextStyle(height: 1.65,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          Text('الطبعة المدرجة: ${subject.edition}',
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+        ]),
+      )),
+    ),
+  );
+}
+
+class StageInternalArchiveScreen extends StatelessWidget {
+  final AcademicStage stage;
+  final List<StageSubjectInfo> subjects;
+  final bool isReview;
+  const StageInternalArchiveScreen({
+    super.key, required this.stage, required this.subjects,
+    required this.isReview,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final title = isReview ? 'المراجعة المركزة' : 'الأرشيف الوزاري';
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: Text('$title • ${stage.label}')),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text('اختر المادة', style: const TextStyle(
+              fontSize: 19, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 12),
+            ...subjects.map((subject) => Card(
+              child: ListTile(
+                leading: Icon(subject.icon, color: subject.color),
+                title: Text(subject.name,
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text('المحتوى الداخلي المرفوع لهذه المادة'),
+                trailing: const Icon(Icons.arrow_outward_rounded),
+                onTap: () => showDialog<void>(
+                  context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: Text(subject.name),
+                    content: const Text(
+                      'لا توجد حالياً صور أو ملفات لهذه المرحلة والمادة داخل مستودع التطبيق. '
+                      'ستظهر هنا مباشرة بعد رفع الملفات، بدون فتح روابط خارجية.',
+                      textDirection: TextDirection.rtl,
+                    ),
+                    actions: [TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('حسناً'),
+                    )],
+                  ),
+                ),
+              ),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class SolutionsHubScreen extends StatefulWidget {
-  const SolutionsHubScreen({super.key});
+  final List<Subject> availableSubjects;
+  final String stageLabel;
+  const SolutionsHubScreen({
+    super.key,
+    this.availableSubjects = subjects,
+    this.stageLabel = 'الثالث المتوسط',
+  });
   @override State<SolutionsHubScreen> createState() => _SolutionsHubScreenState();
 }
 class _SolutionsHubScreenState extends State<SolutionsHubScreen> {
-  Subject selected = subjects.first;
+  late Subject selected;
+  @override
+  void initState() {
+    super.initState();
+    selected = widget.availableSubjects.first;
+  }
   final questionController = TextEditingController();
   @override void dispose() { questionController.dispose(); super.dispose(); }
   void _requestSolution() {
@@ -3772,7 +3912,7 @@ class _SolutionsHubScreenState extends State<SolutionsHubScreen> {
         const SnackBar(content: Text('اكتب السؤال أولاً حتى نقدر نشرحه.')));
       return;
     }
-    final prompt = 'أريد حلاً نموذجياً تعليمياً لسؤال من مادة ${selected.name} للثالث المتوسط في العراق. '
+    final prompt = 'أريد حلاً نموذجياً تعليمياً لسؤال من مادة ${selected.name} للمرحلة ${widget.stageLabel} في العراق. '
       'اشرح الحل خطوة بخطوة، واذكر القانون أو القاعدة عند الحاجة، ثم اكتب الجواب النهائي بوضوح. '
       'إذا كانت المعطيات غير كافية فاطلب توضيحاً ولا تخمّن. السؤال: $question';
     Navigator.push(context, MaterialPageRoute(
@@ -3791,7 +3931,7 @@ class _SolutionsHubScreenState extends State<SolutionsHubScreen> {
         const Text('المادة الدراسية', style: TextStyle(fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
         DropdownButtonFormField<Subject>(value: selected,
-          items: subjects.map((s) => DropdownMenuItem(value: s, child: Text(s.name))).toList(),
+          items: widget.availableSubjects.map((s) => DropdownMenuItem(value: s, child: Text(s.name))).toList(),
           onChanged: (value) { if (value != null) setState(() => selected = value); }),
         const SizedBox(height: 14),
         TextField(controller: questionController, minLines: 4, maxLines: 8,
