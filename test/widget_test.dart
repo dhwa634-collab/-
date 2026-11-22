@@ -27,7 +27,7 @@ void main() {
     await AcademicStageController.select(AcademicStage.intermediateThird);
   });
 
-  test('new stage data is isolated and uses explicit pending content', () {
+  test('new stage catalogs include subject-specific book sources', () {
     expect(sixthPrimarySubjects.map((s) => s.name), containsAll([
       'التربية الإسلامية', 'اللغة العربية', 'اللغة الإنكليزية',
       'الرياضيات', 'العلوم', 'الاجتماعيات',
@@ -36,14 +36,30 @@ void main() {
       'التربية الإسلامية', 'اللغة العربية', 'اللغة الإنكليزية',
       'الرياضيات', 'الفيزياء', 'الكيمياء', 'الأحياء',
     ]));
+    expect(sixthPreparatoryLiterarySubjects.map((s) => s.name), containsAll([
+      'التربية الإسلامية', 'اللغة العربية', 'اللغة الإنكليزية',
+      'الرياضيات', 'التاريخ', 'الجغرافية', 'الاقتصاد',
+    ]));
     expect(sixthPreparatoryBranches, containsAll(['العلمي', 'الأدبي']));
     expect(sixthPreparatoryScientificTracks, containsAll(['الأحيائي', 'التطبيقي']));
-    expect(stageContentPendingMessage, contains('قيد التجهيز'));
+    for (final subject in sixthPrimarySubjects) {
+      expect(subject.hasResource, isTrue, reason: subject.name);
+    }
+    for (final subject in sixthPreparatorySubjects) {
+      expect(subject.hasResource, isTrue, reason: subject.name);
+    }
+    for (final subject in sixthPreparatoryLiterarySubjects) {
+      expect(subject.hasResource, isTrue, reason: subject.name);
+    }
+    expect(sixthPrimaryArchiveUrl, startsWith('https://'));
+    expect(sixthPreparatoryArchiveUrl, startsWith('https://'));
+    expect(sixthPrimaryReviewUrl, startsWith('https://'));
+    expect(sixthPreparatoryReviewUrl, startsWith('https://'));
     expect(subjects, hasLength(6));
     expect(bookSubjects, hasLength(8));
   });
 
-  testWidgets('sixth primary catalog shows only its own subjects and pending state',
+  testWidgets('sixth primary catalog shows its own subjects in a two-column book grid',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(body: StageCatalogScreen(stage: AcademicStage.primarySixth)),
@@ -53,11 +69,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('العلوم'), findsOneWidget);
     expect(find.text('الفيزياء'), findsNothing);
-    expect(find.text('قريباً'), findsWidgets);
+    expect(find.byType(GridView), findsOneWidget);
+    expect(find.text('مصادر PDF • 2026–2027'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('sixth preparatory catalog offers branch and track selection',
+  testWidgets('sixth preparatory catalog offers branch selection and book grid',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(body: StageCatalogScreen(stage: AcademicStage.preparatorySixth)),
@@ -70,6 +87,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('مسار الفرع العلمي'), findsOneWidget);
     expect(find.text('الأحيائي'), findsOneWidget);
+    expect(find.byType(GridView), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
