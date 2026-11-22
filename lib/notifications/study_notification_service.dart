@@ -17,6 +17,7 @@ class StudyNotificationService {
   static const int _testNotificationId = 4199;
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  bool _permissionGranted = false;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -65,7 +66,7 @@ class StudyNotificationService {
 
   Future<void> _cancelScheduledReminders() async {
     try {
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < 5; i++) {
         await _plugin.cancel(_firstNotificationId + i);
       }
     } catch (error) {
@@ -84,6 +85,7 @@ class StudyNotificationService {
     if (!_initialized) return;
     // Android 13+ يعرض إذن النظام مباشرةً دون نافذة إعدادات داخل التطبيق.
     final granted = await requestPermission();
+    _permissionGranted = granted;
     if (!granted) {
       await _cancelScheduledReminders();
       return;
@@ -110,7 +112,7 @@ class StudyNotificationService {
 
   Future<void> rescheduleFromNow() async {
     if (!_initialized) await initialize();
-    if (!_initialized) return;
+    if (!_initialized || !_permissionGranted) return;
     try {
       await _cancelScheduledReminders();
       final prefs = await SharedPreferences.getInstance();
