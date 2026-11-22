@@ -668,7 +668,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             onPressed: () => ThemeController.toggle(!isDark),
             icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded)),
         ),
-      ]]),
+      ]),
       const AcademicStagePicker(),
       if (_showWelcome)
         SizeTransition(
