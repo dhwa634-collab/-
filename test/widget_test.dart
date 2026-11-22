@@ -92,6 +92,19 @@ void main() {
   });
 
 
+  test('new-stage saved book resources are isolated by academic stage', () async {
+    SharedPreferences.setMockInitialValues({});
+    await StageResourceBookmarks.save(
+      AcademicStage.primarySixth, sixthPrimarySubjects.first);
+    final primarySaved = await StageResourceBookmarks.load(
+      AcademicStage.primarySixth);
+    final preparatorySaved = await StageResourceBookmarks.load(
+      AcademicStage.preparatorySixth);
+    expect(primarySaved, hasLength(1));
+    expect(primarySaved.single['title'], sixthPrimarySubjects.first.name);
+    expect(preparatorySaved, isEmpty);
+  });
+
   test('textbook catalog keeps eight books separate from six exam subjects', () {
     final bookNames = bookSubjects.map((book) => book.name).toSet();
     final examNames = subjects.map((subject) => subject.name).toSet();
