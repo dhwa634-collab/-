@@ -70,7 +70,7 @@ void main() {
     expect(find.text('العلوم'), findsOneWidget);
     expect(find.text('الفيزياء'), findsNothing);
     expect(find.byType(GridView), findsOneWidget);
-    expect(find.text('مصادر PDF • 2026–2027'), findsWidgets);
+    expect(find.text('صفحة مصدر • 2026–2027'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
