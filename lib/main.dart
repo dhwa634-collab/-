@@ -1171,8 +1171,12 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             Navigator.push(context, MaterialPageRoute(builder: (_) =>
               stage == AcademicStage.intermediateThird
                   ? const ReviewQuizScreen()
-                  : StageContentPlaceholderScreen(stage: stage,
-                      title: 'المراجعة والاختبارات')));
+                  : StageInternalArchiveScreen(
+                      stage: stage,
+                      subjects: (stage == AcademicStage.primarySixth
+                        ? sixthPrimarySubjects : sixthPreparatorySubjects),
+                      isReview: true,
+                    )));
           }),
         ],
       ),
