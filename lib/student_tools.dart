@@ -704,7 +704,7 @@ const List<Subject> subjects = [
   Subject('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25),
     pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الفيزياء%20الثالث%20متوسط.pdf'),
   Subject('الأحياء', Icons.biotech_rounded, Color(0xFF269B75),
-    pdfUrl: 'https://derasaty.net/download.php?file=1761133290.pdf&type=application%2Fpdf'),
+    pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الاحياء%20الثالث%20متوسط.pdf'),
   Subject('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7),
     pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الرياضيات%20الثالث%20متوسط.pdf'),
 ];
@@ -733,7 +733,7 @@ const List<Subject> bookSubjects = [
   Subject('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7),
     pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الرياضيات%20الثالث%20متوسط.pdf'),
   Subject('الكيمياء', Icons.science_rounded, Color(0xFF2787B8),
-    pdfUrl: 'https://www.stadiraq.com/PDF/1761834142.pdf'),
+    pdfUrl: 'https://bk2.shr4.com/books/bb3/2025-2026/كتاب%20الكيمياء%20الثالث%20متوسط.pdf'),
   Subject('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A),
     pdfUrl: 'https://derasaty.net/download.php?file=1737565764.pdf&type=application%2Fpdf'),
 ];
