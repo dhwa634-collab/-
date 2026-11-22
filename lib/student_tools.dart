@@ -696,14 +696,12 @@ class Subject {
 }
 
 const List<Subject> subjects = [
-  Subject('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A)),
   Subject('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24)),
   Subject('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9)),
-  Subject('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7)),
   Subject('الاجتماعيات', Icons.public_rounded, Color(0xFFB65C69)),
-  Subject('الأحياء', Icons.biotech_rounded, Color(0xFF269B75)),
-  Subject('الكيمياء', Icons.science_rounded, Color(0xFF2787B8)),
   Subject('الفيزياء', Icons.bolt_rounded, Color(0xFFD18A25)),
+  Subject('الأحياء', Icons.biotech_rounded, Color(0xFF269B75)),
+  Subject('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7)),
 ];
 
 class BooksLibraryScreen extends StatefulWidget {
