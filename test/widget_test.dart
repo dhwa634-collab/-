@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:third_intermediate_iraq/main.dart';
 import 'package:third_intermediate_iraq/student_tools.dart';
+import 'package:third_intermediate_iraq/exam_archive_data.dart';
+import 'package:third_intermediate_iraq/review_quiz.dart';
 
 void main() {
 
@@ -17,13 +19,15 @@ void main() {
       'اللغة العربية', 'التربية الإسلامية', 'اللغة الإنكليزية',
       'الاجتماعيات', 'الفيزياء', 'الكيمياء', 'الأحياء', 'الرياضيات',
     ]));
-    expect(subjects, hasLength(6));
+    expect(subjects, hasLength(7));
+    expect(examNames, contains('الكيمياء'));
     expect(examNames, isNot(contains('التربية الإسلامية')));
-    expect(examNames, isNot(contains('الكيمياء')));
+    expect(bookSubjects.firstWhere((book) => book.name == 'اللغة الإنكليزية').availableParts, hasLength(2));
+    expect(chemistryExams, isNotEmpty);
+    expect(unclassifiedExamImages['الكيمياء'], isNotEmpty);
 
-    // جميع الكتب عدا الإنكليزي لديها روابط PDF مباشرة تم التحقق من
-    // أنها تشير إلى ملفات PDF، والإنكليزي يبقى غير متاح بدلاً من رابط مكسور.
-    for (final book in bookSubjects.where((book) => book.name != 'اللغة الإنكليزية')) {
+    // جميع الكتب لها مصدر PDF مهيأ داخل فهرس الكتب.
+    for (final book in bookSubjects) {
       expect(book.hasPdf, isTrue, reason: book.name);
     }
     expect(
@@ -32,7 +36,7 @@ void main() {
     );
     expect(
       bookSubjects.firstWhere((book) => book.name == 'اللغة الإنكليزية').hasPdf,
-      isFalse,
+      isTrue,
     );
   });
 
@@ -64,6 +68,30 @@ void main() {
     expect(find.text('مفكرة المراجعة الخاصة بي'), findsOneWidget);
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+  });
+
+
+  testWidgets('review quiz explains a wrong answer and reveals the correct one', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: ReviewQuizScreen()));
+    await tester.tap(find.text('اللغة العربية'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('النحو: الجملة الفعلية'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('مفعول به منصوب'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('مو مشكلة، نتعلّم من الخطأ'), findsOneWidget);
+    expect(find.text('الإجابة الصحيحة: فاعل مرفوع'), findsOneWidget);
+    expect(find.textContaining('الطالبُ هو من قام بالفعل'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('archive search includes chemistry as a separate subject', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: ArchiveSearchScreen()));
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.pumpAndSettle();
+    expect(find.text('الكيمياء'), findsWidgets);
   });
 
   testWidgets('study notes are saved locally for the selected subject', (tester) async {
