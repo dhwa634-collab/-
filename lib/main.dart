@@ -337,10 +337,16 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
   String _branch = 'العلمي';
   String _scientificTrack = 'الأحيائي';
 
-  List<StageSubjectInfo> get _stageSubjects =>
-      widget.stage == AcademicStage.primarySixth
-          ? sixthPrimarySubjects
-          : sixthPreparatorySubjects;
+  List<StageSubjectInfo> get _stageSubjects {
+    if (widget.stage == AcademicStage.primarySixth) {
+      return sixthPrimarySubjects;
+    }
+    if (_branch == 'الأدبي') {
+      return sixthPreparatorySubjects.where((subject) =>
+        !['الفيزياء', 'الكيمياء', 'الأحياء'].contains(subject.name)).toList();
+    }
+    return sixthPreparatorySubjects;
+  }
 
   @override
   Widget build(BuildContext context) {
