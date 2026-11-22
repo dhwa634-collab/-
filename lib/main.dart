@@ -2042,7 +2042,14 @@ class PersonalizationScreen extends StatelessWidget {
 
 
 class StudyNotesScreen extends StatefulWidget {
-  const StudyNotesScreen({super.key});
+  final List<String>? subjectNames;
+  final String storageScope;
+
+  const StudyNotesScreen({
+    super.key,
+    this.subjectNames,
+    this.storageScope = '',
+  });
   @override
   State<StudyNotesScreen> createState() => _StudyNotesScreenState();
 }
@@ -2050,15 +2057,21 @@ class StudyNotesScreen extends StatefulWidget {
 class _StudyNotesScreenState extends State<StudyNotesScreen> {
   static const _legacy = 'dalilak_subject_note_v1_';
   static const _prefix = 'dalilak_subject_notes_v2_';
-  String _subject = subjects.first.name;
+  late String _subject;
   List<Map<String, String>> _notes = [];
   bool _loading = true;
 
-  String get _key => '$_prefix$_subject';
+  List<String> get _subjectNames =>
+      widget.subjectNames ?? subjects.map((subject) => subject.name).toList();
+
+  String get _key => widget.storageScope.isEmpty
+      ? '$_prefix$_subject'
+      : '${_prefix}${widget.storageScope}_$_subject';
 
   @override
   void initState() {
     super.initState();
+    _subject = _subjectNames.isNotEmpty ? _subjectNames.first : subjects.first.name;
     _load();
   }
 
@@ -2075,7 +2088,7 @@ class _StudyNotesScreenState extends State<StudyNotesScreen> {
               .map((e) => Map<String, String>.from(e)).toList();
         }
       } catch (_) {}
-    } else {
+    } else if (widget.storageScope.isEmpty) {
       final old = prefs.getString('$_legacy$_subject') ?? '';
       if (old.trim().isNotEmpty) {
         items = [{
@@ -2181,9 +2194,9 @@ class _StudyNotesScreenState extends State<StudyNotesScreen> {
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.menu_book_rounded),
               ),
-              items: subjects.map((subject) => DropdownMenuItem(
-                value: subject.name,
-                child: Text(subject.name),
+              items: _subjectNames.map((name) => DropdownMenuItem(
+                value: name,
+                child: Text(name),
               )).toList(),
               onChanged: (value) async {
                 if (value == null || value == _subject) return;
