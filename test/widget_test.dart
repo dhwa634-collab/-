@@ -49,7 +49,7 @@ void main() {
       home: StageCatalogScreen(stage: AcademicStage.primarySixth),
     ));
     expect(find.text('السادس الابتدائي'), findsOneWidget);
-    await tester.ensureVisible(find.text('العلوم'));
+    await tester.scrollUntilVisible(find.text('العلوم'), 180, scrollable: find.byType(Scrollable).last);
     await tester.pumpAndSettle();
     expect(find.text('العلوم'), findsOneWidget);
     expect(find.text('الفيزياء'), findsNothing);
@@ -63,10 +63,10 @@ void main() {
       home: StageCatalogScreen(stage: AcademicStage.preparatorySixth),
     ));
     expect(find.text('السادس الإعدادي'), findsOneWidget);
-    await tester.ensureVisible(find.text('الفرع الدراسي'));
+    await tester.scrollUntilVisible(find.text('الفرع الدراسي'), 180, scrollable: find.byType(Scrollable).last);
     await tester.pumpAndSettle();
     expect(find.text('الفرع الدراسي'), findsOneWidget);
-    await tester.ensureVisible(find.text('مسار الفرع العلمي'));
+    await tester.scrollUntilVisible(find.text('مسار الفرع العلمي'), 180, scrollable: find.byType(Scrollable).last);
     await tester.pumpAndSettle();
     expect(find.text('مسار الفرع العلمي'), findsOneWidget);
     expect(find.text('الأحيائي'), findsOneWidget);
