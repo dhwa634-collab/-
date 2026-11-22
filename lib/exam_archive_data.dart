@@ -28,6 +28,26 @@ const Map<String, List<String>> unclassifiedExamImages = {
     'assets/exams/اللغة_الإنكليزية/FB_IMG_1795365737059.jpg',
     'assets/exams/اللغة_الإنكليزية/FB_IMG_1795365740208.jpg',
   ],
+  'الكيمياء': [
+    'assets/exams/chemistry/FB_IMG_1795016734474.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016737295.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016739318.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016741729.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016744285.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016746673.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016748472.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016750316.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016752643.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016754509.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016756344.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016758333.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016760064.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016762267.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016764120.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016765951.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016768326.jpg',
+    'assets/exams/chemistry/FB_IMG_1795016770035.jpg',
+  ],
   'الاجتماعيات': [
     'assets/exams/الاجتماعيات/FB_IMG_1795364682665.jpg',
     'assets/exams/الاجتماعيات/FB_IMG_1795364684521.jpg',
@@ -91,4 +111,28 @@ const Map<String, List<String>> unclassifiedExamImages = {
     'assets/exams/الرياضيات/FB_IMG_1795365462897.jpg',
     'assets/exams/الرياضيات/FB_IMG_1795365464652.jpg',
   ],
+};
+
+/// أوراق الكيمياء التي تحمل السنة والدور في اسم الملف داخل المستودع.
+/// السنة هي سنة نهاية العام الدراسي.
+const Map<String, Map<String, List<String>>> chemistryExams = {
+  '2025': {
+    'الدور الأول': ['assets/exams/chemistry/2024_2025_first.jpg'],
+    'الدور الثاني': [
+      'assets/exams/chemistry/2024_2025_second_1.jpg',
+      'assets/exams/chemistry/2024_2025_second_2.jpg',
+    ],
+  },
+  '2024': {
+    'الدور الأول': ['assets/exams/chemistry/2023_2024_first.jpg'],
+    'الدور الثالث': ['assets/exams/chemistry/2023_2024_third.jpg'],
+  },
+  '2023': {
+    'التمهيدي': ['assets/exams/chemistry/2022_2023_preparatory.jpg'],
+    'الدور الثاني': ['assets/exams/chemistry/2022_2023_second.jpg'],
+  },
+  '2022': {
+    'التمهيدي': ['assets/exams/chemistry/2021_2022_preparatory.jpg'],
+    'الدور الثالث': ['assets/exams/chemistry/2021_2022_third.jpg'],
+  },
 };
