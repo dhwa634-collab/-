@@ -22,9 +22,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/exams/chemistry/
     - assets/exams/arabic/
-    - assets/exams/التربية_الإسلامية/
     - assets/exams/اللغة_الإنكليزية/
     - assets/exams/الرياضيات/
     - assets/exams/الاجتماعيات/
