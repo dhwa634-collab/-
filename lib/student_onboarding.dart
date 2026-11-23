@@ -31,6 +31,7 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
     final hasExistingAppData = prefs.getKeys().isNotEmpty;
     if (!completed && hasExistingAppData) {
       await prefs.setBool('dalilak_student_onboarding_done_v1', true);
+      await prefs.setBool('dalilak_home_welcome_seen_v1', true);
     }
     if (mounted) setState(() => _needsSetup = !completed && !hasExistingAppData);
   }
@@ -93,7 +94,7 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup>
             .toString().trim();
         await Supabase.instance.client.from('profiles').upsert({
           'user_id': user.id,
-          'display_name': name.isEmpty ? 'طالب' : name.substring(0, name.length.clamp(0, 40)),
+          'display_name': name.isEmpty ? 'طالب' : (name.length > 40 ? name.substring(0, 40) : name),
           'age_band': _age,
           'gender': _gender,
           'stage': _stage.label,
