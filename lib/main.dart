@@ -11,6 +11,7 @@ import 'supabase_config.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'student_tools.dart';
 import 'student_community.dart';
+import 'student_onboarding.dart';
 import 'exam_archive_data.dart';
 import 'review_quiz.dart';
 import 'academic_stages.dart';
@@ -796,7 +797,7 @@ class StudyApp extends StatelessWidget {
               ),
           ]),
         ),
-        home: const Shell());
+        home: const StudentOnboardingGate(child: Shell()));
     },
   );
 }
@@ -850,7 +851,7 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
-  bool _showWelcome = true;
+  bool _showWelcome = false;
   late final AnimationController _welcomeController;
   late final Animation<double> _welcomeSize;
   late final Animation<double> _welcomeOpacity;
@@ -875,6 +876,16 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
       begin: Offset.zero,
       end: const Offset(0, -0.18),
     ).animate(curved);
+    _loadFirstWelcome();
+  }
+
+  Future<void> _loadFirstWelcome() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alreadyShown = prefs.getBool('dalilak_home_welcome_seen_v1') ?? false;
+    if (alreadyShown || !mounted) return;
+    await prefs.setBool('dalilak_home_welcome_seen_v1', true);
+    if (!mounted) return;
+    setState(() => _showWelcome = true);
     _welcomeTimer = Timer(const Duration(seconds: 4), _dismissWelcome);
   }
 
