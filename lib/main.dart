@@ -3096,7 +3096,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     } catch (_) {}
     if(mounted)setState(()=>_loading=false);
   }
-  String get _adminPin => (context.findAncestorWidgetOfExactType<NewsAdminScreen>()?.adminPin ?? '');
+  String get _adminPin => widget.adminPin;
   Future<Map<String,dynamic>> _send(Map<String,dynamic> payload) async {
     final response=await http.post(_workerAdminUri,
       headers:const {'Content-Type':'application/json','Accept':'application/json'},
