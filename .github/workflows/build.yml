@@ -34,6 +34,7 @@ jobs:
               '    <uses-permission android:name="android.permission.INTERNET"/>',
               '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>',
               '    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>',
+              '    <uses-permission android:name="android.permission.RECORD_AUDIO"/>',
           ]
           for permission in permissions:
               if permission not in content:
@@ -128,6 +129,8 @@ jobs:
               data = plistlib.load(f)
           data["CFBundleDisplayName"] = "دليلك للنجاح"
           data["CADisableMinimumFrameDurationOnPhone"] = True
+          data["NSMicrophoneUsageDescription"] = "يحتاج التطبيق إلى الميكروفون لتسجيل الرسائل الصوتية في مجتمع الطلاب."
+          data["NSPhotoLibraryUsageDescription"] = "يحتاج التطبيق إلى اختيار الصور لإرسال ملصقات خاصة في مجتمع الطلاب."
           with path.open("wb") as f:
               plistlib.dump(data, f)
           PY
