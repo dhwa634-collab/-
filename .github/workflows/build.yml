@@ -121,9 +121,12 @@ jobs:
           cache: true
       - name: Generate iOS project
         run: flutter create --platforms=ios --project-name game --org com.fitna .
-      - name: Configure iOS display and frame settings
+      - name: Configure iOS display and student chat permissions
+        env:
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
         run: |
           /usr/bin/python3 - <<'PY'
+          import os
           import plistlib
           from pathlib import Path
           path = Path("ios/Runner/Info.plist")
@@ -133,6 +136,13 @@ jobs:
           data["CADisableMinimumFrameDurationOnPhone"] = True
           data["NSMicrophoneUsageDescription"] = "يحتاج التطبيق إلى الميكروفون لتسجيل الرسائل الصوتية في مجتمع الطلاب."
           data["NSPhotoLibraryUsageDescription"] = "يحتاج التطبيق إلى اختيار الصور لإرسال ملصقات خاصة في مجتمع الطلاب."
+          ios_client_id = os.environ.get("GOOGLE_IOS_CLIENT_ID", "").strip()
+          if ios_client_id:
+              data["GIDClientID"] = ios_client_id
+              reversed_client_id = "com.googleusercontent.apps." + ios_client_id.split(".apps.googleusercontent.com")[0]
+              data["CFBundleURLTypes"] = data.get("CFBundleURLTypes", []) + [
+                  {"CFBundleURLSchemes": [reversed_client_id]}
+              ]
           with path.open("wb") as f:
               plistlib.dump(data, f)
           PY
@@ -143,4 +153,6 @@ jobs:
       - name: Test
         run: flutter test
       - name: Build iOS without code signing
-        run: flutter build ios --release --no-codesign
+        env:
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
+        run: flutter build ios --release --no-codesign --dart-define=GOOGLE_IOS_CLIENT_ID="$GOOGLE_IOS_CLIENT_ID"
