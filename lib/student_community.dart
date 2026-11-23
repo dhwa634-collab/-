@@ -241,6 +241,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   DateTime? _recordStartedAt;
   Timer? _recordTimer;
   int _recordSeconds = 0;
+  int _lastMessageCount = 0;
   String? _playingMessageId;
   Duration _audioPosition = Duration.zero;
   Duration _audioDuration = Duration.zero;
@@ -539,7 +540,18 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           builder: (context, snapshot) {
             if (snapshot.hasError) return const Center(child: Text('تعذر تحميل المحادثة حالياً.'));
             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-            final rows = snapshot.data!.where((r) => r['deleted_at'] == null && r['hidden_at'] == null && !_blockedUserIds.contains(r['user_id'].toString())).toList();
+            final rows = snapshot.data!.where((r) => r['deleted_at'] == null &&
+              r['hidden_at'] == null &&
+              !_blockedUserIds.contains(r['user_id'].toString())).toList();
+            if (rows.length != _lastMessageCount) {
+              _lastMessageCount = rows.length;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (scroll.hasClients) {
+                  scroll.animateTo(scroll.position.maxScrollExtent,
+                    duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
+                }
+              });
+            }
             if (rows.isEmpty) return const Center(child: Text('ابدأ المحادثة برسالة مفيدة 🌟'));
             return FutureBuilder<Map<String, Map<String, dynamic>>>(future: getProfiles(rows),
               builder: (context, profiles) => ListView.builder(controller: scroll,
@@ -562,6 +574,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(name, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
                             color: Theme.of(context).colorScheme.primary)),
+                          if ((profile?['stage'] ?? '').toString().isNotEmpty)
+                            Text(profile!['stage'].toString(),
+                              style: TextStyle(fontSize: 10,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant)),
                           const SizedBox(height: 4),
                           if (row['message_type'] == 'custom_sticker')
                             FutureBuilder<String?>(
