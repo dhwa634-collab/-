@@ -319,7 +319,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted || _recordStartedAt == null) return;
         setState(() => _recordSeconds = DateTime.now().difference(_recordStartedAt!).inSeconds);
-        if (_recordSeconds >= 120) _stopVoiceRecording(send: true);
+        if (_recordSeconds >= 120) unawaited(_stopVoiceRecording(send: true));
       });
     } catch (_) { toast('تعذر بدء التسجيل. تحقق من إذن المايكروفون.'); }
   }
@@ -494,8 +494,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     _positionSub?.cancel();
     _durationSub?.cancel();
     _completeSub?.cancel();
-    _recorder.dispose();
-    _audioPlayer.dispose();
+    unawaited(_recorder.dispose());
+    unawaited(_audioPlayer.dispose());
     input.dispose();
     scroll.dispose();
     super.dispose();
@@ -549,12 +549,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               SizedBox(width: 120, child: LinearProgressIndicator(
                                 value: _playingMessageId == row['id'].toString() &&
                                   _audioDuration.inMilliseconds > 0
-                                  ? (_audioPosition.inMilliseconds / _audioDuration.inMilliseconds).clamp(0.0, 1.0)
+                                  ? (_audioPosition.inMilliseconds / _audioDuration.inMilliseconds).clamp(0.0, 1.0).toDouble()
                                   : 0,
                               )),
                             ])
                           else
-                            Text((row['body'] ?? '').toString(),
+                            Text(unsafe((row['body'] ?? '').toString()) ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.' : (row['body'] ?? '').toString(),
                               style: TextStyle(fontSize: sticker ? 30 : 15)),
                           const SizedBox(height: 3),
                           Text(timeOf(row['created_at']), style: TextStyle(fontSize: 10,
