@@ -453,11 +453,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             title: const Text('الإبلاغ عن الرسالة'),
             onTap: () => Navigator.pop(ctx, 'report')),
           if (row['user_id'] != _db.auth.currentUser?.id)
+            ListTile(leading: const Icon(Icons.person_off_outlined),
+              title: const Text('الإبلاغ عن المستخدم'),
+              onTap: () => Navigator.pop(ctx, 'report_user')),
+          if (row['user_id'] != _db.auth.currentUser?.id)
             ListTile(leading: const Icon(Icons.block_outlined),
               title: const Text('حظر المستخدم'),
               onTap: () => Navigator.pop(ctx, 'block')),
         ]))));
     if (action == 'report') await report(row);
+    if (action == 'report_user') await report(row, reportUser: true);
     if (action == 'block') await _blockUser(row);
   }
 
@@ -492,13 +497,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       return {for (final p in (result as List)) p['user_id'].toString(): Map<String, dynamic>.from(p)};
     } catch (_) { return {}; }
   }
-  Future<void> report(Map<String, dynamic> row) async {
+  Future<void> report(Map<String, dynamic> row, {bool reportUser = false}) async {
     final user = _db.auth.currentUser;
     if (user == null) { toast('سجّل الدخول أولاً حتى ترسل بلاغاً.'); return; }
     final reason = await showModalBottomSheet<String>(context: context,
       builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
         child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Padding(padding: EdgeInsets.all(16), child: Text('سبب الإبلاغ', style: TextStyle(fontWeight: FontWeight.bold))),
+          Padding(padding: const EdgeInsets.all(16), child: Text(reportUser ? 'سبب الإبلاغ عن المستخدم' : 'سبب الإبلاغ عن الرسالة', style: const TextStyle(fontWeight: FontWeight.bold))),
           for (final item in const {
             'abuse': 'إساءة أو ألفاظ غير لائقة', 'bullying': 'تنمر أو مضايقة',
             'inappropriate': 'محتوى غير مناسب', 'personal_info': 'معلومات شخصية',
@@ -508,7 +513,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         ]))));
     if (reason == null) return;
     try {
-      await _db.from('chat_reports').insert({'reporter_id': user.id, 'message_id': row['id'], 'reason': reason});
+      await _db.from('chat_reports').insert({'reporter_id': user.id, 'message_id': row['id'], 'reason': reason, 'details': reportUser ? 'بلاغ على صاحب الرسالة' : null});
       toast('وصل بلاغك إلى فريق الإشراف. شكراً لك.');
     } catch (_) { toast('تعذر إرسال البلاغ أو سبق الإبلاغ عن الرسالة.'); }
   }
