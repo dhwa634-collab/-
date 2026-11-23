@@ -6,13 +6,15 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_config.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'student_tools.dart';
 import 'exam_archive_data.dart';
 import 'review_quiz.dart';
 import 'academic_stages.dart';
 import 'notifications/study_notification_service.dart';
-Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await SavedExamsStore.load(); await ThemeController.load(); await AcademicStageController.load(); await StudyNotificationService.instance.initialize(); runApp(const StudyApp()); }
+Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await Supabase.initialize(url: SupabaseConfig.projectUrl, publishableKey: SupabaseConfig.publishableKey); await SavedExamsStore.load(); await ThemeController.load(); await AcademicStageController.load(); await StudyNotificationService.instance.initialize(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 class SavedExamsStore {
   static const String _storageKey = 'saved_exam_sheets_v1';
