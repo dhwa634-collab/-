@@ -75,7 +75,11 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
     }
     setState(() => busy = true);
     try {
-      final google = GoogleSignIn(serverClientId: SupabaseConfig.googleWebClientId);
+      final google = GoogleSignIn(
+        clientId: SupabaseConfig.googleIosClientId.isEmpty
+          ? null : SupabaseConfig.googleIosClientId,
+        serverClientId: SupabaseConfig.googleWebClientId,
+      );
       final account = await google.signIn();
       if (account == null) return;
       final tokens = await account.authentication;
