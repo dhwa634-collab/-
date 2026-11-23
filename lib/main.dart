@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_config.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'student_tools.dart';
+import 'student_community.dart';
 import 'exam_archive_data.dart';
 import 'review_quiz.dart';
 import 'academic_stages.dart';
@@ -3575,6 +3576,14 @@ class MoreScreen extends StatelessWidget {
           ),
 
           _sectionTitle(context, 'الدعم والمجتمع', Icons.favorite_outline_rounded),
+          _actionTile(
+            context: context,
+            icon: Icons.groups_rounded,
+            title: 'مجتمع الطلاب',
+            subtitle: 'الملف الشخصي وتسجيل الدخول وغرفة الدردشة',
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const StudentCommunityScreen())),
+          ),
           _actionTile(
             context: context,
             icon: Icons.edit_note_rounded,

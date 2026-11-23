@@ -14,6 +14,7 @@ dependencies:
   flutter_local_notifications: ^19.4.2
   timezone: ^0.10.1
   supabase_flutter: ^2.0.0
+  google_sign_in: 6.2.2
   flutter:
     sdk: flutter
 dev_dependencies:
@@ -23,7 +24,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/exams/chemistry/ # retained for previously saved exam sheets; not shown as a separate subject
+    - assets/exams/chemistry/
     - assets/exams/arabic/
     - assets/exams/اللغة_الإنكليزية/
     - assets/exams/الرياضيات/
