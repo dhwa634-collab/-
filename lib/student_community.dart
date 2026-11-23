@@ -149,6 +149,13 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         gender = row['gender']?.toString();
       } else {
         name.text = (user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? '').toString();
+        final prefs = await SharedPreferences.getInstance();
+        age = prefs.getString('dalilak_student_age_band_v1') ?? age;
+        gender = prefs.getString('dalilak_student_gender_v1');
+        final savedStage = prefs.getString('dalilak_student_stage_v1');
+        stage = AcademicStage.values
+          .firstWhere((s) => s.name == savedStage,
+            orElse: () => AcademicStage.intermediateThird).label;
       }
     } catch (_) { toast('تعذر تحميل الملف الشخصي.'); }
     finally { if (mounted) setState(() => loading = false); }
