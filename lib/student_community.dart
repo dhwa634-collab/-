@@ -275,17 +275,23 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   bool unsafe(String value) {
     final normalized = value.toLowerCase()
       .replaceAll('أ', 'ا').replaceAll('إ', 'ا').replaceAll('آ', 'ا')
-      .replaceAll('ى', 'ي').replaceAll('ـ', '');
+      .replaceAll('ى', 'ي').replaceAll('ـ', '')
+      .replaceAll(RegExp(r'[\u064B-\u065F\u0670\u200B-\u200F]'), '');
     final compact = normalized.replaceAll(RegExp(r'[\s().-]'), '');
     final phone = RegExp(r'(?:\+?964|00964|0)7[0-9٠-٩]{9}');
     final email = RegExp(r'[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}');
-    final link = RegExp(r'(https?://|www\.|t\.me/|wa\.me/)', caseSensitive: false);
+    final link = RegExp(
+      r'(https?://|www\.|t\.me/|wa\.me/|(?:[a-z0-9-]+\.)+(?:com|net|org|io|me|info|site|xyz|ly|co|app)(?:/|$))',
+      caseSensitive: false,
+    );
+    final shortInsult = RegExp(r'(^|[\s،,.!?؛:()])كس($|[\s،,.!?؛:()])');
     const blockedWords = [
-      'قحبة', 'شرموطة', 'كس', 'كلب', 'حيوان', 'متخلف', 'منيوك',
-      'خول', 'طيز', 'زاني', 'عرص', 'يلعن', 'fuck', 'shit', 'bitch',
+      'قحبة', 'شرموطة', 'متخلف', 'منيوك', 'خول', 'طيز',
+      'زاني', 'عرص', 'يلعن', 'fuck', 'shit', 'bitch',
     ];
     return phone.hasMatch(compact) || email.hasMatch(normalized) ||
-      link.hasMatch(normalized) || blockedWords.any(normalized.contains);
+      link.hasMatch(normalized) || shortInsult.hasMatch(normalized) ||
+      blockedWords.any(normalized.contains);
   }
 
   Future<void> _loadBlockedUsers() async {
