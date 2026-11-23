@@ -16,6 +16,34 @@ final _db = Supabase.instance.client;
 
 class StudentCommunityScreen extends StatelessWidget {
   const StudentCommunityScreen({super.key});
+
+  Future<void> _openChat(BuildContext context) async {
+    if (_db.auth.currentUser != null) {
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => const StudentChatScreen(),
+      ));
+      return;
+    }
+    final goToLogin = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('الدردشة للطلاب المسجلين'),
+        content: const Text('حتى نحافظ على أمان الطلاب ونمنع الرسائل المجهولة، تحتاج تسجّل الدخول بحساب Google قبل دخول الغرفة الجماعية. تقدر تواصل تصفح الكتب والأدوات كضيف.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('لاحقاً')),
+          FilledButton.icon(onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.login_rounded),
+            label: const Text('تسجيل الدخول')),
+        ],
+      ),
+    );
+    if (goToLogin == true && context.mounted) {
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => const StudentGoogleLoginScreen(),
+      ));
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final user = _db.auth.currentUser;
@@ -42,7 +70,7 @@ class StudentCommunityScreen extends StatelessWidget {
           title: const Text('غرفة الدردشة العامة', style: TextStyle(fontWeight: FontWeight.w800)),
           subtitle: const Text('رسائل نصية وملصقات دراسية مباشرة'),
           trailing: const Icon(Icons.chevron_left),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentChatScreen())))),
+          onTap: () => _openChat(context))),
         if (user == null) ...[
           const SizedBox(height: 12),
           const Text('سجّل الدخول بحساب Google لإنشاء ملفك والمشاركة بالدردشة.', textAlign: TextAlign.center),
