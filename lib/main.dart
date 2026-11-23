@@ -2795,9 +2795,6 @@ class _StudyNoteDetailScreenState extends State<StudyNoteDetailScreen> {
   }
 }
 
-// Owner-only UI access code. Change this single constant when required.
-const String kNewsAdminPin = '123@123@';
-
 class NewsPost {
   final String id, title, body, category, date;
   final bool pinned;
@@ -2818,8 +2815,7 @@ class NewsScreen extends StatefulWidget {
   @override State<NewsScreen> createState() => _NewsScreenState();
 }
 class _NewsScreenState extends State<NewsScreen> {
-  // Change this UI access code here when needed. Server-side validation is
-  // also enforced by NEWS_ADMIN_PIN in the Cloudflare Worker environment.
+  // The PIN is entered by the owner and checked only by the Cloudflare Worker.
   static final Uri _workerNewsUri = Uri.parse(
     'https://wispy-union-276e.dhwa634.workers.dev/news');
   static final Uri _feedUri = Uri.parse(
@@ -2916,14 +2912,8 @@ class _NewsScreenState extends State<NewsScreen> {
     );
     controller.dispose();
     if (!mounted || entered == null) return;
-    if (entered != kNewsAdminPin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('رمز المطوّر غير صحيح.')),
-      );
-      return;
-    }
     await Navigator.push(context, MaterialPageRoute(
-      builder: (_) => const NewsAdminScreen(),
+      builder: (_) => NewsAdminScreen(adminPin: entered),
     ));
     if (mounted) await _loadNews();
   }
@@ -3017,7 +3007,8 @@ class _NewsScreenState extends State<NewsScreen> {
 }
 
 class NewsAdminScreen extends StatefulWidget {
-  const NewsAdminScreen({super.key});
+  final String adminPin;
+  const NewsAdminScreen({super.key, required this.adminPin});
   @override State<NewsAdminScreen> createState() => _NewsAdminScreenState();
 }
 class _NewsAdminScreenState extends State<NewsAdminScreen> {
@@ -3105,10 +3096,11 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     } catch (_) {}
     if(mounted)setState(()=>_loading=false);
   }
+  String get _adminPin => (context.findAncestorWidgetOfExactType<NewsAdminScreen>()?.adminPin ?? '');
   Future<Map<String,dynamic>> _send(Map<String,dynamic> payload) async {
     final response=await http.post(_workerAdminUri,
       headers:const {'Content-Type':'application/json','Accept':'application/json'},
-      body:jsonEncode({...payload,'pin':kNewsAdminPin}))
+      body:jsonEncode({...payload,'pin':_adminPin}))
       .timeout(const Duration(seconds:18));
     Map<String,dynamic> decoded={};
     try {final value=jsonDecode(utf8.decode(response.bodyBytes));if(value is Map)decoded=Map<String,dynamic>.from(value);}catch(_){}
