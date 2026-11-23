@@ -269,10 +269,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     final normalized = value.toLowerCase()
       .replaceAll('أ', 'ا').replaceAll('إ', 'ا').replaceAll('آ', 'ا')
       .replaceAll('ى', 'ي').replaceAll('ـ', '');
-    final compact = normalized.replaceAll(RegExp(r'[\\s().-]'), '');
-    final phone = RegExp(r'(?:\\+?964|00964|0)7[0-9٠-٩]{9}');
-    final email = RegExp(r'[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}');
-    final link = RegExp(r'(https?://|www\\.|t\\.me/|wa\\.me/)', caseSensitive: false);
+    final compact = normalized.replaceAll(RegExp(r'[\s().-]'), '');
+    final phone = RegExp(r'(?:\+?964|00964|0)7[0-9٠-٩]{9}');
+    final email = RegExp(r'[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}');
+    final link = RegExp(r'(https?://|www\.|t\.me/|wa\.me/)', caseSensitive: false);
     const blockedWords = [
       'قحبة', 'شرموطة', 'كس', 'كلب', 'حيوان', 'متخلف', 'منيوك',
       'خول', 'طيز', 'زاني', 'عرص', 'يلعن', 'fuck', 'shit', 'bitch',
