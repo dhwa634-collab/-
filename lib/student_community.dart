@@ -161,7 +161,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         const SizedBox(height: 18),
         TextField(controller: name, maxLength: 40, decoration: const InputDecoration(labelText: 'اسم الطالب')),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(value: age, decoration: const InputDecoration(labelText: 'الفئة العمرية'),
+        DropdownButtonFormField<String>(initialValue: age, decoration: const InputDecoration(labelText: 'الفئة العمرية'),
           items: const [
             DropdownMenuItem(value: 'under_13', child: Text('أقل من 13 سنة')),
             DropdownMenuItem(value: '13_15', child: Text('13–15 سنة')),
@@ -169,11 +169,11 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             DropdownMenuItem(value: '18_plus', child: Text('18 سنة فأكثر')),
           ], onChanged: (v) => setState(() => age = v ?? age)),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(value: stage, decoration: const InputDecoration(labelText: 'المرحلة الدراسية'),
+        DropdownButtonFormField<String>(initialValue: stage, decoration: const InputDecoration(labelText: 'المرحلة الدراسية'),
           items: AcademicStage.values.map((s) => DropdownMenuItem(value: s.label, child: Text(s.label))).toList(),
           onChanged: (v) => setState(() => stage = v ?? stage)),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String?>(value: gender, decoration: const InputDecoration(labelText: 'الجنس (اختياري)'),
+        DropdownButtonFormField<String?>(initialValue: gender, decoration: const InputDecoration(labelText: 'الجنس (اختياري)'),
           items: const [
             DropdownMenuItem<String?>(value: null, child: Text('عدم التحديد')),
             DropdownMenuItem<String?>(value: 'male', child: Text('ذكر')),
