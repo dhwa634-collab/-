@@ -1,4 +1,11 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'academic_stages.dart';
@@ -195,20 +202,233 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   final scroll = ScrollController();
   late final Stream<List<Map<String, dynamic>>> messages;
   bool sending = false;
+  final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _recorder = AudioRecorder();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  final Set<String> _blockedUserIds = {};
+  bool _recording = false;
+  DateTime? _recordStartedAt;
+  Timer? _recordTimer;
+  int _recordSeconds = 0;
+  String? _playingMessageId;
+  Duration _audioPosition = Duration.zero;
+  Duration _audioDuration = Duration.zero;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration>? _durationSub;
+  StreamSubscription<void>? _completeSub;
   static const stickers = {'book': '📚', 'great': '👏', 'success': '🌟',
     'focus': '🎯', 'thanks': '💙', 'motivation': '💪'};
   @override
   void initState() {
     super.initState();
     messages = _db.from('chat_messages').stream(primaryKey: ['id']).order('created_at', ascending: true);
+    _loadBlockedUsers();
+    _positionSub = _audioPlayer.onPositionChanged.listen((value) {
+      if (mounted) setState(() => _audioPosition = value);
+    });
+    _durationSub = _audioPlayer.onDurationChanged.listen((value) {
+      if (mounted) setState(() => _audioDuration = value);
+    });
+    _completeSub = _audioPlayer.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _playingMessageId = null);
+    });
   }
   bool unsafe(String value) {
-    final lower = value.toLowerCase();
-    return RegExp(r'(?:\+?964|0)7[0-9٠-٩]{9}').hasMatch(lower) ||
-      RegExp(r'[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}').hasMatch(lower) ||
-      RegExp(r'(https?://|www\.)').hasMatch(lower) ||
-      ['كس', 'قحبة', 'شرموطة', 'متخلف'].any(lower.contains);
+    final normalized = value.toLowerCase()
+      .replaceAll('أ', 'ا').replaceAll('إ', 'ا').replaceAll('آ', 'ا')
+      .replaceAll('ى', 'ي').replaceAll('ـ', '');
+    final compact = normalized.replaceAll(RegExp(r'[\\s().-]'), '');
+    final phone = RegExp(r'(?:\\+?964|00964|0)7[0-9٠-٩]{9}');
+    final email = RegExp(r'[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}');
+    final link = RegExp(r'(https?://|www\\.|t\\.me/|wa\\.me/)', caseSensitive: false);
+    const blockedWords = [
+      'قحبة', 'شرموطة', 'كس', 'كلب', 'حيوان', 'متخلف', 'منيوك',
+      'خول', 'طيز', 'زاني', 'عرص', 'يلعن', 'fuck', 'shit', 'bitch',
+    ];
+    return phone.hasMatch(compact) || email.hasMatch(normalized) ||
+      link.hasMatch(normalized) || blockedWords.any(normalized.contains);
   }
+
+  Future<void> _loadBlockedUsers() async {
+    final user = _db.auth.currentUser;
+    if (user == null) return;
+    try {
+      final rows = await _db.from('user_blocks').select('blocked_id')
+        .eq('blocker_id', user.id);
+      if (!mounted) return;
+      setState(() => _blockedUserIds.addAll(
+        (rows as List).map((row) => row['blocked_id'].toString())));
+    } catch (_) {}
+  }
+
+  Future<void> _pickCustomSticker() async {
+    final user = _db.auth.currentUser;
+    if (user == null) { toast('سجّل الدخول أولاً.'); return; }
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery, maxWidth: 512, maxHeight: 512,
+        imageQuality: 78, requestFullMetadata: false,
+      );
+      if (image == null) return;
+      final bytes = await image.readAsBytes();
+      if (bytes.isEmpty || bytes.length > 512 * 1024) {
+        toast('حجم الملصق يجب ألا يتجاوز 512 كيلوبايت.'); return;
+      }
+      final extension = image.name.split('.').last.toLowerCase();
+      const allowed = ['png', 'jpg', 'jpeg', 'webp'];
+      if (!allowed.contains(extension)) {
+        toast('نوع الصورة غير مدعوم. استخدم PNG أو JPG أو WEBP.'); return;
+      }
+      final mime = extension == 'png' ? 'image/png'
+        : extension == 'webp' ? 'image/webp' : 'image/jpeg';
+      final path = '${user.id}/sticker_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      setState(() => sending = true);
+      await _db.storage.from('chat-stickers').uploadBinary(
+        path, bytes, fileOptions: FileOptions(contentType: mime, upsert: false),
+      );
+      await _db.from('chat_messages').insert({
+        'user_id': user.id, 'message_type': 'custom_sticker',
+        'body': 'ملصق خاص', 'storage_path': path,
+      });
+      toast('تم إرسال الملصق.');
+    } catch (_) { toast('تعذر إضافة الملصق. تحقق من الاتصال والصلاحيات.'); }
+    finally { if (mounted) setState(() => sending = false); }
+  }
+
+  Future<void> _startVoiceRecording() async {
+    if (_recording || sending) return;
+    try {
+      if (!await _recorder.hasPermission()) {
+        toast('اسمح للتطبيق باستخدام المايكروفون لتسجيل رسالة صوتية.'); return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/dalilak_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 44100,
+        ),
+        path: path,
+      );
+      if (!mounted) return;
+      setState(() {
+        _recording = true;
+        _recordStartedAt = DateTime.now();
+        _recordSeconds = 0;
+      });
+      _recordTimer?.cancel();
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted || _recordStartedAt == null) return;
+        setState(() => _recordSeconds = DateTime.now().difference(_recordStartedAt!).inSeconds);
+        if (_recordSeconds >= 120) _stopVoiceRecording(send: true);
+      });
+    } catch (_) { toast('تعذر بدء التسجيل. تحقق من إذن المايكروفون.'); }
+  }
+
+  Future<void> _stopVoiceRecording({required bool send}) async {
+    _recordTimer?.cancel();
+    final seconds = _recordSeconds;
+    String? path;
+    try { path = await _recorder.stop(); } catch (_) {}
+    if (mounted) setState(() { _recording = false; _recordStartedAt = null; });
+    if (path == null) return;
+    if (!send) {
+      try { await File(path).delete(); } catch (_) {}
+      toast('تم إلغاء التسجيل.');
+      return;
+    }
+    final user = _db.auth.currentUser;
+    if (user == null || seconds < 1 || seconds > 120) {
+      try { await File(path).delete(); } catch (_) {}
+      toast('التسجيل يجب أن يكون بين ثانية واحدة ودقيقتين.'); return;
+    }
+    setState(() => sending = true);
+    try {
+      final bytes = await File(path).readAsBytes();
+      if (bytes.isEmpty || bytes.length > 3 * 1024 * 1024) {
+        throw Exception('حجم التسجيل أكبر من الحد المسموح.');
+      }
+      final storagePath = '${user.id}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _db.storage.from('chat-voice').uploadBinary(
+        storagePath, bytes,
+        fileOptions: const FileOptions(contentType: 'audio/mp4', upsert: false),
+      );
+      await _db.from('chat_messages').insert({
+        'user_id': user.id, 'message_type': 'voice',
+        'body': 'رسالة صوتية', 'storage_path': storagePath,
+      });
+      toast('تم إرسال الرسالة الصوتية.');
+    } catch (_) { toast('تعذر إرسال التسجيل. حاول مرة ثانية.'); }
+    finally {
+      try { await File(path).delete(); } catch (_) {}
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  Future<String?> _signedMediaUrl(String bucket, String? path) async {
+    if (path == null || path.isEmpty) return null;
+    try { return await _db.storage.from(bucket).createSignedUrl(path, 3600); }
+    catch (_) { return null; }
+  }
+
+  Future<void> _playVoice(Map<String, dynamic> row) async {
+    final id = row['id'].toString();
+    if (_playingMessageId == id) {
+      await _audioPlayer.pause();
+      if (mounted) setState(() => _playingMessageId = null);
+      return;
+    }
+    final url = await _signedMediaUrl('chat-voice', row['storage_path']?.toString());
+    if (url == null) { toast('تعذر فتح التسجيل الصوتي.'); return; }
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.play(UrlSource(url));
+      if (mounted) setState(() {
+        _playingMessageId = id;
+        _audioPosition = Duration.zero;
+        _audioDuration = Duration.zero;
+      });
+    } catch (_) { toast('تعذر تشغيل الرسالة الصوتية.'); }
+  }
+
+  Future<void> _blockUser(Map<String, dynamic> row) async {
+    final current = _db.auth.currentUser;
+    final blockedId = row['user_id']?.toString();
+    if (current == null || blockedId == null || blockedId == current.id) return;
+    final confirm = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(
+        title: const Text('حظر هذا المستخدم؟'),
+        content: const Text('لن تظهر لك رسائله بعد الآن على هذا الجهاز والحساب.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حظر')),
+        ],
+      ));
+    if (confirm != true) return;
+    try {
+      await _db.from('user_blocks').insert({
+        'blocker_id': current.id, 'blocked_id': blockedId,
+      });
+      if (mounted) setState(() => _blockedUserIds.add(blockedId));
+      toast('تم حظر المستخدم.');
+    } catch (_) { toast('تعذر حظر المستخدم حالياً.'); }
+  }
+
+  Future<void> _messageActions(Map<String, dynamic> row) async {
+    final action = await showModalBottomSheet<String>(context: context,
+      builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const Icon(Icons.flag_outlined),
+            title: const Text('الإبلاغ عن الرسالة'),
+            onTap: () => Navigator.pop(ctx, 'report')),
+          if (row['user_id'] != _db.auth.currentUser?.id)
+            ListTile(leading: const Icon(Icons.block_outlined),
+              title: const Text('حظر المستخدم'),
+              onTap: () => Navigator.pop(ctx, 'block')),
+        ]))));
+    if (action == 'report') await report(row);
+    if (action == 'block') await _blockUser(row);
+  }
+
   Future<void> send({String? sticker}) async {
     final user = _db.auth.currentUser;
     if (user == null) { toast('سجّل الدخول بحساب Google للمشاركة.'); return; }
@@ -269,7 +489,17 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     return date.hour.toString().padLeft(2, '0') + ':' + date.minute.toString().padLeft(2, '0');
   }
   @override
-  void dispose() { input.dispose(); scroll.dispose(); super.dispose(); }
+  void dispose() {
+    _recordTimer?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
+    _completeSub?.cancel();
+    _recorder.dispose();
+    _audioPlayer.dispose();
+    input.dispose();
+    scroll.dispose();
+    super.dispose();
+  }
   @override
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl,
     child: Scaffold(appBar: AppBar(title: const Text('غرفة الدردشة')),
@@ -278,7 +508,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           builder: (context, snapshot) {
             if (snapshot.hasError) return const Center(child: Text('تعذر تحميل المحادثة حالياً.'));
             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-            final rows = snapshot.data!.where((r) => r['deleted_at'] == null && r['hidden_at'] == null).toList();
+            final rows = snapshot.data!.where((r) => r['deleted_at'] == null && r['hidden_at'] == null && !_blockedUserIds.contains(r['user_id'].toString())).toList();
             if (rows.isEmpty) return const Center(child: Text('ابدأ المحادثة برسالة مفيدة 🌟'));
             return FutureBuilder<Map<String, Map<String, dynamic>>>(future: getProfiles(rows),
               builder: (context, profiles) => ListView.builder(controller: scroll,
@@ -288,9 +518,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final mine = row['user_id'] == _db.auth.currentUser?.id;
                   final profile = profiles.data?[row['user_id'].toString()];
                   final name = mine ? 'أنت' : (profile?['display_name'] ?? 'طالب').toString();
-                  final sticker = row['message_type'] == 'builtin_sticker';
+                  final sticker = row['message_type'] == 'builtin_sticker' || row['message_type'] == 'custom_sticker';
                   return Align(alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
-                    child: GestureDetector(onLongPress: mine ? null : () => report(row),
+                    child: GestureDetector(onLongPress: () => _messageActions(row),
                       child: Container(constraints: const BoxConstraints(maxWidth: 310),
                         margin: const EdgeInsets.symmetric(vertical: 5),
                         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
@@ -302,7 +532,30 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           Text(name, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
                             color: Theme.of(context).colorScheme.primary)),
                           const SizedBox(height: 4),
-                          Text((row['body'] ?? '').toString(), style: TextStyle(fontSize: sticker ? 30 : 15)),
+                          if (row['message_type'] == 'custom_sticker')
+                            FutureBuilder<String?>(
+                              future: _signedMediaUrl('chat-stickers', row['storage_path']?.toString()),
+                              builder: (context, media) => media.data == null
+                                ? const Text('ملصق خاص')
+                                : Image.network(media.data!, width: 150, height: 150, fit: BoxFit.contain),
+                            )
+                          else if (row['message_type'] == 'voice')
+                            Row(mainAxisSize: MainAxisSize.min, children: [
+                              IconButton(
+                                onPressed: () => _playVoice(row),
+                                icon: Icon(_playingMessageId == row['id'].toString()
+                                  ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded),
+                              ),
+                              SizedBox(width: 120, child: LinearProgressIndicator(
+                                value: _playingMessageId == row['id'].toString() &&
+                                  _audioDuration.inMilliseconds > 0
+                                  ? (_audioPosition.inMilliseconds / _audioDuration.inMilliseconds).clamp(0.0, 1.0)
+                                  : 0,
+                              )),
+                            ])
+                          else
+                            Text((row['body'] ?? '').toString(),
+                              style: TextStyle(fontSize: sticker ? 30 : 15)),
                           const SizedBox(height: 3),
                           Text(timeOf(row['created_at']), style: TextStyle(fontSize: 10,
                             color: Theme.of(context).colorScheme.onSurfaceVariant)),
@@ -324,15 +577,39 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                     onPressed: sending ? null : () => send(sticker: e.key)),
                 )).toList())),
               Row(children: [
+                IconButton(
+                  tooltip: 'إضافة ملصق من الجهاز',
+                  onPressed: sending || _recording ? null : _pickCustomSticker,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                ),
                 Expanded(child: TextField(controller: input, minLines: 1, maxLines: 4, maxLength: 500,
                   decoration: const InputDecoration(hintText: 'اكتب رسالة دراسية...', counterText: '',
                     border: OutlineInputBorder()))),
                 const SizedBox(width: 8),
-                IconButton.filled(onPressed: sending ? null : () => send(),
+                if (_recording)
+                  IconButton(
+                    tooltip: 'إلغاء التسجيل',
+                    onPressed: () => _stopVoiceRecording(send: false),
+                    icon: const Icon(Icons.close_rounded),
+                  )
+                else
+                  IconButton(
+                    tooltip: 'تسجيل رسالة صوتية',
+                    onPressed: sending ? null : _startVoiceRecording,
+                    icon: const Icon(Icons.mic_none_rounded),
+                  ),
+                IconButton.filled(
+                  onPressed: sending ? null : (_recording
+                    ? () => _stopVoiceRecording(send: true) : () => send()),
                   icon: sending ? const SizedBox(width: 18, height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded)),
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(_recording ? Icons.stop_rounded : Icons.send_rounded)),
               ]),
-              const Text('اضغط مطولاً على رسالة للإبلاغ عنها.', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              if (_recording)
+                Text('جارٍ التسجيل • $_recordSeconds ثانية',
+                  style: const TextStyle(fontSize: 11, color: Colors.red)),
+              const Text('اضغط مطولاً على رسالة للإبلاغ أو حظر المستخدم.',
+                style: TextStyle(fontSize: 10, color: Colors.grey)),
             ]))),
       ])));
 }
