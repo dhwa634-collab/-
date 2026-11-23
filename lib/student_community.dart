@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'academic_stages.dart';
@@ -125,7 +126,20 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   void initState() { super.initState(); loadProfile(); }
   Future<void> loadProfile() async {
     final user = _db.auth.currentUser;
-    if (user == null) { if (mounted) setState(() => loading = false); return; }
+    if (user == null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        name.text = prefs.getString('dalilak_guest_display_name_v1') ?? 'طالب';
+        age = prefs.getString('dalilak_student_age_band_v1') ?? age;
+        gender = prefs.getString('dalilak_student_gender_v1');
+        final savedStage = prefs.getString('dalilak_student_stage_v1');
+        stage = AcademicStage.values
+          .firstWhere((s) => s.name == savedStage,
+            orElse: () => AcademicStage.intermediateThird).label;
+      } catch (_) {}
+      if (mounted) setState(() => loading = false);
+      return;
+    }
     try {
       final row = await _db.from('profiles').select().eq('user_id', user.id).maybeSingle();
       if (row != null) {
@@ -142,10 +156,27 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   Future<void> saveProfile() async {
     final user = _db.auth.currentUser;
     final displayName = name.text.trim();
-    if (user == null) { toast('سجّل الدخول أولاً.'); return; }
     if (displayName.isEmpty || displayName.length > 40) { toast('اكتب اسماً من 1 إلى 40 حرفاً.'); return; }
     setState(() => saving = true);
     try {
+      if (user == null) {
+        final prefs = await SharedPreferences.getInstance();
+        final selected = AcademicStage.values.firstWhere(
+          (s) => s.label == stage,
+          orElse: () => AcademicStage.intermediateThird,
+        );
+        await prefs.setString('dalilak_guest_display_name_v1', displayName);
+        await prefs.setString('dalilak_student_age_band_v1', age);
+        if (gender == null) {
+          await prefs.remove('dalilak_student_gender_v1');
+        } else {
+          await prefs.setString('dalilak_student_gender_v1', gender!);
+        }
+        await prefs.setString('dalilak_student_stage_v1', selected.name);
+        await AcademicStageController.select(selected);
+        toast('تم حفظ الملف الشخصي على هذا الجهاز.');
+        return;
+      }
       await _db.from('profiles').upsert({
         'user_id': user.id, 'display_name': displayName, 'age_band': age,
         'gender': gender, 'stage': stage, 'updated_at': DateTime.now().toUtc().toIso8601String(),
