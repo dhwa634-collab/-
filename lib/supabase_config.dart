@@ -3,5 +3,5 @@ class SupabaseConfig {
   static const String projectUrl = 'https://rtobsbdcjmssfspdjsil.supabase.co';
   static const String publishableKey = 'sb_publishable_WZ2_HsgcOGDVVsYKj4pLsw_COETNnEh';
   /// Public OAuth Web Client ID from Google Cloud; never place its client secret here.
-  static const String googleWebClientId = '';
+  static const String googleWebClientId = '760019056304-jdgihe83s80nnq82f6e64v1jqlduf07c.apps.googleusercontent.com';
 }
