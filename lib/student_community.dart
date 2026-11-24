@@ -491,9 +491,9 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                       CircleAvatar(
                         radius: 48,
                         backgroundImage: selectedAvatar != null
-                            ? FileImage(File(selectedAvatar!.path))
+                            ? FileImage(File(selectedAvatar!.path)) as ImageProvider<Object>
                             : avatarUrl != null && avatarUrl!.startsWith('http')
-                                ? NetworkImage(avatarUrl!)
+                                ? NetworkImage(avatarUrl!) as ImageProvider<Object>
                                 : null,
                         child: selectedAvatar == null &&
                                 (avatarUrl == null || !avatarUrl!.startsWith('http'))
