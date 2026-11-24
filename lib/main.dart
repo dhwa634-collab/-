@@ -3657,16 +3657,6 @@ class MoreScreen extends StatelessWidget {
               builder: (_) => const PersonalizationScreen())),
           ),
 
-          _sectionTitle(context, 'الدعم والمجتمع', Icons.favorite_outline_rounded),
-          _actionTile(
-            context: context,
-            icon: Icons.groups_rounded,
-            title: 'مجتمع الطلاب',
-            subtitle: 'الملف الشخصي وتسجيل الدخول وغرفة الدردشة',
-            onTap: () => Navigator.push(context, MaterialPageRoute(
-              builder: (_) => const StudentCommunityScreen())),
-          ),
-
           _sectionTitle(context, 'الحساب', Icons.manage_accounts_outlined),
           const MoreAccountSection(),
 
