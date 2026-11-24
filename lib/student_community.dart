@@ -177,6 +177,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   final name = TextEditingController();
   String age = '13_15', stage = AcademicStage.intermediateThird.label;
   String? gender;
+  String? avatarUrl;
   bool loading = true, saving = false;
   @override
   void initState() { super.initState(); loadProfile(); }
@@ -200,11 +201,13 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       final row = await _db.from('profiles').select().eq('user_id', user.id).maybeSingle();
       if (row != null) {
         name.text = (row['display_name'] ?? '').toString();
+        avatarUrl = row['avatar_url']?.toString();
         age = (row['age_band'] ?? '13_15').toString();
         stage = (row['stage'] ?? stage).toString();
         gender = row['gender']?.toString();
       } else {
         name.text = (user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? '').toString();
+        avatarUrl = user.userMetadata?['picture']?.toString();
         final prefs = await SharedPreferences.getInstance();
         age = prefs.getString('dalilak_student_age_band_v1') ?? age;
         gender = prefs.getString('dalilak_student_gender_v1');
@@ -242,7 +245,10 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       }
       await _db.from('profiles').upsert({
         'user_id': user.id, 'display_name': displayName, 'age_band': age,
-        'gender': gender, 'stage': stage, 'updated_at': DateTime.now().toUtc().toIso8601String(),
+        'gender': gender,
+        'stage': stage,
+        'avatar_url': avatarUrl ?? user.userMetadata?['picture']?.toString(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
       toast('تم حفظ الملف الشخصي.');
     } catch (_) { toast('تعذر حفظ الملف. تحقق من الاتصال وحاول مجدداً.'); }
@@ -258,7 +264,11 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     child: Scaffold(appBar: AppBar(title: const Text('الملف الشخصي')),
       body: loading ? const Center(child: CircularProgressIndicator())
       : ListView(padding: const EdgeInsets.all(18), children: [
-        const Center(child: CircleAvatar(radius: 38, child: Icon(Icons.person, size: 40))),
+        Center(child: CircleAvatar(
+          radius: 42,
+          backgroundImage: avatarUrl != null && avatarUrl!.startsWith('http') ? NetworkImage(avatarUrl!) : null,
+          child: avatarUrl == null || !avatarUrl!.startsWith('http') ? const Icon(Icons.person, size: 42) : null,
+        )),
         const SizedBox(height: 18),
         TextField(controller: name, maxLength: 40, decoration: const InputDecoration(labelText: 'اسم الطالب')),
         const SizedBox(height: 10),
@@ -294,7 +304,9 @@ class StudentChatScreen extends StatefulWidget {
 class _StudentChatScreenState extends State<StudentChatScreen> {
   final input = TextEditingController();
   final scroll = ScrollController();
-  late final Stream<List<Map<String, dynamic>>> messages;
+  late Stream<List<Map<String, dynamic>>> messages;
+  String _profileCacheKey = '';
+  Future<Map<String, Map<String, dynamic>>>? _profilesFuture;
   bool sending = false;
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _recorder = AudioRecorder();
@@ -316,7 +328,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   @override
   void initState() {
     super.initState();
-    messages = _db.from('chat_messages').stream(primaryKey: ['id']).order('created_at', ascending: true);
+    messages = _messageStream();
     _loadBlockedUsers();
     _positionSub = _audioPlayer.onPositionChanged.listen((value) {
       if (mounted) setState(() => _audioPosition = value);
@@ -328,6 +340,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       if (mounted) setState(() => _playingMessageId = null);
     });
   }
+  Stream<List<Map<String, dynamic>>> _messageStream() =>
+      _db.from('chat_messages').stream(primaryKey: ['id']).order('created_at', ascending: true);
+
+  void _retryMessages() {
+    setState(() => messages = _messageStream());
+  }
+
   bool unsafe(String value) {
     final normalized = value.toLowerCase()
       .replaceAll('أ', 'ا').replaceAll('إ', 'ا').replaceAll('آ', 'ا')
@@ -569,7 +588,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     final ids = rows.map((r) => r['user_id'].toString()).toSet().toList();
     if (ids.isEmpty) return {};
     try {
-      final result = await _db.rpc('get_chat_profiles', params: {'user_ids': ids});
+      final result = await _db.rpc('get_chat_profiles_v2', params: {'user_ids': ids});
       return {for (final p in (result as List)) p['user_id'].toString(): Map<String, dynamic>.from(p)};
     } catch (_) { return {}; }
   }
@@ -619,7 +638,17 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       body: Column(children: [
         Expanded(child: StreamBuilder<List<Map<String, dynamic>>>(stream: messages,
           builder: (context, snapshot) {
-            if (snapshot.hasError) return const Center(child: Text('تعذر تحميل المحادثة حالياً.'));
+            if (snapshot.hasError) return Center(child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.cloud_off_rounded, size: 42),
+                const SizedBox(height: 10),
+                const Text('تعذر تحميل المحادثة. تحقق من الإنترنت وحاول مجدداً.'),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(onPressed: _retryMessages,
+                  icon: const Icon(Icons.refresh_rounded), label: const Text('إعادة المحاولة')),
+              ]),
+            ));
             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
             final rows = snapshot.data!.where((r) => r['deleted_at'] == null &&
               r['hidden_at'] == null &&
@@ -634,7 +663,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               });
             }
             if (rows.isEmpty) return const Center(child: Text('ابدأ المحادثة برسالة مفيدة 🌟'));
-            return FutureBuilder<Map<String, Map<String, dynamic>>>(future: getProfiles(rows),
+            final profileIds = rows.map((r) => r['user_id'].toString()).toSet().toList()..sort();
+            final nextProfileKey = profileIds.join('|');
+            if (nextProfileKey != _profileCacheKey) {
+              _profileCacheKey = nextProfileKey;
+              _profilesFuture = getProfiles(rows);
+            }
+            return FutureBuilder<Map<String, Map<String, dynamic>>>(future: _profilesFuture,
               builder: (context, profiles) => ListView.builder(controller: scroll,
                 padding: const EdgeInsets.all(12), itemCount: rows.length,
                 itemBuilder: (context, index) {
@@ -653,12 +688,25 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             : Theme.of(context).colorScheme.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(16)),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(name, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
-                            color: Theme.of(context).colorScheme.primary)),
-                          if ((profile?['stage'] ?? '').toString().isNotEmpty)
-                            Text(profile!['stage'].toString(),
-                              style: TextStyle(fontSize: 10,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                          Row(children: [
+                            CircleAvatar(
+                              radius: 15,
+                              backgroundImage: (profile?['avatar_url'] ?? '').toString().startsWith('http')
+                                  ? NetworkImage(profile!['avatar_url'].toString()) : null,
+                              child: !(profile?['avatar_url'] ?? '').toString().startsWith('http')
+                                  ? const Icon(Icons.person_rounded, size: 17) : null,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
+                                  color: Theme.of(context).colorScheme.primary)),
+                                if ((profile?['stage'] ?? '').toString().isNotEmpty)
+                                  Text(profile!['stage'].toString(),
+                                    style: TextStyle(fontSize: 10,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                              ])),
+                          ]),
                           const SizedBox(height: 4),
                           if (row['message_type'] == 'custom_sticker')
                             FutureBuilder<String?>(
