@@ -122,6 +122,68 @@ jobs:
           else:
               raise SystemExit("Android app Gradle file was not generated")
           PY
+      - name: Configure fixed release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "::error::Missing ANDROID_KEYSTORE_BASE64 repository secret"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "::error::Missing ANDROID_KEYSTORE_PASSWORD repository secret"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "::error::Missing ANDROID_KEY_ALIAS repository secret"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "::error::Missing ANDROID_KEY_PASSWORD repository secret"; exit 1; }
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          chmod 600 android/app/upload-keystore.jks
+          python3 - <<'PY'
+          from pathlib import Path
+          kts = Path("android/app/build.gradle.kts")
+          groovy = Path("android/app/build.gradle")
+          if kts.exists():
+              p = kts
+              block = '''
+          android {
+              signingConfigs {
+                  create("release") {
+                      storeFile = file("upload-keystore.jks")
+                      storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  getByName("release") {
+                      signingConfig = signingConfigs.getByName("release")
+                  }
+              }
+          }
+          '''
+          elif groovy.exists():
+              p = groovy
+              block = '''
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file("upload-keystore.jks")
+                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          '''
+          else:
+              raise SystemExit("Android Gradle file was not generated")
+          content = p.read_text()
+          if "upload-keystore.jks" not in content:
+              p.write_text(content + "\\n" + block + "\\n")
+          PY
       - name: Install dependencies
         run: flutter pub get
       - name: Analyze
