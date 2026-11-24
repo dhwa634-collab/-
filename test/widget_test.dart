@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:third_intermediate_iraq/main.dart';
 import 'package:third_intermediate_iraq/student_tools.dart';
 import 'package:third_intermediate_iraq/exam_archive_data.dart';
@@ -161,6 +162,12 @@ void main() {
       'dalilak_student_onboarding_done_v1': true,
       'dalilak_home_welcome_seen_v1': true,
     });
+    // The More tab is built by IndexedStack and reads Supabase auth state.
+    // Initialize a local test client so widget tests never depend on live auth.
+    await Supabase.initialize(
+      url: 'https://example.supabase.co',
+      anonKey: 'test-anon-key',
+    );
     await tester.pumpWidget(const StudyApp());
     await tester.pumpAndSettle();
 
