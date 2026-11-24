@@ -242,27 +242,6 @@ class ThemeController {
   }
 }
 
-class AcademicStageController {
-  static const _storageKey = 'dalilak_selected_academic_stage_v1';
-  static final ValueNotifier<AcademicStage> current =
-      ValueNotifier<AcademicStage>(AcademicStage.intermediateThird);
-
-  static Future<void> load() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      current.value = AcademicStage.fromStorage(prefs.getString(_storageKey));
-    } catch (_) {
-      current.value = AcademicStage.intermediateThird;
-    }
-  }
-
-  static Future<void> select(AcademicStage stage) async {
-    current.value = stage;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_storageKey, stage.name);
-  }
-}
-
 class AcademicStagePicker extends StatelessWidget {
   const AcademicStagePicker({super.key});
 
