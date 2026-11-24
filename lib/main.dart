@@ -3762,7 +3762,7 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
       await signOutStudentSession();
       _showMessage('تم تسجيل الخروج من حسابك بنجاح.');
     } catch (error) {
-      _showMessage('تعذر تسجيل الخروج: ${error.toString().replaceFirst('Exception: ', '')}',
+      _showMessage("تعذر تسجيل الخروج: ${error.toString().replaceFirst('Exception: ', '')}",
         isError: true);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -3825,7 +3825,7 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
       _showMessage('تم حذف حسابك وبياناته بنجاح.');
     } catch (error) {
       _showMessage(
-        'تعذر حذف الحساب: ${error.toString().replaceFirst('Exception: ', '')}',
+        "تعذر حذف الحساب: ${error.toString().replaceFirst('Exception: ', '')}",
         isError: true,
       );
     } finally {
