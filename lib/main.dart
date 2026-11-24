@@ -2915,8 +2915,17 @@ class _NewsScreenState extends State<NewsScreen> {
 
       if (response.statusCode != 200 || result['success'] != true ||
           result['verified'] != true) {
+        final code = (result['code'] ?? '').toString();
         final detail = (result['error'] ?? 'رفض الخادم التحقق من الرمز.').toString();
-        throw Exception(detail);
+        if (code == 'UNKNOWN_NEWS_ADMIN_ACTION' ||
+            detail.contains('عملية إدارة الأخبار غير معروفة') ||
+            detail.contains('عملية إدارة الأخبار غير مدعومة')) {
+          throw Exception(
+            'نسخة Cloudflare Worker المنشورة قديمة ولا تدعم التحقق من رمز المطوّر. '
+            'يجب نشر الملف worker/src/index.js من فرع التطوير على Worker wispy-union-276e.',
+          );
+        }
+        throw Exception('HTTP ${response.statusCode}: $detail');
       }
 
       if (!mounted) return;
