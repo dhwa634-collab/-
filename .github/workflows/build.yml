@@ -136,6 +136,12 @@ jobs:
           test -n "$ANDROID_KEY_PASSWORD" || { echo "::error::Missing ANDROID_KEY_PASSWORD repository secret"; exit 1; }
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
           chmod 600 android/app/upload-keystore.jks
+          test -s android/app/upload-keystore.jks || { echo "::error::Decoded keystore file is empty"; exit 1; }
+          keytool -list -v -keystore android/app/upload-keystore.jks \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" \
+            > "$RUNNER_TEMP/keystore-info.txt"
+          echo "Release keystore alias validated. Certificate fingerprint:"
+          grep -E 'SHA1:' "$RUNNER_TEMP/keystore-info.txt" | head -n 1
           python3 - <<'PY'
           from pathlib import Path
           kts = Path("android/app/build.gradle.kts")
@@ -191,6 +197,10 @@ jobs:
       - name: Test
         run: flutter test
       - name: Build release APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: flutter build apk --release
       - name: Print release APK signing certificate SHA-1
         run: |
