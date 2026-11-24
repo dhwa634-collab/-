@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:io';
 
@@ -119,10 +121,17 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
       if (!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const StudentProfileScreen()));
     } on AuthException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تسجيل الدخول: ' + e.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر تسجيل الدخول: ${e.message}')),
+        );
+      }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('تعذر تسجيل الدخول. تحقق من إعداد Google OAuth والاتصال.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('تعذر تسجيل الدخول. تحقق من إعداد Google OAuth والاتصال.'),
+        ));
+      }
     } finally { if (mounted) setState(() => busy = false); }
   }
   @override
@@ -459,11 +468,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     try {
       await _audioPlayer.stop();
       await _audioPlayer.play(UrlSource(url));
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _playingMessageId = id;
         _audioPosition = Duration.zero;
         _audioDuration = Duration.zero;
-      });
+        });
+      }
     } catch (_) { toast('تعذر تشغيل الرسالة الصوتية.'); }
   }
 
@@ -526,8 +537,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         'body': sticker == null ? text : stickers[sticker], 'sticker_id': sticker,
       });
       input.clear();
-      if (scroll.hasClients) await scroll.animateTo(scroll.position.maxScrollExtent + 100,
-        duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      if (scroll.hasClients) {
+        await scroll.animateTo(
+          scroll.position.maxScrollExtent + 100,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
     } on PostgrestException catch (e) {
       toast(e.message.contains('rate') || e.message.contains('duplicate')
         ? 'تم إيقاف الإرسال مؤقتاً لتجنب التكرار.' : 'تعذر إرسال الرسالة. تحقق من الاتصال أو الحساب.');
@@ -568,7 +584,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   String timeOf(dynamic value) {
     final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
     if (date == null) return '';
-    return date.hour.toString().padLeft(2, '0') + ':' + date.minute.toString().padLeft(2, '0');
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
   @override
   void dispose() {
