@@ -671,6 +671,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     final user = _db.auth.currentUser;
     if (user == null) { toast('سجّل الدخول أولاً.'); return; }
     if (sending || _recording) return;
+    String? uploadedPath;
+    bool messageSaved = false;
     try {
       final image = await _imagePicker.pickImage(
         source: ImageSource.gallery, maxWidth: 1600, maxHeight: 1600,
@@ -693,7 +695,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         return;
       }
       setState(() => sending = true);
-      final uploadedPath = '${user.id}/image_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      uploadedPath = '${user.id}/image_${DateTime.now().millisecondsSinceEpoch}.$extension';
       await _db.storage.from('chat-media').uploadBinary(
         uploadedPath, bytes,
         fileOptions: FileOptions(contentType: mime, upsert: false),
@@ -702,6 +704,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         'user_id': user.id, 'message_type': 'image',
         'body': null, 'sticker_id': null, 'storage_path': uploadedPath,
       });
+      messageSaved = true;
       toast('تم إرسال الصورة.');
     } on StorageException catch (e) {
       toast('فشل رفع الصورة (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
@@ -714,6 +717,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     } catch (e) {
       toast('تعذر إرسال الصورة (${e.runtimeType}): ${e.toString()}');
     } finally {
+      if (uploadedPath != null && !messageSaved) {
+        try { await _db.storage.from('chat-media').remove([uploadedPath]); } catch (_) {}
+      }
       if (mounted) setState(() => sending = false);
     }
   }
@@ -721,6 +727,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<void> _pickCustomSticker() async {
     final user = _db.auth.currentUser;
     if (user == null) { toast('سجّل الدخول أولاً.'); return; }
+    String? uploadedPath;
+    bool messageSaved = false;
     try {
       final image = await _imagePicker.pickImage(
         source: ImageSource.gallery, maxWidth: 512, maxHeight: 512,
@@ -738,15 +746,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       }
       final mime = extension == 'png' ? 'image/png'
         : extension == 'webp' ? 'image/webp' : 'image/jpeg';
-      final path = '${user.id}/sticker_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      uploadedPath = '${user.id}/sticker_${DateTime.now().millisecondsSinceEpoch}.$extension';
       setState(() => sending = true);
       await _db.storage.from('chat-stickers').uploadBinary(
-        path, bytes, fileOptions: FileOptions(contentType: mime, upsert: false),
+        uploadedPath!, bytes, fileOptions: FileOptions(contentType: mime, upsert: false),
       );
       await _db.from('chat_messages').insert({
         'user_id': user.id, 'message_type': 'custom_sticker',
-        'body': null, 'sticker_id': null, 'storage_path': path,
+        'body': null, 'sticker_id': null, 'storage_path': uploadedPath,
       });
+      messageSaved = true;
       toast('تم إرسال الملصق.');
     } on StorageException catch (e) {
       toast('فشل رفع الملصق (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
@@ -759,7 +768,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     } catch (e) {
       toast('تعذر إرسال الملصق (${e.runtimeType}): ${e.toString()}');
     }
-    finally { if (mounted) setState(() => sending = false); }
+    finally {
+      if (uploadedPath != null && !messageSaved) {
+        try { await _db.storage.from('chat-stickers').remove([uploadedPath]); } catch (_) {}
+      }
+      if (mounted) setState(() => sending = false);
+    }
   }
 
   Future<void> _startVoiceRecording() async {
@@ -788,7 +802,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         setState(() => _recordSeconds = DateTime.now().difference(_recordStartedAt!).inSeconds);
         if (_recordSeconds >= 120) unawaited(_stopVoiceRecording(send: true));
       });
-    } catch (_) { toast('تعذر بدء التسجيل. تحقق من إذن المايكروفون.'); }
+    } catch (e) { toast('تعذر بدء التسجيل: ' + e.toString()); }
   }
 
   Future<void> _stopVoiceRecording({required bool send}) async {
@@ -809,20 +823,23 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       toast('التسجيل يجب أن يكون بين ثانية واحدة ودقيقتين.'); return;
     }
     setState(() => sending = true);
+    String? uploadedPath;
+    bool messageSaved = false;
     try {
       final bytes = await File(path).readAsBytes();
       if (bytes.isEmpty || bytes.length > 3 * 1024 * 1024) {
         throw Exception('حجم التسجيل أكبر من الحد المسموح.');
       }
-      final storagePath = '${user.id}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      uploadedPath = '${user.id}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _db.storage.from('chat-voice').uploadBinary(
-        storagePath, bytes,
+        uploadedPath!, bytes,
         fileOptions: const FileOptions(contentType: 'audio/mp4', upsert: false),
       );
       await _db.from('chat_messages').insert({
         'user_id': user.id, 'message_type': 'voice',
-        'body': null, 'sticker_id': null, 'storage_path': storagePath,
+        'body': null, 'sticker_id': null, 'storage_path': uploadedPath,
       });
+      messageSaved = true;
       toast('تم إرسال الرسالة الصوتية.');
     } on StorageException catch (e) {
       toast('فشل رفع التسجيل الصوتي (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
@@ -836,6 +853,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       toast('تعذر إرسال التسجيل (${e.runtimeType}): ${e.toString()}');
     }
     finally {
+      if (uploadedPath != null && !messageSaved) {
+        try { await _db.storage.from('chat-voice').remove([uploadedPath]); } catch (_) {}
+      }
       try { await File(path).delete(); } catch (_) {}
       if (mounted) setState(() => sending = false);
     }
