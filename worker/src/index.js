@@ -17,6 +17,7 @@ function json(data, status = 200) {
   return Response.json(data, { status, headers: corsHeaders });
 }
 
+const WORKER_VERSION = "2026-11-24-student-chat-admin-v2";
 const NEWS_FEED_KEY = "news:feed";
 const NEWS_FALLBACK_URL =
   "https://raw.githubusercontent.com/dhwa634-collab/wizariyat-privacy/main/news.json";
@@ -73,7 +74,7 @@ async function handleNewsAdmin(request, env) {
     // Verification does not read or modify the news feed/KV.
     const requestedAction = String(body.action || body.operation || "").trim();
     if (requestedAction.toLowerCase() === "verify") {
-      return json({ success: true, verified: true });
+      return json({ success: true, verified: true, workerVersion: WORKER_VERSION });
     }
     if (!env.AI_REPORTS) {
       return json({ error: "ربط KV باسم AI_REPORTS غير مهيأ." }, 503);
@@ -187,6 +188,14 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
+    }
+    if (request.method === "GET" && url.pathname === "/health") {
+      return json({
+        success: true,
+        worker: "wispy-union-276e",
+        workerVersion: WORKER_VERSION,
+        features: ["news-admin-verify", "news-admin-management"],
+      });
     }
     if (request.method === "GET" &&
         (url.pathname === "/news/status" || url.pathname === "/news/admin/status")) {
