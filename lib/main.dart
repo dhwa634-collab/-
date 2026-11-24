@@ -3602,6 +3602,10 @@ class MoreScreen extends StatelessWidget {
             onTap: () => Navigator.push(context, MaterialPageRoute(
               builder: (_) => const StudentCommunityScreen())),
           ),
+
+          _sectionTitle(context, 'الحساب', Icons.manage_accounts_outlined),
+          const MoreAccountSection(),
+
           _actionTile(
             context: context,
             icon: Icons.edit_note_rounded,
@@ -3727,6 +3731,164 @@ class MoreScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+
+class MoreAccountSection extends StatefulWidget {
+  const MoreAccountSection({super.key});
+
+  @override
+  State<MoreAccountSection> createState() => _MoreAccountSectionState();
+}
+
+class _MoreAccountSectionState extends State<MoreAccountSection> {
+  bool _busy = false;
+  final _client = Supabase.instance.client;
+
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : null,
+      ));
+  }
+
+  Future<void> _signOut() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await signOutStudentSession();
+      _showMessage('تم تسجيل الخروج من حسابك بنجاح.');
+    } catch (error) {
+      _showMessage('تعذر تسجيل الخروج: ${error.toString().replaceFirst('Exception: ', '')}',
+        isError: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    if (_busy) return;
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      _showMessage('لا يوجد حساب مسجّل الدخول حالياً.', isError: true);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          icon: const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+          title: const Text('حذف الحساب نهائياً؟'),
+          content: const Text(
+            'سيتم حذف حسابك وملفك الشخصي ورسائلك وملفاتك الصوتية والملصقات '
+            'المرتبطة به من الخادم. لا يمكن التراجع عن هذه العملية.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('حذف الحساب'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final response = await _client.functions.invoke(
+        'delete-account',
+        body: const {'confirm': true},
+      );
+      final data = response.data;
+      if (response.status < 200 || response.status >= 300 ||
+          data is! Map || data['success'] != true) {
+        final detail = data is Map ? (data['error'] ?? '').toString() : '';
+        throw Exception(detail.isEmpty
+          ? 'لم يؤكد الخادم حذف الحساب (HTTP ${response.status}).'
+          : detail);
+      }
+
+      await signOutStudentSession();
+      _showMessage('تم حذف حسابك وبياناته بنجاح.');
+    } catch (error) {
+      _showMessage(
+        'تعذر حذف الحساب: ${error.toString().replaceFirst('Exception: ', '')}',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<AuthState>(
+    stream: _client.auth.onAuthStateChange,
+    builder: (context, snapshot) {
+      final user = snapshot.hasData
+        ? snapshot.data!.session?.user
+        : _client.auth.currentUser;
+      return Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: Column(children: [
+          ListTile(
+            leading: const Icon(Icons.account_circle_outlined),
+            title: const Text('حالة الحساب',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: Text(user == null
+              ? 'تستخدم التطبيق حالياً دون تسجيل الدخول.'
+              : (user.email ?? 'حساب Google مسجّل')),
+          ),
+          if (user == null)
+            ListTile(
+              leading: const Icon(Icons.login_rounded),
+              title: const Text('تسجيل الدخول بواسطة Google'),
+              onTap: _busy ? null : () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const StudentGoogleLoginScreen())),
+            )
+          else ...[
+            const Divider(height: 1),
+            ListTile(
+              enabled: !_busy,
+              leading: const Icon(Icons.logout_rounded),
+              title: const Text('تسجيل الخروج'),
+              subtitle: const Text('إنهاء جلسة الحساب على هذا الجهاز'),
+              trailing: _busy
+                ? const SizedBox(width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.chevron_left_rounded),
+              onTap: _busy ? null : _signOut,
+            ),
+            ListTile(
+              enabled: !_busy,
+              leading: const Icon(Icons.delete_forever_outlined,
+                color: Colors.redAccent),
+              title: const Text('حذف الحساب نهائياً',
+                style: TextStyle(color: Colors.redAccent,
+                  fontWeight: FontWeight.w800)),
+              subtitle: const Text('حذف بيانات الحساب من الخادم بعد التأكيد'),
+              trailing: const Icon(Icons.chevron_left_rounded,
+                color: Colors.redAccent),
+              onTap: _busy ? null : _deleteAccount,
+            ),
+          ],
+          if (_busy) const LinearProgressIndicator(minHeight: 2),
+        ]),
+      );
+    },
+  );
 }
 
 class PrivacyScreen extends StatelessWidget {
