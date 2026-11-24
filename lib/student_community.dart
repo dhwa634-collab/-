@@ -150,22 +150,99 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
     } finally { if (mounted) setState(() => busy = false); }
   }
   @override
-  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl,
-    child: Scaffold(appBar: AppBar(title: const Text('تسجيل دخول الطلاب')),
-      body: Center(child: Padding(padding: const EdgeInsets.all(24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const CircleAvatar(radius: 42, child: Icon(Icons.school_rounded, size: 42)),
-          const SizedBox(height: 18),
-          const Text('أهلاً بك في مجتمع الطلاب', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          const Text('استخدم حساب Google لحفظ ملفك والمشاركة في غرفة الدردشة.', textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          SizedBox(width: double.infinity, child: FilledButton.icon(
-            onPressed: busy ? null : signIn,
-            icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.g_mobiledata_rounded, size: 28),
-            label: Text(busy ? 'جارٍ تسجيل الدخول...' : 'المتابعة باستخدام Google'))),
-        ])))));
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      backgroundColor: const Color(0xFFF2F6FC),
+      appBar: AppBar(
+        title: const Text('تسجيل دخول الطلاب'),
+        backgroundColor: const Color(0xFFF2F6FC),
+        elevation: 0,
+      ),
+      body: Stack(children: [
+        Positioned(
+          top: 0, left: 0, right: 0, height: 230,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topRight, end: Alignment.bottomLeft,
+                colors: [Color(0xFF163B70), Color(0xFF2868D7)],
+              ),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(34)),
+            ),
+          ),
+        ),
+        SafeArea(child: Center(child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(22, 28, 22, 28),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Card(
+              elevation: 10,
+              shadowColor: const Color(0x33142D50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 30, 24, 26),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    width: 82, height: 82,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2868D7), Color(0xFF163B70)],
+                      ),
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    child: const Icon(Icons.school_rounded, color: Colors.white, size: 44),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('أهلاً بك في مجتمع الطلاب',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900, color: Color(0xFF142D50))),
+                  const SizedBox(height: 10),
+                  Text('سجّل الدخول بحساب Google حتى تحفظ ملفك الشخصي وتتواصل مع زملائك في غرفة الدردشة.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, height: 1.7, color: Colors.blueGrey.shade700)),
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.all(13),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F7FE),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Row(children: [
+                      Icon(Icons.verified_user_outlined, color: Color(0xFF2868D7)),
+                      SizedBox(width: 10),
+                      Expanded(child: Text('دخول آمن لحسابك مع الاحتفاظ ببياناتك الدراسية.',
+                        style: TextStyle(fontSize: 12, height: 1.5))),
+                    ]),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(width: double.infinity, height: 54,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF2868D7),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: busy ? null : signIn,
+                      icon: busy
+                        ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.g_mobiledata_rounded, size: 30),
+                      label: Text(busy ? 'جارٍ تسجيل الدخول...' : 'المتابعة باستخدام Google',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('لن نطلب منك كلمة مرور Google داخل التطبيق.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade500)),
+                ]),
+              ),
+            ),
+          ),
+        ))),
+      ]),
+    ),
+  );
 }
 
 class StudentProfileScreen extends StatefulWidget {
@@ -201,7 +278,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       final row = await _db.from('profiles').select().eq('user_id', user.id).maybeSingle();
       if (row != null) {
         name.text = (row['display_name'] ?? '').toString();
-        avatarUrl = row['avatar_url']?.toString();
+        avatarUrl = row['avatar_url']?.toString() ?? user.userMetadata?['picture']?.toString();
         age = (row['age_band'] ?? '13_15').toString();
         stage = (row['stage'] ?? stage).toString();
         gender = row['gender']?.toString();
