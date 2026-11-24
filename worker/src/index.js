@@ -63,9 +63,22 @@ async function handleNewsAdmin(request, env) {
   }
   try {
     const body = await request.json();
-    if (String(body.pin || "") !== String(env.NEWS_ADMIN_PIN)) {
+    const suppliedPin = String(body.pin ?? "").trim();
+    const configuredPin = String(env.NEWS_ADMIN_PIN ?? "").trim();
+    if (!configuredPin) {
+      return json({ error: "سر إدارة الأخبار NEWS_ADMIN_PIN غير مضبوط على Worker." }, 503);
+    }
+    if (!suppliedPin || suppliedPin !== configuredPin) {
       return json({ error: "رمز المطوّر غير صحيح." }, 401);
     }
+
+    // The app verifies the same server-side secret before showing the studio.
+    // Verification does not read or modify the news feed/KV.
+    const requestedAction = String(body.action || body.operation || "").trim();
+    if (requestedAction.toLowerCase() === "verify") {
+      return json({ success: true, verified: true });
+    }
+
     let feed;
     try {
       const stored = await env.AI_REPORTS.get(NEWS_FEED_KEY);
@@ -81,7 +94,6 @@ async function handleNewsAdmin(request, env) {
       return json({ error: "تعذر قراءة الأخبار من KV. تحقق من ربط AI_REPORTS." }, 503);
     }
     const posts = Array.isArray(feed.posts) ? feed.posts : [];
-    const requestedAction = String(body.action || body.operation || "").trim();
     const actionAliases = {
       edit: "update",
       toggle_pin: "togglePin",
