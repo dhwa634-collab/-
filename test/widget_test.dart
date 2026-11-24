@@ -155,7 +155,14 @@ void main() {
 
 
   testWidgets('home screen loads', (tester) async {
+    // Simulate an existing installation so the first-run onboarding gate
+    // correctly lets this home-screen test reach the Shell.
+    SharedPreferences.setMockInitialValues({
+      'dalilak_student_onboarding_done_v1': true,
+      'dalilak_home_welcome_seen_v1': true,
+    });
     await tester.pumpWidget(const StudyApp());
+    await tester.pumpAndSettle();
 
     // The subjects catalog is intentionally displayed in its own bottom tab,
     // not on the home screen. Keep this test focused on the home screen.
