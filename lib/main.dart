@@ -2876,7 +2876,7 @@ class _NewsScreenState extends State<NewsScreen> {
           autofocus: true,
           obscureText: true,
           keyboardType: TextInputType.visiblePassword,
-          maxLength: 24,
+          maxLength: 64,
           decoration: const InputDecoration(
             labelText: 'رمز المطوّر',
             prefixIcon: Icon(Icons.lock_outline_rounded),
@@ -2885,16 +2885,52 @@ class _NewsScreenState extends State<NewsScreen> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('دخول')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('تحقق ودخول')),
         ],
       )),
     );
     controller.dispose();
     if (!mounted || entered == null) return;
-    await Navigator.push(context, MaterialPageRoute(
-      builder: (_) => NewsAdminScreen(adminPin: entered),
-    ));
-    if (mounted) await _loadNews();
+
+    final pin = entered.trim();
+    if (pin.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('أدخل رمز المطوّر أولاً.')),
+      );
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://wispy-union-276e.dhwa634.workers.dev/news/admin'),
+        headers: const {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: jsonEncode({'action': 'verify', 'pin': pin}),
+      ).timeout(const Duration(seconds: 15));
+
+      Map<String, dynamic> result = {};
+      try {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        if (decoded is Map) result = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+
+      if (response.statusCode != 200 || result['success'] != true ||
+          result['verified'] != true) {
+        final detail = (result['error'] ?? 'رفض الخادم التحقق من الرمز.').toString();
+        throw Exception(detail);
+      }
+
+      if (!mounted) return;
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => NewsAdminScreen(adminPin: pin),
+      ));
+      if (mounted) await _loadNews();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر فتح غرفة المطوّر: $error')),
+        );
+      }
+    }
   }
   Future<void> _share(NewsPost post) async {
     final text = '${post.title}\n\n${post.body}\n\nمن تطبيق دليلك للنجاح — الثالث متوسط • العراق';
@@ -3075,7 +3111,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     } catch (_) {}
     if(mounted)setState(()=>_loading=false);
   }
-  String get _adminPin => widget.adminPin;
+  String get _adminPin => widget.adminPin.trim();
   Future<Map<String,dynamic>> _send(Map<String,dynamic> payload) async {
     final response=await http.post(_workerAdminUri,
       headers:const {'Content-Type':'application/json','Accept':'application/json'},
