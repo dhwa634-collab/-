@@ -667,6 +667,57 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     } catch (_) {}
   }
 
+  Future<void> _pickAndSendImage() async {
+    final user = _db.auth.currentUser;
+    if (user == null) { toast('سجّل الدخول أولاً.'); return; }
+    if (sending || _recording) return;
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery, maxWidth: 1600, maxHeight: 1600,
+        imageQuality: 82, requestFullMetadata: false,
+      );
+      if (image == null) return;
+      final extension = image.name.split('.').last.toLowerCase();
+      const mimeTypes = {
+        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+        'png': 'image/png', 'webp': 'image/webp',
+      };
+      final mime = mimeTypes[extension];
+      if (mime == null) {
+        toast('صيغة الصورة غير مدعومة. استخدم JPG أو PNG أو WEBP.');
+        return;
+      }
+      final bytes = await image.readAsBytes();
+      if (bytes.isEmpty || bytes.length > 5 * 1024 * 1024) {
+        toast('حجم الصورة يجب ألا يتجاوز 5 ميغابايت.');
+        return;
+      }
+      setState(() => sending = true);
+      final uploadedPath = '\${user.id}/image_\${DateTime.now().millisecondsSinceEpoch}.$extension';
+      await _db.storage.from('chat-media').uploadBinary(
+        uploadedPath, bytes,
+        fileOptions: FileOptions(contentType: mime, upsert: false),
+      );
+      await _db.from('chat_messages').insert({
+        'user_id': user.id, 'message_type': 'image',
+        'body': null, 'sticker_id': null, 'storage_path': uploadedPath,
+      });
+      toast('تم إرسال الصورة.');
+    } on StorageException catch (e) {
+      toast('فشل رفع الصورة (HTTP \${e.statusCode ?? 'Storage'}): \${e.message}');
+    } on PostgrestException catch (e) {
+      toast('فشل حفظ الصورة في الدردشة (رمز \${e.code ?? 'DB'}): \${e.message}');
+    } on AuthException catch (e) {
+      toast('انتهت جلسة الدخول أثناء إرسال الصورة: \${e.message}');
+    } on SocketException catch (e) {
+      toast('تعذر الاتصال أثناء إرسال الصورة: \${e.message}');
+    } catch (e) {
+      toast('تعذر إرسال الصورة (\${e.runtimeType}): \${e.toString()}');
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
   Future<void> _pickCustomSticker() async {
     final user = _db.auth.currentUser;
     if (user == null) { toast('سجّل الدخول أولاً.'); return; }
@@ -694,10 +745,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       );
       await _db.from('chat_messages').insert({
         'user_id': user.id, 'message_type': 'custom_sticker',
-        'body': 'ملصق خاص', 'storage_path': path,
+        'body': null, 'sticker_id': null, 'storage_path': path,
       });
       toast('تم إرسال الملصق.');
-    } catch (_) { toast('تعذر إضافة الملصق. تحقق من الاتصال والصلاحيات.'); }
+    } on StorageException catch (e) {
+      toast('فشل رفع الملصق (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
+    } on PostgrestException catch (e) {
+      toast('فشل حفظ الملصق في الدردشة (رمز ${e.code ?? 'DB'}): ${e.message}');
+    } on AuthException catch (e) {
+      toast('انتهت جلسة الدخول أثناء إرسال الملصق: ${e.message}');
+    } on SocketException catch (e) {
+      toast('تعذر الاتصال أثناء إرسال الملصق: ${e.message}');
+    } catch (e) {
+      toast('تعذر إرسال الملصق (${e.runtimeType}): ${e.toString()}');
+    }
     finally { if (mounted) setState(() => sending = false); }
   }
 
@@ -760,10 +821,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       );
       await _db.from('chat_messages').insert({
         'user_id': user.id, 'message_type': 'voice',
-        'body': 'رسالة صوتية', 'storage_path': storagePath,
+        'body': null, 'sticker_id': null, 'storage_path': storagePath,
       });
       toast('تم إرسال الرسالة الصوتية.');
-    } catch (_) { toast('تعذر إرسال التسجيل. حاول مرة ثانية.'); }
+    } on StorageException catch (e) {
+      toast('فشل رفع التسجيل الصوتي (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
+    } on PostgrestException catch (e) {
+      toast('فشل حفظ التسجيل في الدردشة (رمز ${e.code ?? 'DB'}): ${e.message}');
+    } on AuthException catch (e) {
+      toast('انتهت جلسة الدخول أثناء إرسال التسجيل: ${e.message}');
+    } on SocketException catch (e) {
+      toast('تعذر الاتصال أثناء إرسال التسجيل: ${e.message}');
+    } catch (e) {
+      toast('تعذر إرسال التسجيل (${e.runtimeType}): ${e.toString()}');
+    }
     finally {
       try { await File(path).delete(); } catch (_) {}
       if (mounted) setState(() => sending = false);
@@ -854,7 +925,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     try {
       await _db.from('chat_messages').insert({
         'user_id': user.id, 'message_type': sticker == null ? 'text' : 'builtin_sticker',
-        'body': sticker == null ? text : stickers[sticker], 'sticker_id': sticker,
+        'body': sticker == null ? text : null, 'sticker_id': sticker,
       });
       input.clear();
       if (scroll.hasClients) {
@@ -982,7 +1053,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final row = rows[index];
                   final mine = row['user_id'] == _db.auth.currentUser?.id;
                   final profile = profiles.data?[row['user_id'].toString()];
-                  final name = mine ? 'أنت' : (profile?['display_name'] ?? 'طالب').toString();
+                  final currentUser = _db.auth.currentUser;
+                  final name = (profile?['display_name'] ??
+                    (mine ? (currentUser?.userMetadata?['full_name'] ??
+                      currentUser?.userMetadata?['name'] ??
+                      currentUser?.email?.split('@').first) : null) ??
+                    'طالب').toString();
                   final sticker = row['message_type'] == 'builtin_sticker' || row['message_type'] == 'custom_sticker';
                   return Align(alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
                     child: GestureDetector(onLongPress: () => _messageActions(row),
@@ -1020,12 +1096,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               ])),
                           ]),
                           const SizedBox(height: 4),
-                          if (row['message_type'] == 'custom_sticker')
+                          if (row['message_type'] == 'image' || row['message_type'] == 'custom_sticker')
                             FutureBuilder<String?>(
-                              future: _signedMediaUrl('chat-stickers', row['storage_path']?.toString()),
+                              future: _signedMediaUrl(
+                                row['message_type'] == 'image' ? 'chat-media' : 'chat-stickers',
+                                row['storage_path']?.toString(),
+                              ),
                               builder: (context, media) => media.data == null
                                 ? const Text('ملصق خاص')
-                                : Image.network(media.data!, width: 150, height: 150, fit: BoxFit.contain),
+                                : ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(media.data!, width: 210, height: 190,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const Text('تعذر عرض الصورة')),
+                                  ),
                             )
                           else if (row['message_type'] == 'voice')
                             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1065,6 +1149,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                     onPressed: sending ? null : () => send(sticker: e.key)),
                 )).toList())),
               Row(children: [
+                IconButton(
+                  tooltip: 'إرسال صورة',
+                  onPressed: sending || _recording ? null : _pickAndSendImage,
+                  icon: const Icon(Icons.image_outlined),
+                ),
                 IconButton(
                   tooltip: 'إضافة ملصق من الجهاز',
                   onPressed: sending || _recording ? null : _pickCustomSticker,
