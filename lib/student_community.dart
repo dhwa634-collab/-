@@ -715,17 +715,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       body: Column(children: [
         Expanded(child: StreamBuilder<List<Map<String, dynamic>>>(stream: messages,
           builder: (context, snapshot) {
-            if (snapshot.hasError) return Center(child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.cloud_off_rounded, size: 42),
-                const SizedBox(height: 10),
-                const Text('تعذر تحميل المحادثة. تحقق من الإنترنت وحاول مجدداً.'),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(onPressed: _retryMessages,
-                  icon: const Icon(Icons.refresh_rounded), label: const Text('إعادة المحاولة')),
-              ]),
-            ));
+            if (snapshot.hasError) {
+              return Center(child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.cloud_off_rounded, size: 42),
+                  const SizedBox(height: 10),
+                  const Text('تعذر تحميل المحادثة. تحقق من الإنترنت وحاول مجدداً.'),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(onPressed: _retryMessages,
+                    icon: const Icon(Icons.refresh_rounded), label: const Text('إعادة المحاولة')),
+                ]),
+              ));
+            }
             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
             final rows = snapshot.data!.where((r) => r['deleted_at'] == null &&
               r['hidden_at'] == null &&
