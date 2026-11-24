@@ -821,6 +821,56 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
         ])));
   }
 }
+class HomeChatRoomEntryCard extends StatelessWidget {
+  const HomeChatRoomEntryCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.only(top: 12, bottom: 4),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const StudentCommunityScreen()),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(Icons.forum_rounded, color: colors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('غرفة الدردشة',
+                      style: TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 3),
+                    Text('تواصل مع زملائك وشارك الفائدة الدراسية',
+                      style: TextStyle(fontSize: 11,
+                        color: colors.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_left_rounded, color: colors.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class Home extends StatefulWidget {
   final ValueChanged<Subject> onOpen;
   final VoidCallback onAll;
@@ -928,7 +978,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded)),
         ),
       ]),
-      const AcademicStagePicker(),
+      const HomeChatRoomEntryCard(),
       if (_showWelcome)
         SizeTransition(
           sizeFactor: _welcomeSize,
