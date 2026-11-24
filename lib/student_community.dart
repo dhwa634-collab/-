@@ -105,10 +105,10 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
     }
     setState(() => busy = true);
     try {
+      // Android ID-token flow: serverClientId must be the Web OAuth client ID.
+      // Do not pass the iOS client ID as clientId on Android.
       final google = GoogleSignIn(
-        clientId: SupabaseConfig.googleIosClientId.isEmpty
-          ? null : SupabaseConfig.googleIosClientId,
-        serverClientId: SupabaseConfig.googleWebClientId,
+        serverClientId: SupabaseConfig.googleWebClientId.trim(),
       );
       final account = await google.signIn();
       if (account == null) return;
@@ -126,10 +126,17 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
           SnackBar(content: Text('تعذر تسجيل الدخول: ${e.message}')),
         );
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      // Keep the native error code visible (for example ApiException: 10)
+      // so Release OAuth/SHA-1 configuration problems can be diagnosed.
+      debugPrint('Google sign-in failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('تعذر تسجيل الدخول. تحقق من إعداد Google OAuth والاتصال.'),
+        final detail = error.toString();
+        final message = detail.length > 420 ? detail.substring(0, 420) : detail;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(seconds: 12),
+          content: Text('فشل تسجيل الدخول (${error.runtimeType}): $message'),
         ));
       }
     } finally { if (mounted) setState(() => busy = false); }
