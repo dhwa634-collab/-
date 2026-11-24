@@ -166,10 +166,19 @@ void main() {
 
     // The subjects catalog is intentionally displayed in its own bottom tab,
     // not on the home screen. Keep this test focused on the home screen.
-    expect(find.text('دليلك للنجاح'), findsOneWidget);
-    expect(find.text('الثالث المتوسط • العراق'), findsOneWidget);
-    expect(find.text('المساعد الذكي'), findsOneWidget);
-    expect(find.text('ابدأ المحادثة الآن'), findsOneWidget);
+    // Shell uses an IndexedStack, so off-screen tabs are built too.
+    // Scope these assertions to the Home tab to avoid matching duplicate
+    // labels that legitimately appear in other tabs.
+    final home = find.byType(Home);
+    expect(home, findsOneWidget);
+    expect(find.descendant(
+      of: home, matching: find.text('دليلك للنجاح')), findsOneWidget);
+    expect(find.descendant(
+      of: home, matching: find.text('الثالث المتوسط • العراق')), findsOneWidget);
+    expect(find.descendant(
+      of: home, matching: find.text('المساعد الذكي')), findsOneWidget);
+    expect(find.descendant(
+      of: home, matching: find.text('ابدأ المحادثة الآن')), findsOneWidget);
   });
 
   testWidgets('subjects catalog scrolls from ministerial archive to review notes', (tester) async {
