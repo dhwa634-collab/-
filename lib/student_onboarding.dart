@@ -101,6 +101,7 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup>
           'age_band': _age,
           'gender': _gender,
           'stage': _stage.label,
+          'avatar_url': user.userMetadata?['picture']?.toString(),
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         });
       }
