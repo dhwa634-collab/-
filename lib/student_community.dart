@@ -896,11 +896,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
   }
 
-  Widget _mediaPlaceholder({bool failed = false, VoidCallback? onRetry}) {
+  Widget _mediaPlaceholder({
+    double width = 224,
+    double height = 190,
+    bool failed = false,
+    VoidCallback? onRetry,
+  }) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      width: 224,
-      height: 190,
+      width: width,
+      height: height,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: colors.surfaceContainerHighest,
@@ -922,18 +927,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   Widget _buildChatMedia(String bucket, String path, {bool sticker = false}) {
     final cacheKey = '$bucket/$path';
+    final width = sticker ? 156.0 : 224.0;
+    final height = sticker ? 156.0 : 190.0;
     return FutureBuilder<String?>(
       future: _signedMediaUrl(bucket, path),
       builder: (context, snapshot) {
         final url = snapshot.data;
         if (url == null) {
           return _mediaPlaceholder(
+            width: width,
+            height: height,
             failed: snapshot.connectionState == ConnectionState.done,
             onRetry: () => setState(() => _mediaUrlCache.remove(cacheKey)),
           );
         }
-        final width = sticker ? 156.0 : 224.0;
-        final height = sticker ? 156.0 : 190.0;
         return GestureDetector(
           onTap: () => showDialog<void>(
             context: context,
@@ -981,8 +988,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               memCacheWidth: sticker ? 420 : 672,
               maxWidthDiskCache: sticker ? 480 : 800,
               fadeInDuration: const Duration(milliseconds: 120),
-              placeholder: (_, __) => _mediaPlaceholder(),
+              placeholder: (_, __) => _mediaPlaceholder(width: width, height: height),
               errorWidget: (_, __, ___) => _mediaPlaceholder(
+                width: width,
+                height: height,
                 failed: true,
                 onRetry: () => setState(() => _mediaUrlCache.remove(cacheKey)),
               ),
