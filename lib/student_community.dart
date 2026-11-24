@@ -5,6 +5,8 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -627,7 +629,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
   }
   Stream<List<Map<String, dynamic>>> _messageStream() =>
-      _db.from('chat_messages').stream(primaryKey: ['id']).order('created_at', ascending: true);
+      _db.from('chat_messages').stream(primaryKey: ['id']).order('created_at', ascending: false);
 
   void _retryMessages() {
     setState(() => messages = _messageStream());
@@ -675,34 +677,52 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     bool messageSaved = false;
     try {
       final image = await _imagePicker.pickImage(
-        source: ImageSource.gallery, maxWidth: 1600, maxHeight: 1600,
-        imageQuality: 82, requestFullMetadata: false,
+        source: ImageSource.gallery,
+        maxWidth: 4096,
+        maxHeight: 4096,
+        imageQuality: 100,
+        requestFullMetadata: false,
       );
       if (image == null) return;
-      final extension = image.name.split('.').last.toLowerCase();
-      const mimeTypes = {
-        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
-        'png': 'image/png', 'webp': 'image/webp',
-      };
-      final mime = mimeTypes[extension];
-      if (mime == null) {
-        toast('صيغة الصورة غير مدعومة. استخدم JPG أو PNG أو WEBP.');
+      final sourceLength = await File(image.path).length();
+      if (sourceLength == 0 || sourceLength > 25 * 1024 * 1024) {
+        toast('حجم الصورة الأصلية يجب ألا يتجاوز 25 ميغابايت.');
         return;
       }
-      final bytes = await image.readAsBytes();
-      if (bytes.isEmpty || bytes.length > 5 * 1024 * 1024) {
-        toast('حجم الصورة يجب ألا يتجاوز 5 ميغابايت.');
+      final compressedBytes = await FlutterImageCompress.compressWithFile(
+        image.path,
+        minWidth: 1600,
+        minHeight: 1600,
+        quality: 82,
+        format: CompressFormat.jpeg,
+        autoCorrectionAngle: true,
+      );
+      if (compressedBytes == null || compressedBytes.isEmpty) {
+        toast('تعذر تجهيز الصورة قبل الإرسال.');
         return;
       }
+      if (compressedBytes.lengthInBytes > 5 * 1024 * 1024) {
+        toast('الصورة بعد الضغط أكبر من 5 ميغابايت. اختر صورة أصغر.');
+        return;
+      }
+      if (!mounted) return;
       setState(() => sending = true);
-      uploadedPath = '${user.id}/image_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      uploadedPath = '${user.id}/image_${DateTime.now().millisecondsSinceEpoch}.jpg';
       await _db.storage.from('chat-media').uploadBinary(
-        uploadedPath, bytes,
-        fileOptions: FileOptions(contentType: mime, upsert: false),
+        uploadedPath,
+        compressedBytes,
+        fileOptions: const FileOptions(
+          contentType: 'image/jpeg',
+          cacheControl: '31536000',
+          upsert: false,
+        ),
       );
       await _db.from('chat_messages').insert({
-        'user_id': user.id, 'message_type': 'image',
-        'body': null, 'sticker_id': null, 'storage_path': uploadedPath,
+        'user_id': user.id,
+        'message_type': 'image',
+        'body': null,
+        'sticker_id': null,
+        'storage_path': uploadedPath,
       });
       messageSaved = true;
       toast('تم إرسال الصورة.');
@@ -861,10 +881,116 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
   }
 
-  Future<String?> _signedMediaUrl(String bucket, String? path) async {
-    if (path == null || path.isEmpty) return null;
-    try { return await _db.storage.from(bucket).createSignedUrl(path, 3600); }
-    catch (_) { return null; }
+  final Map<String, Future<String?>> _mediaUrlCache = {};
+
+  Future<String?> _signedMediaUrl(String bucket, String? path) {
+    if (path == null || path.isEmpty) return Future.value(null);
+    final key = '$bucket/$path';
+    return _mediaUrlCache.putIfAbsent(key, () async {
+      try {
+        return await _db.storage.from(bucket).createSignedUrl(path, 86400);
+      } catch (_) {
+        _mediaUrlCache.remove(key);
+        return null;
+      }
+    });
+  }
+
+  Widget _mediaPlaceholder({bool failed = false, VoidCallback? onRetry}) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      width: 224,
+      height: 190,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: failed
+          ? TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('إعادة تحميل الصورة'),
+            )
+          : const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+    );
+  }
+
+  Widget _buildChatMedia(String bucket, String path, {bool sticker = false}) {
+    final cacheKey = '$bucket/$path';
+    return FutureBuilder<String?>(
+      future: _signedMediaUrl(bucket, path),
+      builder: (context, snapshot) {
+        final url = snapshot.data;
+        if (url == null) {
+          return _mediaPlaceholder(
+            failed: snapshot.connectionState == ConnectionState.done,
+            onRetry: () => setState(() => _mediaUrlCache.remove(cacheKey)),
+          );
+        }
+        final width = sticker ? 156.0 : 224.0;
+        final height = sticker ? 156.0 : 190.0;
+        return GestureDetector(
+          onTap: () => showDialog<void>(
+            context: context,
+            barrierColor: Colors.black87,
+            builder: (dialogContext) => Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.all(12),
+              child: Stack(
+                children: [
+                  InteractiveViewer(
+                    minScale: 0.8,
+                    maxScale: 4,
+                    child: CachedNetworkImage(
+                      imageUrl: url,
+                      fit: BoxFit.contain,
+                      placeholder: (_, __) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      errorWidget: (_, __, ___) => const Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: IconButton.filledTonal(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedNetworkImage(
+              imageUrl: url,
+              width: width,
+              height: height,
+              fit: sticker ? BoxFit.contain : BoxFit.cover,
+              memCacheWidth: sticker ? 420 : 672,
+              maxWidthDiskCache: sticker ? 480 : 800,
+              fadeInDuration: const Duration(milliseconds: 120),
+              placeholder: (_, __) => _mediaPlaceholder(),
+              errorWidget: (_, __, ___) => _mediaPlaceholder(
+                failed: true,
+                onRetry: () => setState(() => _mediaUrlCache.remove(cacheKey)),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _playVoice(Map<String, dynamic> row) async {
@@ -950,8 +1076,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       input.clear();
       if (scroll.hasClients) {
         await scroll.animateTo(
-          scroll.position.maxScrollExtent + 100,
-          duration: const Duration(milliseconds: 250),
+          0,
+          duration: const Duration(milliseconds: 220),
           curve: Curves.easeOut,
         );
       }
@@ -1051,13 +1177,17 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               r['hidden_at'] == null &&
               !_blockedUserIds.contains(r['user_id'].toString())).toList();
             if (rows.length != _lastMessageCount) {
+              final hadPreviousMessages = _lastMessageCount > 0;
               _lastMessageCount = rows.length;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (scroll.hasClients) {
-                  scroll.animateTo(scroll.position.maxScrollExtent,
-                    duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
-                }
-              });
+              if (hadPreviousMessages) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (scroll.hasClients && scroll.offset <= 120) {
+                    scroll.animateTo(0,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut);
+                  }
+                });
+              }
             }
             if (rows.isEmpty) return const Center(child: Text('ابدأ المحادثة برسالة مفيدة 🌟'));
             final profileIds = rows.map((r) => r['user_id'].toString()).toSet().toList()..sort();
@@ -1067,8 +1197,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               _profilesFuture = getProfiles(rows);
             }
             return FutureBuilder<Map<String, Map<String, dynamic>>>(future: _profilesFuture,
-              builder: (context, profiles) => ListView.builder(controller: scroll,
-                padding: const EdgeInsets.all(12), itemCount: rows.length,
+              builder: (context, profiles) => ListView.builder(
+                controller: scroll,
+                reverse: true,
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+                itemCount: rows.length,
                 itemBuilder: (context, index) {
                   final row = rows[index];
                   final mine = row['user_id'] == _db.auth.currentUser?.id;
@@ -1079,86 +1212,125 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       currentUser?.userMetadata?['name'] ??
                       currentUser?.email?.split('@').first) : null) ??
                     'طالب').toString();
-                  final sticker = row['message_type'] == 'builtin_sticker' || row['message_type'] == 'custom_sticker';
-                  return Align(alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
-                    child: GestureDetector(onLongPress: () => _messageActions(row),
-                      child: Container(constraints: const BoxConstraints(maxWidth: 310),
-                        margin: const EdgeInsets.symmetric(vertical: 3),
-                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                  final type = row['message_type']?.toString() ?? 'text';
+                  final sticker = type == 'builtin_sticker' || type == 'custom_sticker';
+                  final mediaPath = row['storage_path']?.toString() ?? '';
+                  final colors = Theme.of(context).colorScheme;
+
+                  return Align(
+                    alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
+                    child: GestureDetector(
+                      onLongPress: () => _messageActions(row),
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.sizeOf(context).width * 0.75,
+                        ),
+                        margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                         decoration: BoxDecoration(
-                          color: mine ? Theme.of(context).colorScheme.primaryContainer
-                            : Theme.of(context).colorScheme.surfaceContainerHigh,
+                          color: mine ? colors.primaryContainer : colors.surfaceContainerHigh,
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(15),
                             topRight: const Radius.circular(15),
                             bottomLeft: Radius.circular(mine ? 15 : 5),
                             bottomRight: Radius.circular(mine ? 5 : 15),
-                          )),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            CircleAvatar(
-                              radius: 13,
-                              backgroundImage: (profile?['avatar_url'] ?? '').toString().startsWith('http')
-                                  ? NetworkImage(profile!['avatar_url'].toString()) : null,
-                              child: !(profile?['avatar_url'] ?? '').toString().startsWith('http')
-                                  ? const Icon(Icons.person_rounded, size: 17) : null,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900,
-                                    color: Theme.of(context).colorScheme.primary)),
-                                if ((profile?['stage'] ?? '').toString().isNotEmpty)
-                                  Text(profile!['stage'].toString(),
-                                    style: TextStyle(fontSize: 10,
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
-
-                              ])),
-                          ]),
-                          const SizedBox(height: 3),
-                          if (row['message_type'] == 'image' || row['message_type'] == 'custom_sticker')
-                            FutureBuilder<String?>(
-                              future: _signedMediaUrl(
-                                row['message_type'] == 'image' ? 'chat-media' : 'chat-stickers',
-                                row['storage_path']?.toString(),
-                              ),
-                              builder: (context, media) => media.data == null
-                                ? const Text('ملصق خاص')
-                                : ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Image.network(media.data!, width: 210, height: 190,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => const Text('تعذر عرض الصورة')),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!mine)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 3),
+                                child: Text(
+                                  name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    height: 1.1,
+                                    fontWeight: FontWeight.w800,
+                                    color: colors.primary,
                                   ),
-                            )
-                          else if (row['message_type'] == 'voice')
-                            Row(mainAxisSize: MainAxisSize.min, children: [
-                              IconButton(
-                                onPressed: () => _playVoice(row),
-                                icon: Icon(_playingMessageId == row['id'].toString()
-                                  ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded),
+                                ),
                               ),
-                              SizedBox(width: 120, child: LinearProgressIndicator(
-                                value: _playingMessageId == row['id'].toString() &&
-                                  _audioDuration.inMilliseconds > 0
-                                  ? (_audioPosition.inMilliseconds / _audioDuration.inMilliseconds).clamp(0.0, 1.0).toDouble()
-                                  : 0,
-                              )),
-                            ])
-                          else
-                            Text(
-                              row['message_type'] == 'builtin_sticker'
-                                ? (stickers[row['sticker_id']?.toString()] ?? '🌟')
-                                : (unsafe((row['body'] ?? '').toString())
-                                  ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
-                                  : (row['body'] ?? '').toString()),
-                              style: TextStyle(fontSize: sticker ? 30 : 14, height: 1.35),
+                            if (type == 'image' || type == 'custom_sticker')
+                              _buildChatMedia(
+                                type == 'image' ? 'chat-media' : 'chat-stickers',
+                                mediaPath,
+                                sticker: type == 'custom_sticker',
+                              )
+                            else if (type == 'voice')
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                                    padding: EdgeInsets.zero,
+                                    onPressed: () => _playVoice(row),
+                                    icon: Icon(
+                                      _playingMessageId == row['id'].toString()
+                                          ? Icons.pause_circle_filled_rounded
+                                          : Icons.play_circle_fill_rounded,
+                                      size: 28,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  SizedBox(
+                                    width: 104,
+                                    child: LinearProgressIndicator(
+                                      value: _playingMessageId == row['id'].toString() &&
+                                              _audioDuration.inMilliseconds > 0
+                                          ? (_audioPosition.inMilliseconds /
+                                                  _audioDuration.inMilliseconds)
+                                              .clamp(0.0, 1.0)
+                                              .toDouble()
+                                          : 0,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              Text(
+                                type == 'builtin_sticker'
+                                    ? (stickers[row['sticker_id']?.toString()] ?? '🌟')
+                                    : (unsafe((row['body'] ?? '').toString())
+                                        ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
+                                        : (row['body'] ?? '').toString()),
+                                style: TextStyle(fontSize: sticker ? 28 : 14, height: 1.3),
+                              ),
+                            const SizedBox(height: 2),
+                            Align(
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    timeOf(row['created_at']),
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      height: 1,
+                                      color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+                                    ),
+                                  ),
+                                  if (mine) ...[
+                                    const SizedBox(width: 3),
+                                    Icon(
+                                      Icons.done_rounded,
+                                      size: 12,
+                                      color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
-                          const SizedBox(height: 3),
-                          Text(timeOf(row['created_at']), style: TextStyle(fontSize: 10,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                        ]))));
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
                 }));
           })),
         if (_db.auth.currentUser == null)
