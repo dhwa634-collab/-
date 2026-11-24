@@ -141,7 +141,15 @@ jobs:
             -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" \
             > "$RUNNER_TEMP/keystore-info.txt"
           echo "Release keystore alias validated. Certificate fingerprint:"
-          grep -E 'SHA1:' "$RUNNER_TEMP/keystore-info.txt" | head -n 1
+          ACTUAL_KEYSTORE_SHA1="$(grep -m1 'SHA1:' "$RUNNER_TEMP/keystore-info.txt" | sed 's/.*SHA1:[[:space:]]*//' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          EXPECTED_ANDROID_SHA1="43ACCB26091F9CF94830688F59C7181E8ACE91E5"
+          if [ "$ACTUAL_KEYSTORE_SHA1" != "$EXPECTED_ANDROID_SHA1" ]; then
+            echo "::error::The configured keystore does not match the Android OAuth SHA-1 registered in Google Cloud."
+            echo "::error::Expected: $EXPECTED_ANDROID_SHA1"
+            echo "::error::Actual:   $ACTUAL_KEYSTORE_SHA1"
+            exit 1
+          fi
+          echo "Verified Android OAuth SHA-1: $ACTUAL_KEYSTORE_SHA1"
           python3 - <<'PY'
           from pathlib import Path
           kts = Path("android/app/build.gradle.kts")
@@ -210,7 +218,17 @@ jobs:
             echo "::error::apksigner was not found in the Android SDK."
             exit 1
           fi
-          "$APKSIGNER" verify --print-certs "$APK"
+          CERT_INFO="$("$APKSIGNER" verify --print-certs "$APK")"
+          printf '%s\n' "$CERT_INFO"
+          APK_SHA1="$(printf '%s\n' "$CERT_INFO" | sed -n 's/.*certificate SHA-1 digest: //p' | head -n 1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          EXPECTED_ANDROID_SHA1="43ACCB26091F9CF94830688F59C7181E8ACE91E5"
+          if [ "$APK_SHA1" != "$EXPECTED_ANDROID_SHA1" ]; then
+            echo "::error::The generated APK is not signed with the Android OAuth certificate registered in Google Cloud."
+            echo "::error::Expected: $EXPECTED_ANDROID_SHA1"
+            echo "::error::Actual:   $APK_SHA1"
+            exit 1
+          fi
+          echo "Verified APK signing SHA-1: $APK_SHA1"
       - uses: actions/upload-artifact@v4
         with:
           name: dalilak-lilnajah-android-preview
