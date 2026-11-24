@@ -11,16 +11,6 @@ function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
-function readDefaultSecretMap(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  try {
-    const parsed = JSON.parse(raw);
-    return typeof parsed?.default === "string" ? parsed.default : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 async function removeUserStorage(admin: ReturnType<typeof createClient>, bucketName: string, userId: string) {
   const bucket = admin.storage.from(bucketName);
 
@@ -77,8 +67,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const url = Deno.env.get("SUPABASE_URL");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
-    ?? readDefaultSecretMap(Deno.env.get("SUPABASE_SECRET_KEYS"));
+  // Use the legacy JWT-based service-role environment variable here.
+  // New sb_secret keys are not JWTs and must not be sent as Authorization: Bearer.
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) {
     return json({ success: false, error: "إعدادات الحذف الآمن غير مكتملة على الخادم." }, 503);
   }
