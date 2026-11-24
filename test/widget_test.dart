@@ -17,6 +17,9 @@ void main() {
   // token auto-refresh and deep-link handling because this suite uses a
   // local, unauthenticated client and never exercises OAuth.
   setUpAll(() async {
+    // Register the SharedPreferences mock before Supabase creates its auth storage.
+    // Supabase.initialize reads SharedPreferences during startup in widget tests.
+    SharedPreferences.setMockInitialValues({});
     await Supabase.initialize(
       url: 'https://example.supabase.co',
       publishableKey: 'test-anon-key',
