@@ -182,7 +182,7 @@ jobs:
               raise SystemExit("Android Gradle file was not generated")
           content = p.read_text()
           if "upload-keystore.jks" not in content:
-              p.write_text(content + "\\n" + block + "\\n")
+              p.write_text(content + chr(10) + block + chr(10))
           PY
       - name: Install dependencies
         run: flutter pub get
