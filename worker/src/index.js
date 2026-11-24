@@ -189,7 +189,7 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
-    if (request.method === "GET" && url.pathname === "/health") {
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
       return json({
         success: true,
         worker: "wispy-union-276e",
