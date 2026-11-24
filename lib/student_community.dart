@@ -21,7 +21,7 @@ Future<void> signOutStudentSession() async {
   try {
     await GoogleSignIn().signOut();
   } catch (_) {}
-  await _db.auth.signOut(scope: SignOutScope.local);
+  await _db.auth.signOut();
 }
 
 class StudentCommunityScreen extends StatelessWidget {
