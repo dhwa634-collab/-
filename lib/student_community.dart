@@ -16,6 +16,14 @@ import 'supabase_config.dart';
 
 final _db = Supabase.instance.client;
 
+Future<void> signOutStudentSession() async {
+  // Clear the Google account chooser state and the Supabase session locally.
+  try {
+    await GoogleSignIn().signOut();
+  } catch (_) {}
+  await _db.auth.signOut(scope: SignOutScope.local);
+}
+
 class StudentCommunityScreen extends StatelessWidget {
   const StudentCommunityScreen({super.key});
 
@@ -82,7 +90,7 @@ class StudentCommunityScreen extends StatelessWidget {
             icon: const Icon(Icons.login_rounded), label: const Text('تسجيل الدخول بواسطة Google')),
         ] else
           OutlinedButton.icon(onPressed: () async {
-            await _db.auth.signOut();
+            await signOutStudentSession();
             if (context.mounted) Navigator.pop(context);
           }, icon: const Icon(Icons.logout), label: const Text('تسجيل الخروج')),
       ]),
