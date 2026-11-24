@@ -250,56 +250,173 @@ class StudentProfileScreen extends StatefulWidget {
   @override
   State<StudentProfileScreen> createState() => _StudentProfileScreenState();
 }
+
 class _StudentProfileScreenState extends State<StudentProfileScreen> {
   final name = TextEditingController();
+  final bio = TextEditingController();
   String age = '13_15', stage = AcademicStage.intermediateThird.label;
   String? gender;
   String? avatarUrl;
-  bool loading = true, saving = false;
+  XFile? selectedAvatar;
+  bool loading = true, saving = false, uploadingAvatar = false;
+
   @override
-  void initState() { super.initState(); loadProfile(); }
+  void initState() {
+    super.initState();
+    loadProfile();
+  }
+
   Future<void> loadProfile() async {
     final user = _db.auth.currentUser;
     if (user == null) {
       try {
         final prefs = await SharedPreferences.getInstance();
         name.text = prefs.getString('dalilak_guest_display_name_v1') ?? 'طالب';
+        bio.text = prefs.getString('dalilak_guest_bio_v1') ?? '';
         age = prefs.getString('dalilak_student_age_band_v1') ?? age;
         gender = prefs.getString('dalilak_student_gender_v1');
         final savedStage = prefs.getString('dalilak_student_stage_v1');
         stage = AcademicStage.values
-          .firstWhere((s) => s.name == savedStage,
-            orElse: () => AcademicStage.intermediateThird).label;
+            .firstWhere((s) => s.name == savedStage,
+                orElse: () => AcademicStage.intermediateThird)
+            .label;
       } catch (_) {}
       if (mounted) setState(() => loading = false);
       return;
     }
+
     try {
-      final row = await _db.from('profiles').select().eq('user_id', user.id).maybeSingle();
+      final row = await _db.from('profiles')
+          .select('display_name,age_band,gender,stage,avatar_url,bio')
+          .eq('user_id', user.id)
+          .maybeSingle();
       if (row != null) {
         name.text = (row['display_name'] ?? '').toString();
-        avatarUrl = row['avatar_url']?.toString() ?? user.userMetadata?['picture']?.toString();
+        bio.text = (row['bio'] ?? '').toString();
+        avatarUrl = row['avatar_url']?.toString()
+            ?? user.userMetadata?['picture']?.toString();
         age = (row['age_band'] ?? '13_15').toString();
         stage = (row['stage'] ?? stage).toString();
         gender = row['gender']?.toString();
       } else {
-        name.text = (user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? '').toString();
+        name.text = (user.userMetadata?['full_name']
+            ?? user.userMetadata?['name'] ?? 'طالب').toString();
         avatarUrl = user.userMetadata?['picture']?.toString();
         final prefs = await SharedPreferences.getInstance();
         age = prefs.getString('dalilak_student_age_band_v1') ?? age;
         gender = prefs.getString('dalilak_student_gender_v1');
         final savedStage = prefs.getString('dalilak_student_stage_v1');
         stage = AcademicStage.values
-          .firstWhere((s) => s.name == savedStage,
-            orElse: () => AcademicStage.intermediateThird).label;
+            .firstWhere((s) => s.name == savedStage,
+                orElse: () => AcademicStage.intermediateThird)
+            .label;
       }
-    } catch (_) { toast('تعذر تحميل الملف الشخصي.'); }
-    finally { if (mounted) setState(() => loading = false); }
+    } on PostgrestException catch (e) {
+      toast('تعذر تحميل الملف (رمز ${e.code ?? 'DB'}): ${e.message}');
+    } catch (e) {
+      toast('تعذر تحميل الملف: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
   }
+
+  Future<void> pickAvatar() async {
+    final user = _db.auth.currentUser;
+    if (user == null) {
+      toast('سجّل الدخول أولاً حتى تحفظ صورة الحساب.');
+      return;
+    }
+    if (uploadingAvatar || saving) return;
+
+    try {
+      final image = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 82,
+        requestFullMetadata: false,
+      );
+      if (image == null) return;
+
+      final extension = image.name.split('.').last.toLowerCase();
+      const mimeTypes = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'webp': 'image/webp',
+      };
+      final mime = mimeTypes[extension];
+      if (mime == null) {
+        toast('الصورة لازم تكون JPG أو PNG أو WEBP.');
+        return;
+      }
+      final bytes = await image.readAsBytes();
+      if (bytes.isEmpty || bytes.length > 2 * 1024 * 1024) {
+        toast('حجم الصورة يجب ألا يتجاوز 2 ميغابايت.');
+        return;
+      }
+
+      setState(() => uploadingAvatar = true);
+      final path = '${user.id}/avatar_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      var uploaded = false;
+      try {
+        await _db.storage.from('avatars').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: mime, upsert: false),
+        );
+        uploaded = true;
+        final publicUrl = _db.storage.from('avatars').getPublicUrl(path);
+        final displayName = name.text.trim().isEmpty
+            ? (user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? 'طالب').toString()
+            : name.text.trim();
+        await _db.from('profiles').upsert({
+          'user_id': user.id,
+          'display_name': displayName,
+          'age_band': age,
+          'gender': gender,
+          'stage': stage,
+          'avatar_url': publicUrl,
+          'bio': bio.text.trim(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        });
+        if (!mounted) return;
+        setState(() {
+          avatarUrl = publicUrl;
+          selectedAvatar = image;
+          name.text = displayName;
+        });
+        toast('تم تحديث صورة الحساب.');
+      } catch (_) {
+        if (uploaded) {
+          try { await _db.storage.from('avatars').remove([path]); } catch (_) {}
+        }
+        rethrow;
+      }
+    } on PostgrestException catch (e) {
+      toast('فشل حفظ الصورة في الملف (رمز ${e.code ?? 'DB'}): ${e.message}');
+    } on StorageException catch (e) {
+      toast('فشل رفع الصورة (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
+    } catch (e) {
+      toast('تعذر تغيير الصورة: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => uploadingAvatar = false);
+    }
+  }
+
   Future<void> saveProfile() async {
     final user = _db.auth.currentUser;
     final displayName = name.text.trim();
-    if (displayName.isEmpty || displayName.length > 40) { toast('اكتب اسماً من 1 إلى 40 حرفاً.'); return; }
+    final bioText = bio.text.trim();
+    if (displayName.isEmpty || displayName.length > 40) {
+      toast('اكتب اسماً من 1 إلى 40 حرفاً.');
+      return;
+    }
+    if (bioText.length > 180) {
+      toast('النبذة يجب ألا تتجاوز 180 حرفاً.');
+      return;
+    }
+
     setState(() => saving = true);
     try {
       if (user == null) {
@@ -309,6 +426,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           orElse: () => AcademicStage.intermediateThird,
         );
         await prefs.setString('dalilak_guest_display_name_v1', displayName);
+        await prefs.setString('dalilak_guest_bio_v1', bioText);
         await prefs.setString('dalilak_student_age_band_v1', age);
         if (gender == null) {
           await prefs.remove('dalilak_student_gender_v1');
@@ -320,57 +438,148 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         toast('تم حفظ الملف الشخصي على هذا الجهاز.');
         return;
       }
+
       await _db.from('profiles').upsert({
-        'user_id': user.id, 'display_name': displayName, 'age_band': age,
+        'user_id': user.id,
+        'display_name': displayName,
+        'age_band': age,
         'gender': gender,
         'stage': stage,
         'avatar_url': avatarUrl ?? user.userMetadata?['picture']?.toString(),
+        'bio': bioText,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
-      toast('تم حفظ الملف الشخصي.');
-    } catch (_) { toast('تعذر حفظ الملف. تحقق من الاتصال وحاول مجدداً.'); }
-    finally { if (mounted) setState(() => saving = false); }
+      toast('تم حفظ الملف الشخصي والنبذة.');
+    } on PostgrestException catch (e) {
+      toast('فشل حفظ الملف (رمز ${e.code ?? 'DB'}): ${e.message}');
+    } catch (e) {
+      toast('تعذر حفظ الملف: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
   }
+
   void toast(String value) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(value)),
+      );
+    }
   }
+
   @override
-  void dispose() { name.dispose(); super.dispose(); }
+  void dispose() {
+    name.dispose();
+    bio.dispose();
+    super.dispose();
+  }
+
   @override
-  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl,
-    child: Scaffold(appBar: AppBar(title: const Text('الملف الشخصي')),
-      body: loading ? const Center(child: CircularProgressIndicator())
-      : ListView(padding: const EdgeInsets.all(18), children: [
-        Center(child: CircleAvatar(
-          radius: 42,
-          backgroundImage: avatarUrl != null && avatarUrl!.startsWith('http') ? NetworkImage(avatarUrl!) : null,
-          child: avatarUrl == null || !avatarUrl!.startsWith('http') ? const Icon(Icons.person, size: 42) : null,
-        )),
-        const SizedBox(height: 18),
-        TextField(controller: name, maxLength: 40, decoration: const InputDecoration(labelText: 'اسم الطالب')),
-        const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: age, decoration: const InputDecoration(labelText: 'الفئة العمرية'),
-          items: const [
-            DropdownMenuItem(value: 'under_13', child: Text('أقل من 13 سنة')),
-            DropdownMenuItem(value: '13_15', child: Text('13–15 سنة')),
-            DropdownMenuItem(value: '16_17', child: Text('16–17 سنة')),
-            DropdownMenuItem(value: '18_plus', child: Text('18 سنة فأكثر')),
-          ], onChanged: (v) => setState(() => age = v ?? age)),
-        const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: stage, decoration: const InputDecoration(labelText: 'المرحلة الدراسية'),
-          items: AcademicStage.values.map((s) => DropdownMenuItem(value: s.label, child: Text(s.label))).toList(),
-          onChanged: (v) => setState(() => stage = v ?? stage)),
-        const SizedBox(height: 10),
-        DropdownButtonFormField<String?>(initialValue: gender, decoration: const InputDecoration(labelText: 'الجنس (اختياري)'),
-          items: const [
-            DropdownMenuItem<String?>(value: null, child: Text('عدم التحديد')),
-            DropdownMenuItem<String?>(value: 'male', child: Text('ذكر')),
-            DropdownMenuItem<String?>(value: 'female', child: Text('أنثى')),
-          ], onChanged: (v) => setState(() => gender = v)),
-        const SizedBox(height: 20),
-        FilledButton.icon(onPressed: saving ? null : saveProfile, icon: const Icon(Icons.save_rounded),
-          label: Text(saving ? 'جارٍ الحفظ...' : 'حفظ البيانات')),
-      ])));
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('الملف الشخصي')),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                Center(
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      CircleAvatar(
+                        radius: 48,
+                        backgroundImage: selectedAvatar != null
+                            ? FileImage(File(selectedAvatar!.path))
+                            : avatarUrl != null && avatarUrl!.startsWith('http')
+                                ? NetworkImage(avatarUrl!) as ImageProvider
+                                : null,
+                        child: selectedAvatar == null &&
+                                (avatarUrl == null || !avatarUrl!.startsWith('http'))
+                            ? const Icon(Icons.person, size: 48)
+                            : null,
+                      ),
+                      Material(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: 'تغيير صورة الحساب',
+                          onPressed: uploadingAvatar ? null : pickAvatar,
+                          icon: uploadingAvatar
+                              ? const SizedBox(
+                                  width: 18, height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.camera_alt_rounded,
+                                  color: Colors.white, size: 19),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: name,
+                  maxLength: 40,
+                  decoration: const InputDecoration(labelText: 'اسم الطالب'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: bio,
+                  maxLength: 180,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'نبذة عنك (اختياري)',
+                    hintText: 'اكتب نبذة دراسية قصيرة عنك',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: age,
+                  decoration: const InputDecoration(labelText: 'الفئة العمرية'),
+                  items: const [
+                    DropdownMenuItem(value: 'under_13', child: Text('أقل من 13 سنة')),
+                    DropdownMenuItem(value: '13_15', child: Text('13–15 سنة')),
+                    DropdownMenuItem(value: '16_17', child: Text('16–17 سنة')),
+                    DropdownMenuItem(value: '18_plus', child: Text('18 سنة فأكثر')),
+                  ],
+                  onChanged: (v) => setState(() => age = v ?? age),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: stage,
+                  decoration: const InputDecoration(labelText: 'المرحلة الدراسية'),
+                  items: AcademicStage.values
+                      .map((s) => DropdownMenuItem(value: s.label, child: Text(s.label)))
+                      .toList(),
+                  onChanged: (v) => setState(() => stage = v ?? stage),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String?>(
+                  initialValue: gender,
+                  decoration: const InputDecoration(labelText: 'الجنس (اختياري)'),
+                  items: const [
+                    DropdownMenuItem<String?>(value: null, child: Text('عدم التحديد')),
+                    DropdownMenuItem<String?>(value: 'male', child: Text('ذكر')),
+                    DropdownMenuItem<String?>(value: 'female', child: Text('أنثى')),
+                  ],
+                  onChanged: (v) => setState(() => gender = v),
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: saving || uploadingAvatar ? null : saveProfile,
+                  icon: saving
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.save_rounded),
+                  label: Text(saving ? 'جارٍ الحفظ...' : 'حفظ البيانات'),
+                ),
+              ],
+            ),
+    ),
+  );
 }
 
 class StudentChatScreen extends StatefulWidget {
@@ -656,9 +865,27 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         );
       }
     } on PostgrestException catch (e) {
-      toast(e.message.contains('rate') || e.message.contains('duplicate')
-        ? 'تم إيقاف الإرسال مؤقتاً لتجنب التكرار.' : 'تعذر إرسال الرسالة. تحقق من الاتصال أو الحساب.');
-    } catch (_) { toast('تعذر إرسال الرسالة حالياً.'); }
+      if (e.message.toLowerCase().contains('rate') ||
+          e.message.toLowerCase().contains('duplicate')) {
+        toast('تم إيقاف الإرسال مؤقتاً لتجنب التكرار.');
+      } else {
+        final detail = [
+          if ((e.code ?? '').isNotEmpty) 'الرمز ${e.code}',
+          e.message,
+          if ((e.details ?? '').toString().isNotEmpty) e.details.toString(),
+          if ((e.hint ?? '').toString().isNotEmpty) 'اقتراح الخادم: ${e.hint}',
+        ].join(' — ');
+        toast('فشل إرسال الرسالة: $detail');
+      }
+    } on AuthException catch (e) {
+      toast('مشكلة بجلسة تسجيل الدخول: ${e.message}');
+    } on SocketException catch (e) {
+      toast('تعذر الاتصال بالإنترنت: ${e.message}');
+    } on TimeoutException {
+      toast('انتهت مهلة الاتصال أثناء إرسال الرسالة. حاول مجدداً.');
+    } catch (e) {
+      toast('فشل إرسال الرسالة (${e.runtimeType}): ${e.toString()}');
+    }
     finally { if (mounted) setState(() => sending = false); }
   }
   Future<Map<String, Map<String, dynamic>>> getProfiles(List<Map<String, dynamic>> rows) async {
@@ -782,6 +1009,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                   color: Theme.of(context).colorScheme.primary)),
                                 if ((profile?['stage'] ?? '').toString().isNotEmpty)
                                   Text(profile!['stage'].toString(),
+                                    style: TextStyle(fontSize: 10,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                if ((profile?['bio'] ?? '').toString().trim().isNotEmpty)
+                                  Text(profile!['bio'].toString(),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(fontSize: 10,
                                       color: Theme.of(context).colorScheme.onSurfaceVariant)),
                               ])),
