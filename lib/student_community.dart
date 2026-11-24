@@ -1147,8 +1147,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               )),
                             ])
                           else
-                            Text(unsafe((row['body'] ?? '').toString()) ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.' : (row['body'] ?? '').toString(),
-                              style: TextStyle(fontSize: sticker ? 30 : 14, height: 1.35)),
+                            Text(
+                              row['message_type'] == 'builtin_sticker'
+                                ? (stickers[row['sticker_id']?.toString()] ?? '🌟')
+                                : (unsafe((row['body'] ?? '').toString())
+                                  ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
+                                  : (row['body'] ?? '').toString()),
+                              style: TextStyle(fontSize: sticker ? 30 : 14, height: 1.35),
+                            ),
                           const SizedBox(height: 3),
                           Text(timeOf(row['created_at']), style: TextStyle(fontSize: 10,
                             color: Theme.of(context).colorScheme.onSurfaceVariant)),
