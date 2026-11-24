@@ -122,6 +122,12 @@ jobs:
           else:
               raise SystemExit("Android app Gradle file was not generated")
           PY
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        run: flutter test
       - name: Configure fixed release signing
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -198,12 +204,6 @@ jobs:
           if "upload-keystore.jks" not in content:
               p.write_text(content + chr(10) + block + chr(10))
           PY
-      - name: Install dependencies
-        run: flutter pub get
-      - name: Analyze
-        run: flutter analyze
-      - name: Test
-        run: flutter test
       - name: Build release APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
