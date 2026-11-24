@@ -493,7 +493,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                         backgroundImage: selectedAvatar != null
                             ? FileImage(File(selectedAvatar!.path))
                             : avatarUrl != null && avatarUrl!.startsWith('http')
-                                ? NetworkImage(avatarUrl!) as ImageProvider
+                                ? NetworkImage(avatarUrl!)
                                 : null,
                         child: selectedAvatar == null &&
                                 (avatarUrl == null || !avatarUrl!.startsWith('http'))
