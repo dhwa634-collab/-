@@ -2926,8 +2926,13 @@ class _NewsScreenState extends State<NewsScreen> {
       if (mounted) await _loadNews();
     } catch (error) {
       if (mounted) {
+        final details = error.toString().replaceFirst('Exception: ', '').trim();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر فتح غرفة المطوّر: $error')),
+          SnackBar(content: Text(
+            details.isEmpty
+              ? 'تعذر فتح غرفة المطوّر. تحقق من اتصال الخادم وإعداداته.'
+              : 'تعذر فتح غرفة المطوّر: $details',
+          )),
         );
       }
     }
