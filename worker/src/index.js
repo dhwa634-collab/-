@@ -156,7 +156,18 @@ async function handleNewsAdmin(request, env) {
       if (index < 0) return json({ error: "لم يتم العثور على الخبر المطلوب." }, 404);
       posts.splice(index, 1);
     } else {
-      return json({ error: "عملية إدارة الأخبار غير معروفة." }, 400);
+      const supportedActions = [
+        "verify", "publish", "update", "togglePin", "pin", "unpin", "delete",
+      ];
+      return json({
+        success: false,
+        code: "UNKNOWN_NEWS_ADMIN_ACTION",
+        error: requestedAction
+          ? `عملية إدارة الأخبار غير مدعومة: "${requestedAction}". العمليات المتاحة: ${supportedActions.join(", ")}.`
+          : `لم يرسل التطبيق اسم العملية. العمليات المتاحة: ${supportedActions.join(", ")}.`,
+        receivedAction: requestedAction || null,
+        supportedActions,
+      }, 400);
     }
 
     posts.sort((a, b) => {
