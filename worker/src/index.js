@@ -55,9 +55,6 @@ async function readNewsFeed(env) {
 }
 
 async function handleNewsAdmin(request, env) {
-  if (!env.AI_REPORTS) {
-    return json({ error: "ربط KV باسم AI_REPORTS غير مهيأ." }, 503);
-  }
   if (!env.NEWS_ADMIN_PIN) {
     return json({ error: "سر إدارة الأخبار NEWS_ADMIN_PIN غير مضبوط على Worker." }, 503);
   }
@@ -77,6 +74,9 @@ async function handleNewsAdmin(request, env) {
     const requestedAction = String(body.action || body.operation || "").trim();
     if (requestedAction.toLowerCase() === "verify") {
       return json({ success: true, verified: true });
+    }
+    if (!env.AI_REPORTS) {
+      return json({ error: "ربط KV باسم AI_REPORTS غير مهيأ." }, 503);
     }
 
     let feed;
