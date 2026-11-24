@@ -11,6 +11,22 @@ import 'package:third_intermediate_iraq/review_quiz.dart';
 import 'package:third_intermediate_iraq/academic_stages.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Supabase once outside widget-test fake-async zones. Disable
+  // token auto-refresh and deep-link handling because this suite uses a
+  // local, unauthenticated client and never exercises OAuth.
+  setUpAll(() async {
+    await Supabase.initialize(
+      url: 'https://example.supabase.co',
+      publishableKey: 'test-anon-key',
+      authOptions: const FlutterAuthClientOptions(
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUri: false,
+      ),
+    );
+  });
   test('academic stage choice is saved locally and restored', () async {
     SharedPreferences.setMockInitialValues({});
     await AcademicStageController.load();
@@ -162,12 +178,7 @@ void main() {
       'dalilak_student_onboarding_done_v1': true,
       'dalilak_home_welcome_seen_v1': true,
     });
-    // The More tab is built by IndexedStack and reads Supabase auth state.
-    // Initialize a local test client so widget tests never depend on live auth.
-    await Supabase.initialize(
-      url: 'https://example.supabase.co',
-      anonKey: 'test-anon-key',
-    );
+    // Supabase is initialized once in setUpAll, outside this fake-async zone.
     await tester.pumpWidget(const StudyApp());
     await tester.pumpAndSettle();
 
