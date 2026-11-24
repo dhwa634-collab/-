@@ -51,7 +51,7 @@ jobs:
                       raise SystemExit(f"No repositories block found in {path}")
                   content = content.replace(
                       "repositories {",
-                      "repositories {\\n        " + mirror,
+                      "repositories {" + chr(10) + "        " + mirror,
                   )
                   path.write_text(content)
           PY
