@@ -693,7 +693,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         return;
       }
       setState(() => sending = true);
-      final uploadedPath = '\${user.id}/image_\${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final uploadedPath = '${user.id}/image_${DateTime.now().millisecondsSinceEpoch}.$extension';
       await _db.storage.from('chat-media').uploadBinary(
         uploadedPath, bytes,
         fileOptions: FileOptions(contentType: mime, upsert: false),
@@ -704,15 +704,15 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       });
       toast('تم إرسال الصورة.');
     } on StorageException catch (e) {
-      toast('فشل رفع الصورة (HTTP \${e.statusCode ?? 'Storage'}): \${e.message}');
+      toast('فشل رفع الصورة (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
     } on PostgrestException catch (e) {
-      toast('فشل حفظ الصورة في الدردشة (رمز \${e.code ?? 'DB'}): \${e.message}');
+      toast('فشل حفظ الصورة في الدردشة (رمز ${e.code ?? 'DB'}): ${e.message}');
     } on AuthException catch (e) {
-      toast('انتهت جلسة الدخول أثناء إرسال الصورة: \${e.message}');
+      toast('انتهت جلسة الدخول أثناء إرسال الصورة: ${e.message}');
     } on SocketException catch (e) {
-      toast('تعذر الاتصال أثناء إرسال الصورة: \${e.message}');
+      toast('تعذر الاتصال أثناء إرسال الصورة: ${e.message}');
     } catch (e) {
-      toast('تعذر إرسال الصورة (\${e.runtimeType}): \${e.toString()}');
+      toast('تعذر إرسال الصورة (${e.runtimeType}): ${e.toString()}');
     } finally {
       if (mounted) setState(() => sending = false);
     }
@@ -1063,16 +1063,21 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   return Align(alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
                     child: GestureDetector(onLongPress: () => _messageActions(row),
                       child: Container(constraints: const BoxConstraints(maxWidth: 310),
-                        margin: const EdgeInsets.symmetric(vertical: 5),
-                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                        margin: const EdgeInsets.symmetric(vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                         decoration: BoxDecoration(
                           color: mine ? Theme.of(context).colorScheme.primaryContainer
                             : Theme.of(context).colorScheme.surfaceContainerHigh,
-                          borderRadius: BorderRadius.circular(16)),
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(15),
+                            topRight: const Radius.circular(15),
+                            bottomLeft: Radius.circular(mine ? 15 : 5),
+                            bottomRight: Radius.circular(mine ? 5 : 15),
+                          )),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [
                             CircleAvatar(
-                              radius: 15,
+                              radius: 13,
                               backgroundImage: (profile?['avatar_url'] ?? '').toString().startsWith('http')
                                   ? NetworkImage(profile!['avatar_url'].toString()) : null,
                               child: !(profile?['avatar_url'] ?? '').toString().startsWith('http')
@@ -1081,21 +1086,17 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             const SizedBox(width: 8),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(name, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
-                                  color: Theme.of(context).colorScheme.primary)),
+                                Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900,
+                                    color: Theme.of(context).colorScheme.primary)),
                                 if ((profile?['stage'] ?? '').toString().isNotEmpty)
                                   Text(profile!['stage'].toString(),
                                     style: TextStyle(fontSize: 10,
                                       color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                                if ((profile?['bio'] ?? '').toString().trim().isNotEmpty)
-                                  Text(profile!['bio'].toString(),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: 10,
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+
                               ])),
                           ]),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3),
                           if (row['message_type'] == 'image' || row['message_type'] == 'custom_sticker')
                             FutureBuilder<String?>(
                               future: _signedMediaUrl(
@@ -1127,7 +1128,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             ])
                           else
                             Text(unsafe((row['body'] ?? '').toString()) ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.' : (row['body'] ?? '').toString(),
-                              style: TextStyle(fontSize: sticker ? 30 : 15)),
+                              style: TextStyle(fontSize: sticker ? 30 : 14, height: 1.35)),
                           const SizedBox(height: 3),
                           Text(timeOf(row['created_at']), style: TextStyle(fontSize: 10,
                             color: Theme.of(context).colorScheme.onSurfaceVariant)),
