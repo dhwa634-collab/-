@@ -749,7 +749,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       uploadedPath = '${user.id}/sticker_${DateTime.now().millisecondsSinceEpoch}.$extension';
       setState(() => sending = true);
       await _db.storage.from('chat-stickers').uploadBinary(
-        uploadedPath!, bytes, fileOptions: FileOptions(contentType: mime, upsert: false),
+        uploadedPath, bytes, fileOptions: FileOptions(contentType: mime, upsert: false),
       );
       await _db.from('chat_messages').insert({
         'user_id': user.id, 'message_type': 'custom_sticker',
@@ -802,7 +802,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         setState(() => _recordSeconds = DateTime.now().difference(_recordStartedAt!).inSeconds);
         if (_recordSeconds >= 120) unawaited(_stopVoiceRecording(send: true));
       });
-    } catch (e) { toast('تعذر بدء التسجيل: ' + e.toString()); }
+    } catch (e) { toast('تعذر بدء التسجيل: $e'); }
   }
 
   Future<void> _stopVoiceRecording({required bool send}) async {
@@ -832,7 +832,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       }
       uploadedPath = '${user.id}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _db.storage.from('chat-voice').uploadBinary(
-        uploadedPath!, bytes,
+        uploadedPath, bytes,
         fileOptions: const FileOptions(contentType: 'audio/mp4', upsert: false),
       );
       await _db.from('chat_messages').insert({
