@@ -209,7 +209,7 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
                           content: Text('سجّل الدخول أولاً حتى تراسل الطلاب.')));
                         return;
                       }
-                      Navigator.of(context).push(MaterialPageRoute<void>(
+                      Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<void>(
                         builder: (_) => StudentPrivateChatScreen(
                           peerId: widget.userId, peerName: name, peerAvatar: avatar,
                           peerBadge: p['is_developer'] == true ? 'المطوّر الرسمي' : null,
