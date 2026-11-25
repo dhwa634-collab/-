@@ -1404,6 +1404,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         );
       }
     } on PostgrestException catch (e) {
+      if (sticker == null) input.text = text;
       if (e.message.toLowerCase().contains('rate') ||
           e.message.toLowerCase().contains('duplicate')) {
         toast('تم إيقاف الإرسال مؤقتاً لتجنب التكرار.');
@@ -1417,12 +1418,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         toast('فشل إرسال الرسالة: $detail');
       }
     } on AuthException catch (e) {
+      if (sticker == null) input.text = text;
       toast('مشكلة بجلسة تسجيل الدخول: ${e.message}');
     } on SocketException catch (e) {
+      if (sticker == null) input.text = text;
       toast('تعذر الاتصال بالإنترنت: ${e.message}');
     } on TimeoutException {
+      if (sticker == null) input.text = text;
       toast('انتهت مهلة الاتصال أثناء إرسال الرسالة. حاول مجدداً.');
     } catch (e) {
+      if (sticker == null) input.text = text;
       toast('فشل إرسال الرسالة (${e.runtimeType}): ${e.toString()}');
     }
     finally { if (mounted) setState(() => sending = false); }
