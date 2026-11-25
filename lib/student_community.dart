@@ -74,11 +74,51 @@ class StudentCommunityScreen extends StatelessWidget {
             Text('تواصل مع زملائك وشارك الفائدة ضمن بيئة دراسية آمنة.', style: TextStyle(color: Colors.white70)),
           ])),
         const SizedBox(height: 16),
-        Card(child: ListTile(leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-          title: Text(user == null ? 'لم تسجل الدخول' : 'الملف الشخصي'),
-          subtitle: Text(user?.email ?? 'التصفح متاح دون حساب'),
-          trailing: const Icon(Icons.chevron_left),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentProfileScreen())))),
+        Center(
+          child: FutureBuilder<Map<String, dynamic>?>(
+            future: user == null
+                ? Future<Map<String, dynamic>?>.value(null)
+                : _db.from('profiles').select('avatar_url')
+                    .eq('user_id', user.id).maybeSingle(),
+            builder: (context, snapshot) {
+              final url = (snapshot.data?['avatar_url'] ??
+                  user?.userMetadata?['picture'])?.toString();
+              return InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => const StudentProfileScreen())),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleAvatar(
+                      radius: 31,
+                      backgroundImage: url != null && url.startsWith('http')
+                          ? NetworkImage(url) : null,
+                      child: url == null || !url.startsWith('http')
+                          ? const Icon(Icons.person_outline, size: 32) : null,
+                    ),
+                    Positioned(
+                      bottom: -2, right: -3,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            width: 2),
+                        ),
+                        child: const Icon(Icons.edit_rounded,
+                          size: 12, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
         Card(child: ListTile(leading: const CircleAvatar(child: Icon(Icons.forum_rounded)),
           title: const Text('غرفة الدردشة العامة', style: TextStyle(fontWeight: FontWeight.w800)),
           subtitle: const Text('رسائل نصية وملصقات دراسية مباشرة'),
@@ -439,6 +479,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         await prefs.setString('dalilak_student_stage_v1', selected.name);
         await AcademicStageController.select(selected);
         toast('تم حفظ الملف الشخصي على هذا الجهاز.');
+        if (mounted) Navigator.of(context).pop();
         return;
       }
 
@@ -453,6 +494,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
       toast('تم حفظ الملف الشخصي والنبذة.');
+      if (mounted) Navigator.of(context).pop();
     } on PostgrestException catch (e) {
       toast('فشل حفظ الملف (رمز ${e.code ?? 'DB'}): ${e.message}');
     } catch (e) {
@@ -1359,6 +1401,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final type = row['message_type']?.toString() ?? 'text';
                   final sticker = type == 'builtin_sticker' || type == 'custom_sticker';
                   final mediaPath = row['storage_path']?.toString() ?? '';
+                  final avatar = (profile?['avatar_url'] ??
+                      (mine ? currentUser?.userMetadata?['picture'] : null))
+                      ?.toString();
+                  final badge = profile?['badge']?.toString();
 
                   return Align(
                     alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
@@ -1383,21 +1429,42 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (!mine)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 3),
-                                child: Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    height: 1.1,
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFF69A9F5),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 10,
+                                    backgroundImage: avatar != null &&
+                                            avatar.startsWith('http')
+                                        ? NetworkImage(avatar) : null,
+                                    child: avatar == null || !avatar.startsWith('http')
+                                        ? const Icon(Icons.person, size: 13)
+                                        : null,
                                   ),
-                                ),
+                                  const SizedBox(width: 5),
+                                  Flexible(
+                                    child: Text(
+                                      name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        height: 1.1,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF69A9F5),
+                                      ),
+                                    ),
+                                  ),
+                                  if (badge != null && badge.trim().isNotEmpty) ...[
+                                    const SizedBox(width: 3),
+                                    const Icon(Icons.verified_rounded,
+                                      color: Color(0xFF55A9F5), size: 14),
+                                  ],
+                                ],
                               ),
+                            ),
                             if (type == 'image' || type == 'custom_sticker')
                               _buildChatMedia(
                                 type == 'image' ? 'chat-media' : 'chat-stickers',
