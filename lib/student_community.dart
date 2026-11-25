@@ -25,11 +25,14 @@ bool _isVerifiedDeveloper(User? user) =>
 
 class _DeveloperBadge extends StatelessWidget {
   final bool compact;
-  const _DeveloperBadge({this.compact = false});
+  final bool onPrimary;
+  const _DeveloperBadge({this.compact = false, this.onPrimary = false});
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
+    final color = onPrimary
+        ? Colors.white
+        : Theme.of(context).colorScheme.primary;
     return Tooltip(
       message: 'حساب المطوّر الرسمي',
       child: Container(
@@ -38,9 +41,9 @@ class _DeveloperBadge extends StatelessWidget {
           vertical: compact ? 2 : 4,
         ),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
+          color: color.withValues(alpha: onPrimary ? 0.18 : 0.12),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.28)),
+          border: Border.all(color: color.withValues(alpha: onPrimary ? 0.55 : 0.28)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.verified_rounded, size: compact ? 13 : 16, color: color),
@@ -1388,7 +1391,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                   )),
                                   if (isDeveloper) ...[
                                     const SizedBox(width: 5),
-                                    const _DeveloperBadge(compact: true),
+                                    _DeveloperBadge(compact: true, onPrimary: mine),
                                   ],
                                 ]),
                                 const SizedBox(height: 3),
