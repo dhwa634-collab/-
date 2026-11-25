@@ -409,11 +409,11 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
                 Text(widget.peerBadge!, style: const TextStyle(fontSize: 11, color: Colors.white54)),
             ])),
         ])),
-      body: Column(children: [
+      body: ColoredBox(color: const Color(0xFF091426), child: Column(children: [
         Expanded(child: StreamBuilder<List<Map<String, dynamic>>>(
           stream: messages,
           builder: (context, snap) {
-            if (snap.hasError) return const Center(child: Text('تعذر تحميل المحادثة الخاصة.'));
+            if (snap.hasError) return const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('تعذر تحميل المحادثة الخاصة. تحقق من الاتصال وحاول مجدداً.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 14))));
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final me = _dmDb.auth.currentUser?.id;
             final rows = snap.data!.where((r) =>
@@ -471,9 +471,12 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
               Expanded(child: TextField(controller: input, minLines: 1, maxLines: 4,
                 maxLength: 2000, onSubmitted: (_) => send(), textDirection: TextDirection.rtl,
                 style: const TextStyle(color: Colors.white, fontSize: 13.5),
-                decoration: const InputDecoration(hintText: 'الرسالة',
+                decoration: const InputDecoration(filled: true,
+                  fillColor: Color(0xFF172B43), hintText: 'الرسالة',
                   hintStyle: TextStyle(color: Colors.white54, fontSize: 13.5),
-                  counterText: '', border: InputBorder.none, isDense: true))),
+                  counterText: '', border: InputBorder.none,
+                  enabledBorder: InputBorder.none, focusedBorder: InputBorder.none,
+                  isDense: true))),
               Container(width: 52, height: 52,
                 decoration: const BoxDecoration(color: Color(0xFF5278EE), shape: BoxShape.circle),
                 child: IconButton(onPressed: sending ? null : send,
@@ -483,7 +486,7 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
             ]),
           ),
         )),
-      ]),
+      ])),
     ),
   );
 
