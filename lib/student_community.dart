@@ -1325,6 +1325,18 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         backgroundColor: const Color(0xFF17232E),
         foregroundColor: Colors.white,
         elevation: 0,
+        centerTitle: true,
+        actions: [
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
+            child: CircleAvatar(
+              radius: 19,
+              backgroundColor: const Color(0xFF0B1B2D),
+              child: const Icon(Icons.groups_rounded,
+                color: Color(0xFF70B6F8), size: 22),
+            ),
+          ),
+        ],
         title: Row(children: [
           const Icon(Icons.lock_rounded, color: Color(0xFF55A9F5), size: 19),
           const SizedBox(width: 9),
@@ -1409,17 +1421,17 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final badge = profile?['badge']?.toString();
 
                   return Align(
-                    alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
+                    alignment: Alignment.centerRight,
                     child: GestureDetector(
                       onLongPress: () => _messageActions(row),
                       child: Container(
                         constraints: BoxConstraints(
-                          maxWidth: MediaQuery.sizeOf(context).width * 0.75,
+                          maxWidth: MediaQuery.sizeOf(context).width * 0.86,
                         ),
                         margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 3),
                         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                         decoration: BoxDecoration(
-                          color: mine ? const Color(0xFF203B59) : const Color(0xFF17232E),
+                          color: mine ? const Color(0xFF23486B) : const Color(0xFF203B59),
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(15),
                             topRight: const Radius.circular(15),
@@ -1437,7 +1449,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   CircleAvatar(
-                                    radius: 10,
+                                    radius: 18,
+                                    backgroundColor: const Color(0xFF0B1B2D),
                                     backgroundImage: avatar != null &&
                                             avatar.startsWith('http')
                                         ? NetworkImage(avatar) : null,
@@ -1452,8 +1465,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        fontSize: 11,
-                                        height: 1.1,
+                                        fontSize: 13,
+                                        height: 1.15,
                                         fontWeight: FontWeight.w800,
                                         color: Color(0xFF69A9F5),
                                       ),
@@ -1511,7 +1524,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     : (unsafe((row['body'] ?? '').toString())
                                         ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
                                         : (row['body'] ?? '').toString()),
-                                style: TextStyle(fontSize: sticker ? 28 : 14, height: 1.3, color: Colors.white),
+                                style: TextStyle(fontSize: sticker ? 30 : 17, height: 1.4, color: Colors.white),
                               ),
                             const SizedBox(height: 2),
                             Align(
@@ -1522,7 +1535,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                   Text(
                                     timeOf(row['created_at']),
                                     style: TextStyle(
-                                      fontSize: 9,
+                                      fontSize: 11,
                                       height: 1,
                                       color: Colors.white.withValues(alpha: 0.62),
                                     ),
