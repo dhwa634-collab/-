@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final _dmDb = Supabase.instance.client;
@@ -64,8 +64,11 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
       }
       if (mounted) setState(() => blocked = !blocked);
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر تنفيذ العملية حالياً.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر تنفيذ العملية حالياً.')),
+        );
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -313,8 +316,14 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
             final rows = snap.data!.where((r) =>
               (r['sender_id'] == me && r['receiver_id'] == widget.peerId) ||
               (r['sender_id'] == widget.peerId && r['receiver_id'] == me)).toList();
-            if (rows.isEmpty) return const Center(child: Text('ابدأ المحادثة برسالة لطيفة 💙',
-              style: TextStyle(color: Colors.white70)));
+            if (rows.isEmpty) {
+              return const Center(
+                child: Text(
+                  'ابدأ المحادثة برسالة لطيفة 💙',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              );
+            }
             return ListView.builder(reverse: true, padding: const EdgeInsets.all(12),
               itemCount: rows.length, itemBuilder: (_, i) {
                 final row = rows[i];
