@@ -1402,7 +1402,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final sticker = type == 'builtin_sticker' || type == 'custom_sticker';
                   final mediaPath = row['storage_path']?.toString() ?? '';
                   final avatar = (profile?['avatar_url'] ??
-                      (mine ? currentUser?.userMetadata?['picture'] : null))
+                      (mine
+                          ? (currentUser?.userMetadata ?? const <String, dynamic>{})['picture']
+                          : null))
                       ?.toString();
                   final badge = profile?['badge']?.toString();
 
