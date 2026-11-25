@@ -1271,9 +1271,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final mine = row['user_id']?.toString() == _db.auth.currentUser?.id;
                   final profile = profiles.data?[row['user_id'].toString()];
                   final currentUser = _db.auth.currentUser;
+                  final currentUserMetadata =
+                      currentUser?.userMetadata ?? const <String, dynamic>{};
                   final name = (profile?['display_name'] ??
-                    (mine ? (currentUser?.userMetadata['full_name'] ??
-                      currentUser?.userMetadata['name'] ??
+                    (mine ? (currentUserMetadata['full_name'] ??
+                      currentUserMetadata['name'] ??
                       currentUser?.email?.split('@').first) : null) ??
                     'طالب').toString();
                   final type = row['message_type']?.toString() ?? 'text';
@@ -1282,7 +1284,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final colors = Theme.of(context).colorScheme;
                   final avatar = profile?['avatar_url']?.toString();
                   final fallbackAvatar = mine
-                      ? currentUser?.userMetadata['picture']?.toString()
+                      ? currentUserMetadata['picture']?.toString()
                       : null;
                   final avatarSource = avatar != null && avatar.startsWith('http')
                       ? avatar
