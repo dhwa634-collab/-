@@ -1598,7 +1598,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 3),
                         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                         decoration: BoxDecoration(
-                          color: mine ? const Color(0xFF23486B) : const Color(0xFF203B59),
+                          color: mine ? const Color(0xCC23486B) : const Color(0xCC203B59),
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(15),
                             topRight: const Radius.circular(15),
@@ -1648,10 +1648,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        fontSize: 12.5,
+                                        fontSize: 11.5,
                                         height: 1.15,
                                         fontWeight: FontWeight.w800,
-                                        color: Color(0xFF69A9F5),
+                                        color: Color(0xFFB8D9F7),
                                       ),
                                     ),
                                   ),
