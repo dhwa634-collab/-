@@ -20,6 +20,10 @@ import 'student_private_chat.dart';
 
 final _db = Supabase.instance.client;
 
+const String kDeveloperEmail = 'dhwa44430@gmail.com';
+bool isVerifiedDeveloper(String? email) =>
+    email != null && email.trim().toLowerCase() == kDeveloperEmail;
+
 Future<void> signOutStudentSession() async {
   // Clear the Google account chooser state and the Supabase session locally.
   try {
@@ -826,7 +830,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               builder: (_) => const StudentProfileScreen()));
                           } else {
                             Navigator.push(context, MaterialPageRoute(
-                              builder: (_) => StudentPublicProfileScreen(userId: id)));
+                              builder: (_) => StudentPublicProfileScreen(userId: id, fallbackData: p)));
                           }
                         },
                       );
@@ -1377,6 +1381,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (user == null) { toast('سجّل الدخول بحساب Google للمشاركة.'); return; }
     final text = input.text.trim();
     if (sticker == null && text.isEmpty) return;
+    if (sticker == null) {
+      input.clear();
+      FocusScope.of(context).unfocus();
+    }
     if (sticker == null && (text.length > 500 || unsafe(text))) {
       toast('لم تُرسل الرسالة: تجنب الإساءة أو أرقام الهواتف أو البريد أو الروابط.'); return;
     }
@@ -1581,7 +1589,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       onLongPress: () => _messageActions(row),
                       child: Container(
                         constraints: BoxConstraints(
-                          maxWidth: MediaQuery.sizeOf(context).width * 0.86,
+                          maxWidth: MediaQuery.sizeOf(context).width * 0.74,
                         ),
                         margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 3),
                         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
@@ -1607,7 +1615,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                   Navigator.push(context, MaterialPageRoute(
                                     builder: (_) => memberId == _db.auth.currentUser?.id
                                         ? const StudentProfileScreen()
-                                        : StudentPublicProfileScreen(userId: memberId),
+                                        : StudentPublicProfileScreen(userId: memberId, fallbackData: {
+                                          'user_id': memberId,
+                                          'display_name': name,
+                                          'avatar_url': avatar,
+                                          'badge': badge,
+                                          'is_developer': profile?['is_developer'] == true,
+                                        }),
                                   ));
                                 },
                                 child: Row(
@@ -1630,14 +1644,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        fontSize: 13,
+                                        fontSize: 12.5,
                                         height: 1.15,
                                         fontWeight: FontWeight.w800,
                                         color: Color(0xFF69A9F5),
                                       ),
                                     ),
                                   ),
-                                  if (badge != null && badge.trim().isNotEmpty) ...[
+                                  if (profile?['is_developer'] == true) ...[
                                     const SizedBox(width: 3),
                                     const Icon(Icons.verified_rounded,
                                       color: Color(0xFF55A9F5), size: 14),
@@ -1690,7 +1704,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     : (unsafe((row['body'] ?? '').toString())
                                         ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
                                         : (row['body'] ?? '').toString()),
-                                style: TextStyle(fontSize: sticker ? 28 : 15, height: 1.4, color: Colors.white),
+                                style: TextStyle(fontSize: sticker ? 28 : 14, height: 1.4, color: Colors.white),
                               ),
                             const SizedBox(height: 2),
                             Align(
@@ -1768,11 +1782,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                     maxLength: 500,
                     onChanged: (_) { if (mounted) setState(() {}); },
                     textDirection: TextDirection.rtl,
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                    style: const TextStyle(color: Colors.white, fontSize: 13.5),
                     cursorColor: const Color(0xFF6489F5),
                     decoration: const InputDecoration(
                       hintText: 'الرسالة',
-                      hintStyle: TextStyle(color: Colors.white54, fontSize: 15),
+                      hintStyle: TextStyle(color: Colors.white54, fontSize: 13.5),
                       counterText: '',
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
