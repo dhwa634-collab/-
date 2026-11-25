@@ -587,6 +587,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
 
 
 class _ChatDoodlePainter extends CustomPainter {
+  const _ChatDoodlePainter();
+
   static const _symbols = <String>[
     '▱', '⚛', '⌂', '✎', '☆', '÷', '＋', '♧', '▤', '☆',
     '✎', '☼', '＋', '☆', '▱', '⚛', '÷', '✎', '⌂', '☆',
@@ -1357,7 +1359,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final type = row['message_type']?.toString() ?? 'text';
                   final sticker = type == 'builtin_sticker' || type == 'custom_sticker';
                   final mediaPath = row['storage_path']?.toString() ?? '';
-                  final colors = Theme.of(context).colorScheme;
 
                   return Align(
                     alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
