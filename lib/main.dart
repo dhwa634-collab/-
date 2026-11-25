@@ -970,6 +970,39 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                     )));
           },
           icon: const Icon(Icons.search_rounded)),
+        FutureBuilder<Map<String, dynamic>?>(
+          future: Supabase.instance.client.auth.currentUser == null
+              ? Future<Map<String, dynamic>?>.value(null)
+              : Supabase.instance.client
+                  .from('profiles')
+                  .select('avatar_url')
+                  .eq('user_id', Supabase.instance.client.auth.currentUser!.id)
+                  .maybeSingle(),
+          builder: (context, snapshot) {
+            final user = Supabase.instance.client.auth.currentUser;
+            final avatar = (snapshot.data?['avatar_url'] ??
+                user?.userMetadata?['picture'])?.toString();
+            return Padding(
+              padding: const EdgeInsetsDirectional.only(start: 3),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => const StudentProfileScreen(),
+                )),
+                child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  backgroundImage: avatar != null && avatar.startsWith('http')
+                      ? NetworkImage(avatar) : null,
+                  child: avatar == null || !avatar.startsWith('http')
+                      ? Icon(Icons.person_rounded,
+                          size: 21, color: Theme.of(context).colorScheme.onPrimaryContainer)
+                      : null,
+                ),
+              ),
+            );
+          },
+        ),
         ValueListenableBuilder<bool>(
           valueListenable: ThemeController.isDark,
           builder: (context, isDark, _) => IconButton(
