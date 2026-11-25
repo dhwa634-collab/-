@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -584,6 +585,67 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   );
 }
 
+
+class _ChatDoodlePainter extends CustomPainter {
+  static const _symbols = <String>[
+    '▱', '⚛', '⌂', '✎', '☆', '÷', '＋', '♧', '▤', '☆',
+    '✎', '☼', '＋', '☆', '▱', '⚛', '÷', '✎', '⌂', '☆',
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF7185A6).withValues(alpha: .17)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.35
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    const cellW = 178.0;
+    const cellH = 205.0;
+    for (var i = 0; i < _symbols.length; i++) {
+      final col = i % 4;
+      final row = i ~/ 4;
+      final x = (col * cellW + (row.isOdd ? 48 : 0) + 18) % (size.width + 30);
+      final y = row * cellH + 20;
+      final symbol = _symbols[i];
+      final painter = TextPainter(
+        text: TextSpan(text: symbol, style: TextStyle(
+          fontSize: symbol == '▱' || symbol == '⚛' ? 49 : 39,
+          fontWeight: FontWeight.w300,
+          color: const Color(0xFF7185A6).withValues(alpha: .19),
+        )),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate(((i % 5) - 2) * .09);
+      painter.paint(canvas, Offset.zero);
+      canvas.restore();
+    }
+    // Small chalk stars and mathematical marks fill the spaces between icons.
+    for (var i = 0; i < 12; i++) {
+      final x = (i * 83.0 + 37) % size.width;
+      final y = (i * 137.0 + 91) % size.height;
+      final path = Path();
+      for (var p = 0; p < 10; p++) {
+        final angle = -1.5708 + p * 3.14159 / 5;
+        final radius = p.isEven ? 11.0 : 4.8;
+        final point = Offset(x + radius * math.cos(angle), y + radius * math.sin(angle));
+        if (p == 0) {
+          path.moveTo(point.dx, point.dy);
+        } else {
+          path.lineTo(point.dx, point.dy);
+        }
+      }
+      path.close();
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class StudentChatScreen extends StatefulWidget {
   const StudentChatScreen({super.key});
   @override
@@ -1068,6 +1130,55 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (action == 'block') await _blockUser(row);
   }
 
+  Future<void> _showStickerPicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF17232E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: SafeArea(child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Wrap(spacing: 12, runSpacing: 12, children: [
+            for (final entry in stickers.entries)
+              InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (!sending) send(sticker: entry.key);
+                },
+                child: Container(
+                  width: 62, height: 62,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF263746),
+                    borderRadius: BorderRadius.circular(14)),
+                  alignment: Alignment.center,
+                  child: Text(entry.value, style: const TextStyle(fontSize: 29)),
+                ),
+              ),
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                Navigator.pop(ctx);
+                if (!sending && !_recording) _pickCustomSticker();
+              },
+              child: Container(
+                width: 62, height: 62,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF263746),
+                  borderRadius: BorderRadius.circular(14)),
+                alignment: Alignment.center,
+                child: const Icon(Icons.add_photo_alternate_outlined,
+                  color: Colors.white70, size: 27),
+              ),
+            ),
+          ]),
+        )),
+      ),
+    );
+  }
+
   Future<void> send({String? sticker}) async {
     final user = _db.auth.currentUser;
     if (user == null) { toast('سجّل الدخول بحساب Google للمشاركة.'); return; }
@@ -1164,8 +1275,30 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
   @override
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl,
-    child: Scaffold(appBar: AppBar(title: const Text('غرفة الدردشة')),
-      body: Column(children: [
+    child: Scaffold(
+      backgroundColor: const Color(0xFF091426),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF17232E),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Row(children: [
+          const Icon(Icons.lock_rounded, color: Color(0xFF55A9F5), size: 19),
+          const SizedBox(width: 9),
+          const Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('الدردشة الجماعية', style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.w800)),
+              Text('مجتمع الطلاب', style: TextStyle(
+                fontSize: 11, color: Colors.white54)),
+            ],
+          )),
+        ]),
+      ),
+      body: Stack(fit: StackFit.expand, children: [
+        const CustomPaint(painter: _ChatDoodlePainter()),
+        Column(children: [
         Expanded(child: StreamBuilder<List<Map<String, dynamic>>>(stream: messages,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
@@ -1237,7 +1370,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 3),
                         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                         decoration: BoxDecoration(
-                          color: mine ? colors.primaryContainer : colors.surfaceContainerHigh,
+                          color: mine ? const Color(0xFF203B59) : const Color(0xFF17232E),
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(15),
                             topRight: const Radius.circular(15),
@@ -1260,7 +1393,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     fontSize: 11,
                                     height: 1.1,
                                     fontWeight: FontWeight.w800,
-                                    color: colors.primary,
+                                    color: const Color(0xFF69A9F5),
                                   ),
                                 ),
                               ),
@@ -1321,7 +1454,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     style: TextStyle(
                                       fontSize: 9,
                                       height: 1,
-                                      color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+                                      color: Colors.white.withValues(alpha: 0.62),
                                     ),
                                   ),
                                   if (mine) ...[
@@ -1329,7 +1462,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     Icon(
                                       Icons.done_rounded,
                                       size: 12,
-                                      color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+                                      color: Colors.white.withValues(alpha: 0.62),
                                     ),
                                   ],
                                 ],
@@ -1348,53 +1481,87 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               MaterialPageRoute(builder: (_) => const StudentGoogleLoginScreen())),
               child: const Text('سجّل الدخول للمشاركة في الدردشة')))
         else
-          SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
-            child: Column(children: [
-              SizedBox(height: 42, child: ListView(scrollDirection: Axis.horizontal,
-                children: stickers.entries.map((e) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: ActionChip(label: Text(e.value, style: const TextStyle(fontSize: 20)),
-                    onPressed: sending ? null : () => send(sticker: e.key)),
-                )).toList())),
-              Row(children: [
-                IconButton(
-                  tooltip: 'إرسال صورة',
-                  onPressed: sending || _recording ? null : _pickAndSendImage,
-                  icon: const Icon(Icons.image_outlined),
-                ),
-                IconButton(
-                  tooltip: 'إضافة ملصق من الجهاز',
-                  onPressed: sending || _recording ? null : _pickCustomSticker,
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                ),
-                Expanded(child: TextField(controller: input, minLines: 1, maxLines: 4, maxLength: 500,
-                  decoration: const InputDecoration(hintText: 'اكتب رسالة دراسية...', counterText: '',
-                    border: OutlineInputBorder()))),
-                const SizedBox(width: 8),
-                if (_recording)
-                  IconButton(
-                    tooltip: 'إلغاء التسجيل',
-                    onPressed: () => _stopVoiceRecording(send: false),
-                    icon: const Icon(Icons.close_rounded),
-                  )
-                else
-                  IconButton(
-                    tooltip: 'تسجيل رسالة صوتية',
-                    onPressed: sending ? null : _startVoiceRecording,
-                    icon: const Icon(Icons.mic_none_rounded),
-                  ),
-                IconButton.filled(
-                  onPressed: sending ? null : (_recording
-                    ? () => _stopVoiceRecording(send: true) : () => send()),
-                  icon: sending ? const SizedBox(width: 18, height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                    : Icon(_recording ? Icons.stop_rounded : Icons.send_rounded)),
-              ]),
+          SafeArea(top: false, child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
               if (_recording)
-                Text('جارٍ التسجيل • $_recordSeconds ثانية',
-                  style: const TextStyle(fontSize: 11, color: Colors.red)),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 7),
+                  child: Text('جارٍ التسجيل • $_recordSeconds ثانية',
+                    style: const TextStyle(fontSize: 11, color: Colors.redAccent)),
+                ),
+              Container(
+                constraints: const BoxConstraints(minHeight: 62),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF171717),
+                  borderRadius: BorderRadius.circular(38),
+                  border: Border.all(color: const Color(0xFF343434), width: 1.2),
+                  boxShadow: const [BoxShadow(
+                    color: Colors.black26, blurRadius: 9, offset: Offset(0, 3))],
+                ),
+                child: Row(children: [
+                  SizedBox(
+                    width: 54, height: 54,
+                    child: IconButton(
+                      tooltip: 'الملصقات',
+                      onPressed: _showStickerPicker,
+                      icon: const Icon(Icons.emoji_emotions_outlined,
+                        color: Colors.white70, size: 31),
+                    ),
+                  ),
+                  Expanded(child: TextField(
+                    controller: input,
+                    minLines: 1,
+                    maxLines: 4,
+                    maxLength: 500,
+                    textDirection: TextDirection.rtl,
+                    style: const TextStyle(color: Colors.white, fontSize: 17),
+                    cursorColor: const Color(0xFF6489F5),
+                    decoration: const InputDecoration(
+                      hintText: 'الرسالة',
+                      hintStyle: TextStyle(color: Colors.white54, fontSize: 17),
+                      counterText: '',
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  )),
+                  IconButton(
+                    tooltip: 'إرسال صورة',
+                    onPressed: sending || _recording ? null : _pickAndSendImage,
+                    icon: const Icon(Icons.attach_file_rounded,
+                      color: Colors.white70, size: 29),
+                  ),
+                  Container(
+                    width: 54, height: 54,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF5278EE), shape: BoxShape.circle),
+                    child: IconButton(
+                      tooltip: _recording ? 'إيقاف وإرسال التسجيل' :
+                        (input.text.trim().isEmpty ? 'تسجيل رسالة صوتية' : 'إرسال'),
+                      onPressed: sending ? null : (_recording
+                        ? () => _stopVoiceRecording(send: true)
+                        : () => input.text.trim().isEmpty ? _startVoiceRecording() : send()),
+                      icon: sending
+                        ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                        : Icon(_recording ? Icons.stop_rounded :
+                            (input.text.trim().isEmpty
+                              ? Icons.mic_rounded : Icons.send_rounded),
+                            color: Colors.white, size: 31),
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 5),
               const Text('اضغط مطولاً على رسالة للإبلاغ أو حظر المستخدم.',
-                style: TextStyle(fontSize: 10, color: Colors.grey)),
+                style: TextStyle(fontSize: 10, color: Colors.white38)),
             ]))),
-      ])));
+      ]),
+      ]),
+    ));
 }
