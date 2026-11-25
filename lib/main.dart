@@ -871,6 +871,77 @@ class HomeChatRoomEntryCard extends StatelessWidget {
   }
 }
 
+class _HomeProfileButton extends StatefulWidget {
+  const _HomeProfileButton();
+  @override
+  State<_HomeProfileButton> createState() => _HomeProfileButtonState();
+}
+class _HomeProfileButtonState extends State<_HomeProfileButton> {
+  String? _avatarUrl;
+  StreamSubscription<dynamic>? _authSubscription;
+  @override
+  void initState() {
+    super.initState();
+    _loadAvatar();
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange
+        .listen((_) => _loadAvatar());
+  }
+  Future<void> _loadAvatar() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _avatarUrl = null);
+      return;
+    }
+    String? imageUrl = user.userMetadata?['picture']?.toString();
+    try {
+      final profile = await Supabase.instance.client.from('profiles')
+          .select('avatar_url').eq('user_id', user.id).maybeSingle();
+      final savedUrl = profile?['avatar_url']?.toString();
+      if (savedUrl != null && savedUrl.startsWith('http')) imageUrl = savedUrl;
+    } catch (_) {
+      // Keep the Google profile photo as a fallback while offline.
+    }
+    if (mounted && Supabase.instance.client.auth.currentUser?.id == user.id) {
+      setState(() => _avatarUrl = imageUrl);
+    }
+  }
+  void _openProfile() {
+    final signedIn = Supabase.instance.client.auth.currentUser != null;
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => signedIn
+          ? const StudentProfileScreen()
+          : const StudentGoogleLoginScreen(),
+    )).then((_) => _loadAvatar());
+  }
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final hasPhoto = _avatarUrl != null && _avatarUrl!.startsWith('http');
+    return Tooltip(
+      message: 'الملف الشخصي',
+      child: InkWell(
+        onTap: _openProfile,
+        customBorder: const CircleBorder(),
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: CircleAvatar(
+            radius: 18,
+            backgroundColor: colors.primaryContainer,
+            backgroundImage: hasPhoto ? NetworkImage(_avatarUrl!) : null,
+            child: hasPhoto ? null : Icon(Icons.person_rounded,
+              size: 21, color: colors.onPrimaryContainer),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class Home extends StatefulWidget {
   final ValueChanged<Subject> onOpen;
   final VoidCallback onAll;
@@ -970,6 +1041,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                     )));
           },
           icon: const Icon(Icons.search_rounded)),
+        const _HomeProfileButton(),
         ValueListenableBuilder<bool>(
           valueListenable: ThemeController.isDark,
           builder: (context, isDark, _) => IconButton(
