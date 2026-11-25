@@ -16,6 +16,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'academic_stages.dart';
 import 'supabase_config.dart';
+import 'student_private_chat.dart';
 
 final _db = Supabase.instance.client;
 
@@ -1174,6 +1175,55 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (action == 'block') await _blockUser(row);
   }
 
+  Future<void> _showEmojiPicker() async {
+    const emojis = ['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😉','😍','🥰',
+      '😘','😎','🤩','🥳','😭','😢','😡','👍','👎','👏','🙌','🙏','💪','❤️',
+      '🧡','💛','💚','💙','💜','✨','🌟','🔥','🎉','📚','✏️','📝','🎯','🌹',
+      '🤍','🖤','🥲','🙂','🙃','😇','🤝','👋'];
+    await showModalBottomSheet<void>(
+      context: context, backgroundColor: const Color(0xFF17232E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => Directionality(textDirection: TextDirection.ltr,
+        child: SafeArea(child: SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * .43,
+          child: Column(children: [
+            const SizedBox(height: 12),
+            Container(width: 38, height: 4, decoration: BoxDecoration(
+              color: Colors.white24, borderRadius: BorderRadius.circular(4))),
+            Expanded(child: GridView.builder(
+              padding: const EdgeInsets.all(14),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7, mainAxisSpacing: 7, crossAxisSpacing: 7),
+              itemCount: emojis.length,
+              itemBuilder: (_, index) => InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  final value = input.value;
+                  final start = value.selection.isValid ? value.selection.start : value.text.length;
+                  final end = value.selection.isValid ? value.selection.end : value.text.length;
+                  final text = value.text.replaceRange(start, end, emojis[index]);
+                  input.value = TextEditingValue(text: text,
+                    selection: TextSelection.collapsed(offset: start + emojis[index].length));
+                  Navigator.pop(ctx);
+                  if (mounted) setState(() {});
+                },
+                child: Center(child: Text(emojis[index], style: const TextStyle(fontSize: 25))),
+              ),
+            )),
+            TextButton.icon(onPressed: () {
+              Navigator.pop(ctx);
+              _showStickerPicker();
+            }, icon: const Icon(Icons.collections_rounded),
+              label: const Text('فتح الملصقات')),
+            const SizedBox(height: 5),
+          ]),
+        )),
+      ),
+    );
+  }
+
   Future<void> _showStickerPicker() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -1445,7 +1495,17 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           children: [
                             Padding(
                               padding: const EdgeInsets.only(bottom: 4),
-                              child: Row(
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(22),
+                                onTap: () {
+                                  final memberId = row['user_id'].toString();
+                                  Navigator.push(context, MaterialPageRoute(
+                                    builder: (_) => memberId == _db.auth.currentUser?.id
+                                        ? const StudentProfileScreen()
+                                        : StudentPublicProfileScreen(userId: memberId),
+                                  ));
+                                },
+                                child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   CircleAvatar(
@@ -1478,6 +1538,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                       color: Color(0xFF55A9F5), size: 14),
                                   ],
                                 ],
+                              ),
                               ),
                             ),
                             if (type == 'image' || type == 'custom_sticker')
@@ -1590,7 +1651,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                     width: 54, height: 54,
                     child: IconButton(
                       tooltip: 'الملصقات',
-                      onPressed: _showStickerPicker,
+                      onPressed: _showEmojiPicker,
                       icon: const Icon(Icons.emoji_emotions_outlined,
                         color: Colors.white70, size: 31),
                     ),
