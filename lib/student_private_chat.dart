@@ -141,93 +141,121 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
           final bio = (p['bio'] ?? 'لا توجد نبذة بعد').toString();
           final grade = (p['stage'] ?? p['grade'] ?? 'غير محدد').toString();
           final isMe = _dmDb.auth.currentUser?.id == widget.userId;
-          return ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 30), children: [
-            Container(
-              height: 300,
-              decoration: BoxDecoration(
-                color: const Color(0xFF172B43),
-                borderRadius: BorderRadius.circular(26),
-                image: avatar != null && avatar.startsWith('http')
-                  ? DecorationImage(image: NetworkImage(avatar), fit: BoxFit.cover) : null,
-              ),
-              child: Stack(fit: StackFit.expand, children: [
-                if (avatar == null || !avatar.startsWith('http'))
-                  const Center(child: Icon(Icons.person_rounded, size: 100, color: Colors.white38)),
-                DecoratedBox(decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(26),
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 30),
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 26, 20, 22),
+                decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Color(0xD9000000)]))),
-                Positioned(right: 18, bottom: 20, left: 18,
-                  child: Text(name, style: const TextStyle(color: Colors.white,
-                    fontSize: 28, fontWeight: FontWeight.w900))),
-              ]),
-            ),
-            const SizedBox(height: 12),
-            Center(child: Text(
-              username.isEmpty ? 'اسم المستخدم غير محدد' : '@$username',
-              style: const TextStyle(color: Color(0xFF9AB7D4), fontSize: 15,
-                fontWeight: FontWeight.w600))),
-            if (p['is_developer'] == true) ...[
-              const SizedBox(height: 8),
-              const Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.verified_rounded, color: Color(0xFF55A9F5), size: 18),
-                SizedBox(width: 5),
-                Text('حساب المطوّر موثّق',
-                  style: TextStyle(color: Color(0xFF70B6F8), fontSize: 13,
-                    fontWeight: FontWeight.w700)),
-              ])),
+                    begin: Alignment.topRight, end: Alignment.bottomLeft,
+                    colors: [Color(0xFF1D4770), Color(0xFF10243C), Color(0xFF0D1B2D)],
+                  ),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: const Color(0x334F9DE8)),
+                  boxShadow: const [BoxShadow(color: Color(0x33000000),
+                    blurRadius: 22, offset: Offset(0, 10))],
+                ),
+                child: Column(children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF69B7FF), width: 2)),
+                    child: CircleAvatar(
+                      radius: 54, backgroundColor: const Color(0xFF24415F),
+                      backgroundImage: avatar != null && avatar.startsWith('http')
+                        ? NetworkImage(avatar) : null,
+                      child: avatar == null || !avatar.startsWith('http')
+                        ? const Icon(Icons.person_rounded, size: 58, color: Colors.white70) : null,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 23,
+                        fontWeight: FontWeight.w900))),
+                    if (p['is_developer'] == true) ...[
+                      const SizedBox(width: 7),
+                      const Icon(Icons.verified_rounded, color: Color(0xFF55B7FF), size: 21),
+                    ],
+                  ]),
+                  const SizedBox(height: 6),
+                  Text(username.isEmpty ? 'طالب في مجتمع دليل النجاح' : '@$username',
+                    style: const TextStyle(color: Color(0xFFB8D0E8), fontSize: 13,
+                      fontWeight: FontWeight.w600)),
+                  if (p['is_developer'] == true) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+                      decoration: BoxDecoration(color: const Color(0x2255B7FF),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: const Color(0x6655B7FF))),
+                      child: const Text('المطوّر الرسمي',
+                        style: TextStyle(color: Color(0xFF8CCBFF), fontSize: 12,
+                          fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                ]),
+              ),
+              if (!isMe) ...[
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(child: _ProfileAction(
+                    icon: Icons.chat_rounded, label: 'مراسلة',
+                    onTap: blocked ? null : () {
+                      final me = _dmDb.auth.currentUser;
+                      if (me == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('سجّل الدخول أولاً حتى تراسل الطلاب.')));
+                        return;
+                      }
+                      Navigator.of(context).push(MaterialPageRoute<void>(
+                        builder: (_) => StudentPrivateChatScreen(
+                          peerId: widget.userId, peerName: name, peerAvatar: avatar,
+                          peerBadge: p['is_developer'] == true ? 'المطوّر الرسمي' : null,
+                        ),
+                      ));
+                    })),
+                  const SizedBox(width: 12),
+                  Expanded(child: _ProfileAction(
+                    icon: blocked ? Icons.lock_open_rounded : Icons.block_rounded,
+                    label: blocked ? 'إلغاء الحظر' : 'حظر',
+                    danger: true, onTap: busy ? null : _toggleBlock)),
+                ]),
+              ],
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: const Color(0xFF122840),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0x222F80C7))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  const Row(children: [
+                    Icon(Icons.account_circle_outlined, color: Color(0xFF79BFFF), size: 20),
+                    SizedBox(width: 8),
+                    Text('معلومات الطالب', style: TextStyle(color: Colors.white,
+                      fontSize: 16, fontWeight: FontWeight.w800)),
+                  ]),
+                  const SizedBox(height: 18),
+                  _ProfileField(label: 'النبذة الشخصية',
+                    value: bio.isEmpty ? 'لا توجد نبذة بعد.' : bio),
+                  const Divider(height: 26, color: Colors.white12),
+                  _ProfileField(label: 'اسم المستخدم',
+                    value: username.isEmpty ? 'غير محدد' : '@$username'),
+                  const Divider(height: 26, color: Colors.white12),
+                  _ProfileField(label: 'المرحلة الدراسية', value: grade),
+                  const Divider(height: 26, color: Colors.white12),
+                  _ProfileField(label: 'نقاط بنك الأسئلة',
+                    value: p['question_points'] == null
+                      ? 'غير متاحة حالياً' : '${p['question_points']} نقطة'),
+                  if ((p['badge'] ?? '').toString().trim().isNotEmpty) ...[
+                    const Divider(height: 26, color: Colors.white12),
+                    _ProfileField(label: 'الصفة', value: p['badge'].toString()),
+                  ],
+                ]),
+              ),
             ],
-            if (!isMe) ...[
-              const SizedBox(height: 22),
-              Row(children: [
-                Expanded(child: _ProfileAction(
-                  icon: Icons.chat_bubble_rounded, label: 'مراسلة',
-                  onTap: blocked ? null : () {
-                    final me = _dmDb.auth.currentUser;
-                    if (me == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('سجّل الدخول أولاً حتى تراسل الطلاب.')));
-                      return;
-                    }
-                    Navigator.push(context, MaterialPageRoute(builder: (_) =>
-                      StudentPrivateChatScreen(
-                        peerId: widget.userId,
-                        peerName: name,
-                        peerAvatar: avatar,
-                        peerBadge: p['badge']?.toString(),
-                      )));
-                  })),
-                const SizedBox(width: 14),
-                Expanded(child: _ProfileAction(
-                  icon: Icons.block_rounded, label: blocked ? 'محظور' : 'حظر',
-                  danger: true, onTap: busy ? null : _toggleBlock)),
-              ]),
-            ],
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(color: const Color(0xFF15365B),
-                borderRadius: BorderRadius.circular(28)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                _ProfileField(label: 'النبذة',
-                  value: bio.isEmpty ? 'لا توجد نبذة بعد.' : bio),
-                const SizedBox(height: 24),
-                _ProfileField(label: 'اسم المستخدم',
-                  value: username.isEmpty ? 'غير محدد' : '@$username'),
-                const SizedBox(height: 24),
-                _ProfileField(label: 'الصف', value: grade),
-                const SizedBox(height: 24),
-                _ProfileField(label: 'النقاط · بنك الأسئلة',
-                  value: p['question_points'] == null
-                    ? 'غير متاح حالياً' : '${p['question_points']} نقطة'),
-                if ((p['badge'] ?? '').toString().isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  _ProfileField(label: 'الصفة', value: p['badge'].toString()),
-                ],
-              ]),
-            ),
-          ]);
+          );
         },
       ),
     ),
@@ -242,15 +270,16 @@ class _ProfileAction extends StatelessWidget {
   final bool danger;
   @override
   Widget build(BuildContext context) => Material(
-    color: const Color(0xFF173B66), borderRadius: BorderRadius.circular(30),
-    child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(30),
-      child: SizedBox(height: 112, child: Column(
+    color: onTap == null ? const Color(0xFF26384A) : const Color(0xFF1B4167),
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18),
+      child: SizedBox(height: 58, child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 32, color: danger ? const Color(0xFFE45D68) : const Color(0xFFFFD34F)),
-          const SizedBox(height: 9),
-          Text(label, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800,
-            color: danger ? const Color(0xFFE45D68) : Colors.white)),
+          Icon(icon, size: 20, color: danger ? const Color(0xFFFF8790) : const Color(0xFF9BCFFF)),
+          const SizedBox(width: 9),
+          Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
+            color: danger ? const Color(0xFFFFA0A7) : Colors.white)),
         ],
       )),
     ),
@@ -264,9 +293,11 @@ class _ProfileField extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Text(value, style: const TextStyle(color: Colors.white, fontSize: 19, height: 1.5)),
-      const SizedBox(height: 4),
-      Text(label, style: const TextStyle(color: Colors.white54, fontSize: 14)),
+      Text(label, style: const TextStyle(color: Color(0xFF8FB7DA),
+        fontSize: 12, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      Text(value, style: const TextStyle(color: Colors.white,
+        fontSize: 15, height: 1.5, fontWeight: FontWeight.w600)),
     ],
   );
 }
