@@ -1345,10 +1345,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             ),
                             const SizedBox(width: 6),
                           ],
-                          Container(
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.sizeOf(context).width * 0.78,
-                            ),
+                          IntrinsicWidth(
+                            child: Container(
+                              constraints: BoxConstraints(
+                                maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+                              ),
                             margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
                             decoration: BoxDecoration(
@@ -1469,6 +1470,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                   ),
                                 ),
                               ],
+                            ),
                             ),
                           ),
                           if (mine) ...[
