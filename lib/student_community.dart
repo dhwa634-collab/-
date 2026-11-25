@@ -1530,33 +1530,35 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   ),
                   const SizedBox(width: 7),
                   IconButton(
-                    tooltip: 'إرفاق صورة أو ملصق',
-                    onPressed: sending || _recording ? null : () {
-                      showModalBottomSheet<void>(
-                        context: context,
-                        builder: (sheetContext) => SafeArea(
-                          child: Wrap(children: [
-                            ListTile(
-                              leading: const Icon(Icons.image_outlined),
-                              title: const Text('إرسال صورة'),
-                              onTap: () {
-                                Navigator.pop(sheetContext);
-                                _pickAndSendImage();
-                              },
+                    tooltip: _recording ? 'إلغاء التسجيل' : 'إرفاق صورة أو ملصق',
+                    onPressed: sending ? null : (_recording
+                      ? () => _stopVoiceRecording(send: false)
+                      : () {
+                          showModalBottomSheet<void>(
+                            context: context,
+                            builder: (sheetContext) => SafeArea(
+                              child: Wrap(children: [
+                                ListTile(
+                                  leading: const Icon(Icons.image_outlined),
+                                  title: const Text('إرسال صورة'),
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    _pickAndSendImage();
+                                  },
+                                ),
+                                ListTile(
+                                  leading: const Icon(Icons.add_photo_alternate_outlined),
+                                  title: const Text('إضافة ملصق من الجهاز'),
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    _pickCustomSticker();
+                                  },
+                                ),
+                              ]),
                             ),
-                            ListTile(
-                              leading: const Icon(Icons.add_photo_alternate_outlined),
-                              title: const Text('إضافة ملصق من الجهاز'),
-                              onTap: () {
-                                Navigator.pop(sheetContext);
-                                _pickCustomSticker();
-                              },
-                            ),
-                          ]),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.attach_file_rounded, size: 25),
+                          );
+                        }),
+                    icon: Icon(_recording ? Icons.close_rounded : Icons.attach_file_rounded, size: 25),
                   ),
                   Expanded(
                     child: Container(
