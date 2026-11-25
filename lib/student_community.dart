@@ -1441,7 +1441,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     : (unsafe((row['body'] ?? '').toString())
                                         ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
                                         : (row['body'] ?? '').toString()),
-                                style: TextStyle(fontSize: sticker ? 28 : 14, height: 1.3),
+                                style: TextStyle(fontSize: sticker ? 28 : 14, height: 1.3, color: Colors.white),
                               ),
                             const SizedBox(height: 2),
                             Align(
@@ -1515,6 +1515,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                     minLines: 1,
                     maxLines: 4,
                     maxLength: 500,
+                    onChanged: (_) { if (mounted) setState(() {}); },
                     textDirection: TextDirection.rtl,
                     style: const TextStyle(color: Colors.white, fontSize: 17),
                     cursorColor: const Color(0xFF6489F5),
