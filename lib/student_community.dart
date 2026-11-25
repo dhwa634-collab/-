@@ -1219,7 +1219,24 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
   @override
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl,
-    child: Scaffold(appBar: AppBar(title: const Text('غرفة الدردشة')),
+    child: Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('غرفة الدردشة',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+            Text('محادثة جماعية للطلاب',
+              style: TextStyle(fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
       body: Column(children: [
         Expanded(child: StreamBuilder<List<Map<String, dynamic>>>(stream: messages,
           builder: (context, snapshot) {
@@ -1294,8 +1311,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final isDeveloper = profile?['is_developer'] == true ||
                       (mine && _isVerifiedDeveloper(currentUser));
                   final bubbleTextColor = mine
-                      ? colors.onPrimaryContainer
+                      ? colors.onPrimary
                       : colors.onSurface;
+                  final bubbleNameColor = mine
+                      ? colors.onPrimary
+                      : colors.primary;
+                  final bubbleMetaColor = mine
+                      ? colors.onPrimary.withValues(alpha: 0.78)
+                      : colors.onSurfaceVariant;
 
                   return Align(
                     alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
@@ -1321,22 +1344,31 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           ],
                           Container(
                             constraints: BoxConstraints(
-                              maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+                              maxWidth: MediaQuery.sizeOf(context).width * 0.78,
                             ),
-                            margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
                             decoration: BoxDecoration(
-                              color: mine ? colors.primaryContainer : colors.surfaceContainerHigh,
+                              color: mine ? colors.primary : colors.surfaceContainerHigh,
                               border: Border.all(
-                                color: colors.outlineVariant.withValues(alpha: 0.45),
-                                width: 0.6,
+                                color: mine
+                                    ? colors.primary.withValues(alpha: 0.35)
+                                    : colors.outlineVariant.withValues(alpha: 0.48),
+                                width: 0.7,
                               ),
                               borderRadius: BorderRadius.only(
-                                topLeft: const Radius.circular(16),
-                                topRight: const Radius.circular(16),
-                                bottomLeft: Radius.circular(mine ? 16 : 5),
-                                bottomRight: Radius.circular(mine ? 5 : 16),
+                                topLeft: const Radius.circular(19),
+                                topRight: const Radius.circular(19),
+                                bottomLeft: Radius.circular(mine ? 19 : 6),
+                                bottomRight: Radius.circular(mine ? 6 : 19),
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colors.shadow.withValues(alpha: 0.045),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1351,7 +1383,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                       fontSize: 11,
                                       height: 1.15,
                                       fontWeight: FontWeight.w800,
-                                      color: colors.primary,
+                                      color: bubbleNameColor,
                                     ),
                                   )),
                                   if (isDeveloper) ...[
@@ -1422,7 +1454,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                         style: TextStyle(
                                           fontSize: 9,
                                           height: 1,
-                                          color: colors.onSurfaceVariant,
+                                          color: bubbleMetaColor,
                                         ),
                                       ),
                                       if (mine) ...[
@@ -1481,9 +1513,39 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   onPressed: sending || _recording ? null : _pickCustomSticker,
                   icon: const Icon(Icons.add_photo_alternate_outlined),
                 ),
-                Expanded(child: TextField(controller: input, minLines: 1, maxLines: 4, maxLength: 500,
-                  decoration: const InputDecoration(hintText: 'اكتب رسالة دراسية...', counterText: '',
-                    border: OutlineInputBorder()))),
+                Expanded(child: TextField(
+                  controller: input,
+                  minLines: 1,
+                  maxLines: 4,
+                  maxLength: 500,
+                  decoration: InputDecoration(
+                    hintText: 'اكتب رسالة دراسية...',
+                    counterText: '',
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant
+                            .withValues(alpha: 0.45),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 1.4,
+                      ),
+                    ),
+                  ),
+                )),
                 const SizedBox(width: 8),
                 if (_recording)
                   IconButton(
