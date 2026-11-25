@@ -814,8 +814,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             maxLines: 1, overflow: TextOverflow.ellipsis,
                             style: const TextStyle(color: Colors.white,
                               fontWeight: FontWeight.w700))),
-                          if (p['badge'] != null &&
-                              p['badge'].toString().trim().isNotEmpty) ...[
+                          if (p['is_developer'] == true) ...[
                             const SizedBox(width: 5),
                             const Icon(Icons.verified_rounded,
                               color: Color(0xFF55A9F5), size: 16),
