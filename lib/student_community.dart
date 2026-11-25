@@ -1761,11 +1761,17 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 constraints: const BoxConstraints(minHeight: 62),
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0x1A171717),
+                  color: Colors.black.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(38),
-                  border: Border.all(color: const Color(0x1AFFFFFF), width: 1),
-                  boxShadow: const [BoxShadow(
-                    color: Color(0x1A000000), blurRadius: 8, offset: Offset(0, 3))],
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.10), width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.10),
+                      blurRadius: 3,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
                 ),
                 child: Row(
                   textDirection: TextDirection.ltr,
