@@ -22,10 +22,13 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
   }
 
   Future<Map<String, dynamic>?> _load() async {
-    final row = await _dmDb.from('profiles')
-      .select('user_id,display_name,stage,badge,avatar_url,bio')
-      .eq('user_id', widget.userId).maybeSingle();
-    return row == null ? null : Map<String, dynamic>.from(row);
+    final result = await _dmDb.rpc(
+      'get_student_public_profile_v1',
+      params: {'p_user_id': widget.userId},
+    );
+    final rows = result as List<dynamic>;
+    if (rows.isEmpty) return null;
+    return Map<String, dynamic>.from(rows.first as Map);
   }
 
   Future<void> _loadBlock() async {
@@ -87,10 +90,44 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
           if (snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snap.hasError) {
+            return Center(child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.cloud_off_rounded, size: 44, color: Colors.white70),
+                const SizedBox(height: 12),
+                const Text('تعذر تحميل بيانات العضو. تحقق من الاتصال ثم أعد المحاولة.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 15)),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: () => setState(() => profile = _load()),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('إعادة المحاولة'),
+                ),
+              ]),
+            ));
+          }
           final p = snap.data;
-          if (p == null) return const Center(child: Text('الملف الشخصي غير متاح.'));
+          if (p == null) {
+            return Center(child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.person_search_rounded, size: 48, color: Color(0xFF75B8F7)),
+                const SizedBox(height: 12),
+                const Text('بيانات هذا العضو غير متاحة حالياً',
+                  style: TextStyle(color: Colors.white, fontSize: 16,
+                    fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                const Text('قد يكون العضو حذف رسائله أو قيّد الوصول إلى ملفه.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 13)),
+              ]),
+            ));
+          }
           final name = (p['display_name'] ?? 'طالب').toString();
           final avatar = p['avatar_url']?.toString();
+          final username = (p['username'] ?? '').toString().trim();
           final isMe = _dmDb.auth.currentUser?.id == widget.userId;
           return ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 30), children: [
             Container(
@@ -114,9 +151,21 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
                     fontSize: 28, fontWeight: FontWeight.w900))),
               ]),
             ),
-            const SizedBox(height: 18),
-            Center(child: Text('معرّف العضو: ${widget.userId.substring(0, 8)}',
-              style: const TextStyle(color: Colors.white60, fontSize: 14))),
+            const SizedBox(height: 12),
+            Center(child: Text(
+              username.isEmpty ? 'اسم المستخدم غير محدد' : '@$username',
+              style: const TextStyle(color: Color(0xFF9AB7D4), fontSize: 15,
+                fontWeight: FontWeight.w600))),
+            if (p['is_developer'] == true) ...[
+              const SizedBox(height: 8),
+              const Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.verified_rounded, color: Color(0xFF55A9F5), size: 18),
+                SizedBox(width: 5),
+                Text('حساب المطوّر موثّق',
+                  style: TextStyle(color: Color(0xFF70B6F8), fontSize: 13,
+                    fontWeight: FontWeight.w700)),
+              ])),
+            ],
             if (!isMe) ...[
               const SizedBox(height: 22),
               Row(children: [
@@ -152,7 +201,14 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
                 _ProfileField(label: 'النبذة',
                   value: (p['bio'] ?? '').toString().isEmpty ? 'لا توجد نبذة بعد.' : p['bio'].toString()),
                 const SizedBox(height: 24),
+                _ProfileField(label: 'اسم المستخدم',
+                  value: username.isEmpty ? 'غير محدد' : '@$username'),
+                const SizedBox(height: 24),
                 _ProfileField(label: 'الصف', value: (p['stage'] ?? 'غير محدد').toString()),
+                const SizedBox(height: 24),
+                _ProfileField(label: 'النقاط · بنك الأسئلة',
+                  value: p['question_points'] == null
+                    ? 'غير متاح حالياً' : '${p['question_points']} نقطة'),
                 if ((p['badge'] ?? '').toString().isNotEmpty) ...[
                   const SizedBox(height: 24),
                   _ProfileField(label: 'الصفة', value: p['badge'].toString()),
@@ -234,6 +290,7 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
     if (body.length > 2000) return;
     setState(() => sending = true);
     try {
+      FocusManager.instance.primaryFocus?.unfocus();
       await _dmDb.from('direct_messages').insert({
         'sender_id': me.id, 'receiver_id': widget.peerId, 'body': body,
       });
@@ -342,7 +399,7 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
                         bottomRight: Radius.circular(mine ? 18 : 5))),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Text((row['body'] ?? '').toString(),
-                        style: const TextStyle(color: Colors.white, fontSize: 17, height: 1.4)),
+                        style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.35)),
                       const SizedBox(height: 4),
                       Text(_time(row['created_at']),
                         style: const TextStyle(color: Colors.white54, fontSize: 10)),
@@ -357,17 +414,19 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
           child: Container(
             constraints: const BoxConstraints(minHeight: 62),
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
-            decoration: BoxDecoration(color: const Color(0xFF171717),
+            decoration: BoxDecoration(color: const Color(0x1A171717),
               borderRadius: BorderRadius.circular(38),
-              border: Border.all(color: const Color(0xFF343434), width: 1.2)),
+              border: Border.all(color: const Color(0x1AFFFFFF), width: 1),
+              boxShadow: const [BoxShadow(
+                color: Color(0x1A000000), blurRadius: 8, offset: Offset(0, 3))]),
             child: Row(textDirection: TextDirection.ltr, children: [
               IconButton(onPressed: _emojiPicker,
                 icon: const Icon(Icons.emoji_emotions_outlined, color: Colors.white70, size: 30)),
               Expanded(child: TextField(controller: input, minLines: 1, maxLines: 4,
                 maxLength: 2000, onSubmitted: (_) => send(), textDirection: TextDirection.rtl,
-                style: const TextStyle(color: Colors.white, fontSize: 17),
+                style: const TextStyle(color: Colors.white, fontSize: 15),
                 decoration: const InputDecoration(hintText: 'الرسالة',
-                  hintStyle: TextStyle(color: Colors.white54, fontSize: 17),
+                  hintStyle: TextStyle(color: Colors.white54, fontSize: 15),
                   counterText: '', border: InputBorder.none, isDense: true))),
               Container(width: 52, height: 52,
                 decoration: const BoxDecoration(color: Color(0xFF5278EE), shape: BoxShape.circle),

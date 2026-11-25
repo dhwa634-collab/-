@@ -707,6 +707,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
   final Set<String> _blockedUserIds = {};
+  List<Map<String, dynamic>> _latestChatRows = [];
   bool _recording = false;
   DateTime? _recordStartedAt;
   Timer? _recordTimer;
@@ -740,6 +741,104 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   void _retryMessages() {
     setState(() => messages = _messageStream());
+  }
+
+  Future<void> _showMembers() async {
+    final ids = _latestChatRows
+        .map((row) => row['user_id']?.toString())
+        .whereType<String>()
+        .toSet()
+        .toList();
+    if (ids.isEmpty) {
+      toast('لا يوجد أعضاء ظاهرون حالياً.');
+      return;
+    }
+    try {
+      final result = await _db.rpc('get_chat_profiles_v2',
+        params: {'user_ids': ids});
+      final profiles = (result as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList()
+        ..sort((a, b) => (a['display_name'] ?? '').toString()
+            .compareTo((b['display_name'] ?? '').toString()));
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: const Color(0xFF101F31),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (sheetContext) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: SafeArea(child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * .72,
+            child: Column(children: [
+              const SizedBox(height: 12),
+              Container(width: 42, height: 4,
+                decoration: BoxDecoration(color: Colors.white30,
+                  borderRadius: BorderRadius.circular(8))),
+              const Padding(
+                padding: EdgeInsets.all(18),
+                child: Row(children: [
+                  Icon(Icons.groups_rounded, color: Color(0xFF70B6F8)),
+                  SizedBox(width: 10),
+                  Text('أعضاء الدردشة',
+                    style: TextStyle(color: Colors.white, fontSize: 18,
+                      fontWeight: FontWeight.w800)),
+                ]),
+              ),
+              Expanded(child: profiles.isEmpty
+                ? const Center(child: Text('لا توجد ملفات أعضاء متاحة.',
+                    style: TextStyle(color: Colors.white70)))
+                : ListView.separated(
+                    itemCount: profiles.length,
+                    separatorBuilder: (_, __) =>
+                      const Divider(height: 1, color: Colors.white10),
+                    itemBuilder: (_, index) {
+                      final p = profiles[index];
+                      final id = p['user_id'].toString();
+                      final avatar = p['avatar_url']?.toString();
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF203B59),
+                          backgroundImage: avatar != null && avatar.startsWith('http')
+                            ? NetworkImage(avatar) : null,
+                          child: avatar == null || !avatar.startsWith('http')
+                            ? const Icon(Icons.person_rounded, color: Colors.white70) : null),
+                        title: Row(children: [
+                          Flexible(child: Text((p['display_name'] ?? 'طالب').toString(),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white,
+                              fontWeight: FontWeight.w700))),
+                          if (p['badge'] != null &&
+                              p['badge'].toString().trim().isNotEmpty) ...[
+                            const SizedBox(width: 5),
+                            const Icon(Icons.verified_rounded,
+                              color: Color(0xFF55A9F5), size: 16),
+                          ],
+                        ]),
+                        subtitle: Text((p['stage'] ?? 'طالب').toString(),
+                          style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          if (id == _db.auth.currentUser?.id) {
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => const StudentProfileScreen()));
+                          } else {
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => StudentPublicProfileScreen(userId: id)));
+                          }
+                        },
+                      );
+                    },
+                  )),
+            ]),
+          )),
+        ),
+      );
+    } catch (_) {
+      toast('تعذر تحميل قائمة الأعضاء. حاول مجدداً.');
+    }
   }
 
   bool unsafe(String value) {
@@ -1283,6 +1382,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
     setState(() => sending = true);
     try {
+      FocusManager.instance.primaryFocus?.unfocus();
       await _db.from('chat_messages').insert({
         'user_id': user.id, 'message_type': sticker == null ? 'text' : 'builtin_sticker',
         'body': sticker == null ? text : null, 'sticker_id': sticker,
@@ -1379,11 +1479,15 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         actions: [
           Padding(
             padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
-            child: CircleAvatar(
-              radius: 19,
-              backgroundColor: const Color(0xFF0B1B2D),
-              child: const Icon(Icons.groups_rounded,
-                color: Color(0xFF70B6F8), size: 22),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: _showMembers,
+              child: const CircleAvatar(
+                radius: 19,
+                backgroundColor: Color(0xFF0B1B2D),
+                child: Icon(Icons.groups_rounded,
+                  color: Color(0xFF70B6F8), size: 22),
+              ),
             ),
           ),
         ],
@@ -1424,6 +1528,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             final rows = snapshot.data!.where((r) => r['deleted_at'] == null &&
               r['hidden_at'] == null &&
               !_blockedUserIds.contains(r['user_id'].toString())).toList();
+            _latestChatRows = rows;
             if (rows.length != _lastMessageCount) {
               final hadPreviousMessages = _lastMessageCount > 0;
               _lastMessageCount = rows.length;
@@ -1585,7 +1690,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     : (unsafe((row['body'] ?? '').toString())
                                         ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
                                         : (row['body'] ?? '').toString()),
-                                style: TextStyle(fontSize: sticker ? 30 : 17, height: 1.4, color: Colors.white),
+                                style: TextStyle(fontSize: sticker ? 28 : 15, height: 1.4, color: Colors.white),
                               ),
                             const SizedBox(height: 2),
                             Align(
@@ -1638,11 +1743,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 constraints: const BoxConstraints(minHeight: 62),
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF171717),
+                  color: const Color(0x1A171717),
                   borderRadius: BorderRadius.circular(38),
-                  border: Border.all(color: const Color(0xFF343434), width: 1.2),
+                  border: Border.all(color: const Color(0x1AFFFFFF), width: 1),
                   boxShadow: const [BoxShadow(
-                    color: Colors.black26, blurRadius: 9, offset: Offset(0, 3))],
+                    color: Color(0x1A000000), blurRadius: 8, offset: Offset(0, 3))],
                 ),
                 child: Row(
                   textDirection: TextDirection.ltr,
@@ -1663,11 +1768,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                     maxLength: 500,
                     onChanged: (_) { if (mounted) setState(() {}); },
                     textDirection: TextDirection.rtl,
-                    style: const TextStyle(color: Colors.white, fontSize: 17),
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
                     cursorColor: const Color(0xFF6489F5),
                     decoration: const InputDecoration(
                       hintText: 'الرسالة',
-                      hintStyle: TextStyle(color: Colors.white54, fontSize: 17),
+                      hintStyle: TextStyle(color: Colors.white54, fontSize: 15),
                       counterText: '',
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
