@@ -23,16 +23,22 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
   }
 
   Future<Map<String, dynamic>?> _load() async {
-    final result = await _dmDb.rpc(
-      'get_student_public_profile_v1',
-      params: {'p_user_id': widget.userId},
-    );
-    final rows = result as List<dynamic>;
-    if (rows.isEmpty) {
-      return widget.fallbackData.isEmpty
-          ? null : Map<String, dynamic>.from(widget.fallbackData);
+    final fallback = widget.fallbackData.isEmpty
+        ? null
+        : Map<String, dynamic>.from(widget.fallbackData);
+    try {
+      final result = await _dmDb.rpc(
+        'get_student_public_profile_v1',
+        params: {'p_user_id': widget.userId},
+      ).timeout(const Duration(seconds: 15));
+      if (result is List && result.isNotEmpty && result.first is Map) {
+        return Map<String, dynamic>.from(result.first as Map);
+      }
+      return fallback;
+    } catch (_) {
+      // Keep the profile usable from the public data already loaded in chat.
+      return fallback;
     }
-    return Map<String, dynamic>.from(rows.first as Map);
   }
 
   Future<void> _loadBlock() async {
