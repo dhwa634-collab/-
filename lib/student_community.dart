@@ -1500,7 +1500,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   boxShadow: const [BoxShadow(
                     color: Colors.black26, blurRadius: 9, offset: Offset(0, 3))],
                 ),
-                child: Row(children: [
+                child: Row(
+                  textDirection: TextDirection.ltr,
+                  children: [
                   SizedBox(
                     width: 54, height: 54,
                     child: IconButton(
