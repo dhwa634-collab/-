@@ -210,7 +210,7 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
                 _ProfileField(label: 'اسم المستخدم',
                   value: username.isEmpty ? 'غير محدد' : '@$username'),
                 const SizedBox(height: 24),
-                _ProfileField(label: 'الصف', value: grade,
+                _ProfileField(label: 'الصف', value: grade),
                 const SizedBox(height: 24),
                 _ProfileField(label: 'النقاط · بنك الأسئلة',
                   value: p['question_points'] == null
