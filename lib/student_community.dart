@@ -1447,11 +1447,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     ),
                                   ),
                                 const SizedBox(height: 3),
-                                Align(
-                                  alignment: AlignmentDirectional.centerEnd,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
                                       Text(
                                         timeOf(row['created_at']),
                                         style: TextStyle(
@@ -1465,8 +1464,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                         Icon(Icons.done_rounded, size: 12,
                                           color: colors.onSurfaceVariant),
                                       ],
-                                    ],
-                                  ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -1505,52 +1503,138 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   child: ActionChip(label: Text(e.value, style: const TextStyle(fontSize: 20)),
                     onPressed: sending ? null : () => send(sticker: e.key)),
                 )).toList())),
-              Row(children: [
-                IconButton(
-                  tooltip: 'إرسال صورة',
-                  onPressed: sending || _recording ? null : _pickAndSendImage,
-                  icon: const Icon(Icons.image_outlined),
-                ),
-                IconButton(
-                  tooltip: 'إضافة ملصق من الجهاز',
-                  onPressed: sending || _recording ? null : _pickCustomSticker,
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                ),
-                Expanded(child: TextField(
-                  controller: input,
-                  minLines: 1,
-                  maxLines: 4,
-                  maxLength: 500,
-                  decoration: InputDecoration(
-                    hintText: 'اكتب رسالة دراسية...',
-                    counterText: '',
-                    filled: true,
-                    fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(
-                        color: Theme.of(context).colorScheme.outlineVariant
-                            .withValues(alpha: 0.45),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(
+              Row(
+                textDirection: TextDirection.rtl,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: input,
+                    builder: (context, value, _) {
+                      final hasText = value.text.trim().isNotEmpty;
+                      return Material(
                         color: Theme.of(context).colorScheme.primary,
-                        width: 1.4,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: _recording ? 'إيقاف التسجيل' : (hasText ? 'إرسال الرسالة' : 'تسجيل رسالة صوتية'),
+                          onPressed: sending ? null : (_recording
+                            ? () => _stopVoiceRecording(send: true)
+                            : (hasText ? () => send() : _startVoiceRecording)),
+                          icon: Icon(
+                            _recording ? Icons.stop_rounded
+                              : (hasText ? Icons.send_rounded : Icons.mic_rounded),
+                            color: Colors.white,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 7),
+                  IconButton(
+                    tooltip: 'إرفاق صورة أو ملصق',
+                    onPressed: sending || _recording ? null : () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        builder: (sheetContext) => SafeArea(
+                          child: Wrap(children: [
+                            ListTile(
+                              leading: const Icon(Icons.image_outlined),
+                              title: const Text('إرسال صورة'),
+                              onTap: () {
+                                Navigator.pop(sheetContext);
+                                _pickAndSendImage();
+                              },
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.add_photo_alternate_outlined),
+                              title: const Text('إضافة ملصق من الجهاز'),
+                              onTap: () {
+                                Navigator.pop(sheetContext);
+                                _pickCustomSticker();
+                              },
+                            ),
+                          ]),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.attach_file_rounded, size: 25),
+                  ),
+                  Expanded(
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 54, maxHeight: 118),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF17191B),
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: input,
+                              minLines: 1,
+                              maxLines: 4,
+                              maxLength: 500,
+                              textAlignVertical: TextAlignVertical.center,
+                              style: const TextStyle(color: Colors.white, fontSize: 15),
+                              decoration: const InputDecoration(
+                                hintText: 'الرسالة',
+                                hintStyle: TextStyle(color: Colors.white54, fontSize: 15),
+                                counterText: '',
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'إضافة رمز تعبيري',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () {
+                              const emojis = ['😀','😂','🥰','😍','❤️','👍','🙏','🔥','🎯','📚','🌟','👏'];
+                              showModalBottomSheet<void>(
+                                context: context,
+                                builder: (sheetContext) => SafeArea(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Wrap(
+                                      spacing: 10,
+                                      runSpacing: 10,
+                                      children: emojis.map((emoji) => InkWell(
+                                        onTap: () {
+                                          final old = input.value;
+                                          final selection = old.selection;
+                                          final start = selection.isValid ? selection.start : old.text.length;
+                                          final finish = selection.isValid ? selection.end : old.text.length;
+                                          final text = old.text.replaceRange(start, finish, emoji);
+                                          input.value = TextEditingValue(
+                                            text: text,
+                                            selection: TextSelection.collapsed(offset: start + emoji.length),
+                                          );
+                                          Navigator.pop(sheetContext);
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(5),
+                                          child: Text(emoji, style: const TextStyle(fontSize: 27)),
+                                        ),
+                                      )).toList(),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.emoji_emotions_outlined, color: Colors.white70, size: 25),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                )),
-                const SizedBox(width: 8),
-                if (_recording)
+                ],
+              ),
+              if (_recording)
                   IconButton(
                     tooltip: 'إلغاء التسجيل',
                     onPressed: () => _stopVoiceRecording(send: false),
