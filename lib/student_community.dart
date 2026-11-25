@@ -1345,11 +1345,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             ),
                             const SizedBox(width: 6),
                           ],
-                          IntrinsicWidth(
-                            child: Container(
-                              constraints: BoxConstraints(
-                                maxWidth: MediaQuery.sizeOf(context).width * 0.78,
-                              ),
+                          Container(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+                            ),
                             margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
                             decoration: BoxDecoration(
@@ -1379,7 +1378,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Row(mainAxisSize: MainAxisSize.min, children: [
-                                  Flexible(child: Text(
+                                  Text(
                                     name,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -1389,7 +1388,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                       fontWeight: FontWeight.w800,
                                       color: bubbleNameColor,
                                     ),
-                                  )),
+                                  ),
                                   if (isDeveloper) ...[
                                     const SizedBox(width: 5),
                                     _DeveloperBadge(compact: true, onPrimary: mine),
@@ -1470,7 +1469,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                   ),
                                 ),
                               ],
-                            ),
                             ),
                           ),
                           if (mine) ...[
