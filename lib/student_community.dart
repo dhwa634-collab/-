@@ -16,6 +16,46 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'academic_stages.dart';
 import 'supabase_config.dart';
 
+const String _developerEmail = 'dhwa44430@gmail.com';
+
+bool _isVerifiedDeveloper(User? user) =>
+    user != null &&
+    user.email?.trim().toLowerCase() == _developerEmail &&
+    user.emailConfirmedAt != null;
+
+class _DeveloperBadge extends StatelessWidget {
+  final bool compact;
+  const _DeveloperBadge({this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Tooltip(
+      message: 'حساب المطوّر الرسمي',
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 4 : 8,
+          vertical: compact ? 2 : 4,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.28)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.verified_rounded, size: compact ? 13 : 16, color: color),
+          if (!compact) ...[
+            const SizedBox(width: 4),
+            Text('المطوّر', style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w800,
+            )),
+          ],
+        ]),
+      ),
+    );
+  }
+}
+
 final _db = Supabase.instance.client;
 
 Future<void> signOutStudentSession() async {
@@ -520,6 +560,21 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Flexible(child: Text(
+                    name.text.trim().isEmpty ? 'الملف الشخصي' : name.text.trim(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  )),
+                  if (_isVerifiedDeveloper(_db.auth.currentUser)) ...[
+                    const SizedBox(width: 7),
+                    const _DeveloperBadge(),
+                  ],
+                ]),
                 const SizedBox(height: 18),
                 TextField(
                   controller: name,
@@ -1225,118 +1280,175 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final sticker = type == 'builtin_sticker' || type == 'custom_sticker';
                   final mediaPath = row['storage_path']?.toString() ?? '';
                   final colors = Theme.of(context).colorScheme;
+                  final avatar = profile?['avatar_url']?.toString();
+                  final fallbackAvatar = mine
+                      ? currentUser?.userMetadata?['picture']?.toString()
+                      : null;
+                  final avatarSource = avatar != null && avatar.startsWith('http')
+                      ? avatar
+                      : fallbackAvatar != null && fallbackAvatar.startsWith('http')
+                          ? fallbackAvatar
+                          : null;
+                  final isDeveloper = profile?['is_developer'] == true ||
+                      (mine && _isVerifiedDeveloper(currentUser));
+                  final bubbleTextColor = mine
+                      ? colors.onPrimaryContainer
+                      : colors.onSurface;
 
                   return Align(
                     alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
                     child: GestureDetector(
                       onLongPress: () => _messageActions(row),
-                      child: Container(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.sizeOf(context).width * 0.75,
-                        ),
-                        margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 3),
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: mine ? colors.primaryContainer : colors.surfaceContainerHigh,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(15),
-                            topRight: const Radius.circular(15),
-                            bottomLeft: Radius.circular(mine ? 15 : 5),
-                            bottomRight: Radius.circular(mine ? 5 : 15),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (!mine)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 3),
-                                child: Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    height: 1.1,
-                                    fontWeight: FontWeight.w800,
-                                    color: colors.primary,
-                                  ),
-                                ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          if (!mine) ...[
+                            CircleAvatar(
+                              radius: 15,
+                              backgroundColor: colors.surfaceContainerHighest,
+                              backgroundImage: avatarSource == null
+                                  ? null
+                                  : CachedNetworkImageProvider(avatarSource),
+                              child: avatarSource == null
+                                  ? Icon(Icons.person_rounded,
+                                      size: 17, color: colors.onSurfaceVariant)
+                                  : null,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Container(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+                            ),
+                            margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: mine ? colors.primaryContainer : colors.surfaceContainerHigh,
+                              border: Border.all(
+                                color: colors.outlineVariant.withValues(alpha: 0.45),
+                                width: 0.6,
                               ),
-                            if (type == 'image' || type == 'custom_sticker')
-                              _buildChatMedia(
-                                type == 'image' ? 'chat-media' : 'chat-stickers',
-                                mediaPath,
-                                sticker: type == 'custom_sticker',
-                              )
-                            else if (type == 'voice')
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    visualDensity: VisualDensity.compact,
-                                    constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-                                    padding: EdgeInsets.zero,
-                                    onPressed: () => _playVoice(row),
-                                    icon: Icon(
-                                      _playingMessageId == row['id'].toString()
-                                          ? Icons.pause_circle_filled_rounded
-                                          : Icons.play_circle_fill_rounded,
-                                      size: 28,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  SizedBox(
-                                    width: 104,
-                                    child: LinearProgressIndicator(
-                                      value: _playingMessageId == row['id'].toString() &&
-                                              _audioDuration.inMilliseconds > 0
-                                          ? (_audioPosition.inMilliseconds /
-                                                  _audioDuration.inMilliseconds)
-                                              .clamp(0.0, 1.0)
-                                              .toDouble()
-                                          : 0,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            else
-                              Text(
-                                type == 'builtin_sticker'
-                                    ? (stickers[row['sticker_id']?.toString()] ?? '🌟')
-                                    : (unsafe((row['body'] ?? '').toString())
-                                        ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
-                                        : (row['body'] ?? '').toString()),
-                                style: TextStyle(fontSize: sticker ? 28 : 14, height: 1.3),
-                              ),
-                            const SizedBox(height: 2),
-                            Align(
-                              alignment: AlignmentDirectional.centerEnd,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    timeOf(row['created_at']),
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      height: 1,
-                                      color: colors.onSurfaceVariant.withValues(alpha: 0.72),
-                                    ),
-                                  ),
-                                  if (mine) ...[
-                                    const SizedBox(width: 3),
-                                    Icon(
-                                      Icons.done_rounded,
-                                      size: 12,
-                                      color: colors.onSurfaceVariant.withValues(alpha: 0.72),
-                                    ),
-                                  ],
-                                ],
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(16),
+                                topRight: const Radius.circular(16),
+                                bottomLeft: Radius.circular(mine ? 16 : 5),
+                                bottomRight: Radius.circular(mine ? 5 : 16),
                               ),
                             ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Flexible(child: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      height: 1.15,
+                                      fontWeight: FontWeight.w800,
+                                      color: colors.primary,
+                                    ),
+                                  )),
+                                  if (isDeveloper) ...[
+                                    const SizedBox(width: 5),
+                                    const _DeveloperBadge(compact: true),
+                                  ],
+                                ]),
+                                const SizedBox(height: 3),
+                                if (type == 'image' || type == 'custom_sticker')
+                                  _buildChatMedia(
+                                    type == 'image' ? 'chat-media' : 'chat-stickers',
+                                    mediaPath,
+                                    sticker: type == 'custom_sticker',
+                                  )
+                                else if (type == 'voice')
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        visualDensity: VisualDensity.compact,
+                                        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                                        padding: EdgeInsets.zero,
+                                        onPressed: () => _playVoice(row),
+                                        icon: Icon(
+                                          _playingMessageId == row['id'].toString()
+                                              ? Icons.pause_circle_filled_rounded
+                                              : Icons.play_circle_fill_rounded,
+                                          size: 28,
+                                          color: bubbleTextColor,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      SizedBox(
+                                        width: 104,
+                                        child: LinearProgressIndicator(
+                                          value: _playingMessageId == row['id'].toString() &&
+                                                  _audioDuration.inMilliseconds > 0
+                                              ? (_audioPosition.inMilliseconds /
+                                                      _audioDuration.inMilliseconds)
+                                                  .clamp(0.0, 1.0)
+                                                  .toDouble()
+                                              : 0,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  Text(
+                                    type == 'builtin_sticker'
+                                        ? (stickers[row['sticker_id']?.toString()] ?? '🌟')
+                                        : (unsafe((row['body'] ?? '').toString())
+                                            ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
+                                            : (row['body'] ?? '').toString()),
+                                    style: TextStyle(
+                                      fontSize: sticker ? 28 : 14,
+                                      height: 1.35,
+                                      color: bubbleTextColor,
+                                    ),
+                                  ),
+                                const SizedBox(height: 3),
+                                Align(
+                                  alignment: AlignmentDirectional.centerEnd,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        timeOf(row['created_at']),
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          height: 1,
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      if (mine) ...[
+                                        const SizedBox(width: 3),
+                                        Icon(Icons.done_rounded, size: 12,
+                                          color: colors.onSurfaceVariant),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (mine) ...[
+                            const SizedBox(width: 6),
+                            CircleAvatar(
+                              radius: 15,
+                              backgroundColor: colors.surfaceContainerHighest,
+                              backgroundImage: avatarSource == null
+                                  ? null
+                                  : CachedNetworkImageProvider(avatarSource),
+                              child: avatarSource == null
+                                  ? Icon(Icons.person_rounded,
+                                      size: 17, color: colors.onSurfaceVariant)
+                                  : null,
+                            ),
                           ],
-                        ),
+                        ],
                       ),
                     ),
                   );
