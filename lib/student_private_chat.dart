@@ -292,10 +292,9 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
   Future<void> send() async {
     final me = _dmDb.auth.currentUser;
     final body = input.text.trim();
-    if (me == null || body.isEmpty || sending) return;
+    if (me == null || body.isEmpty || sending || body.length > 2000) return;
     input.clear();
     FocusScope.of(context).unfocus();
-    if (body.length > 2000) return;
     setState(() => sending = true);
     try {
       FocusManager.instance.primaryFocus?.unfocus();
@@ -304,10 +303,12 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
       });
       input.clear();
     } on PostgrestException catch (e) {
+      input.text = body;
       _toast(e.code == '42501'
         ? 'تعذر الإرسال بسبب إعدادات الخصوصية أو الحظر.'
         : 'تعذر إرسال الرسالة: ${e.message}');
     } catch (_) {
+      input.text = body;
       _toast('تعذر إرسال الرسالة. تحقق من الإنترنت وحاول مجدداً.');
     } finally {
       if (mounted) setState(() => sending = false);
