@@ -833,7 +833,7 @@ class HomeChatRoomEntryCard extends StatelessWidget {
       child: InkWell(
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const StudentCommunityScreen()),
+          MaterialPageRoute(builder: (_) => const StudentChatScreen()),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
