@@ -1637,25 +1637,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 ],
               ),
               if (_recording)
-                  IconButton(
-                    tooltip: 'إلغاء التسجيل',
-                    onPressed: () => _stopVoiceRecording(send: false),
-                    icon: const Icon(Icons.close_rounded),
-                  )
-                else
-                  IconButton(
-                    tooltip: 'تسجيل رسالة صوتية',
-                    onPressed: sending ? null : _startVoiceRecording,
-                    icon: const Icon(Icons.mic_none_rounded),
-                  ),
-                IconButton.filled(
-                  onPressed: sending ? null : (_recording
-                    ? () => _stopVoiceRecording(send: true) : () => send()),
-                  icon: sending ? const SizedBox(width: 18, height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                    : Icon(_recording ? Icons.stop_rounded : Icons.send_rounded)),
-              ]),
-              if (_recording)
                 Text('جارٍ التسجيل • $_recordSeconds ثانية',
                   style: const TextStyle(fontSize: 11, color: Colors.red)),
               const Text('اضغط مطولاً على رسالة للإبلاغ أو حظر المستخدم.',
