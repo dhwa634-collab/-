@@ -1,25 +1,60 @@
 name: Build Dalilak Lilnajah Android Releases
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, feature/student-community-onboarding]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      GRADLE_OPTS: >-
+        -Dorg.gradle.internal.http.connectionTimeout=60000
+        -Dorg.gradle.internal.http.socketTimeout=60000
+        -Dorg.gradle.workers.max=2
+        -Dorg.gradle.parallel=false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+      - uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
       - name: Generate Android project
         run: flutter create --platforms=android --project-name game --org com.fitna .
+      - name: Configure Gradle repositories with Maven Central mirror
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          mirror = 'maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }'
+          for name in ("settings.gradle.kts", "build.gradle.kts"):
+              path = Path("android") / name
+              if not path.exists():
+                  continue
+              content = path.read_text()
+              if mirror not in content:
+                  if "repositories {" not in content:
+                      raise SystemExit(f"No repositories block found in {path}")
+                  content = content.replace(
+                      "repositories {",
+                      "repositories {" + chr(10) + "        " + mirror,
+                  )
+                  path.write_text(content)
+          PY
       - name: Configure Android app for release
         run: |
           python3 - <<'PY'
@@ -34,6 +69,7 @@ jobs:
               '    <uses-permission android:name="android.permission.INTERNET"/>',
               '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>',
               '    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>',
+              '    <uses-permission android:name="android.permission.RECORD_AUDIO"/>',
           ]
           for permission in permissions:
               if permission not in content:
@@ -58,6 +94,7 @@ jobs:
           if gradle_kts.exists():
               gradle = gradle_kts.read_text()
               gradle = re.sub(r'compileSdk\s*=\s*flutter\.compileSdkVersion', 'compileSdk = 36', gradle)
+              gradle = re.sub(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = 23', gradle)
               gradle = re.sub(r'targetSdk\s*=\s*flutter\.targetSdkVersion', 'targetSdk = 36', gradle)
               if "multiDexEnabled" not in gradle:
                   gradle = re.sub(r'defaultConfig\s*\{', 'defaultConfig {\n        multiDexEnabled = true', gradle, count=1)
@@ -73,6 +110,7 @@ jobs:
           elif gradle_groovy.exists():
               gradle = gradle_groovy.read_text()
               gradle = re.sub(r'compileSdkVersion\s+flutter\.compileSdkVersion', 'compileSdkVersion 36', gradle)
+              gradle = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 23', gradle)
               gradle = re.sub(r'targetSdkVersion\s+flutter\.targetSdkVersion', 'targetSdkVersion 36', gradle)
               if "multiDexEnabled" not in gradle:
                   gradle = re.sub(r'defaultConfig\s*\{', 'defaultConfig {\n        multiDexEnabled true', gradle, count=1)
@@ -90,52 +128,112 @@ jobs:
         run: flutter analyze
       - name: Test
         run: flutter test
+      - name: Configure fixed release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "::error::Missing ANDROID_KEYSTORE_BASE64 repository secret"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "::error::Missing ANDROID_KEYSTORE_PASSWORD repository secret"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "::error::Missing ANDROID_KEY_ALIAS repository secret"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "::error::Missing ANDROID_KEY_PASSWORD repository secret"; exit 1; }
+          # Android terminal copy/paste can add prompts or whitespace; keep only Base64 alphabet.
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr '_-' '/+' | tr -cd 'A-Za-z0-9+/=' | base64 --decode > android/app/upload-keystore.jks
+          chmod 600 android/app/upload-keystore.jks
+          test -s android/app/upload-keystore.jks || { echo "::error::Decoded keystore file is empty"; exit 1; }
+          keytool -list -v -keystore android/app/upload-keystore.jks \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" \
+            > "$RUNNER_TEMP/keystore-info.txt"
+          echo "Release keystore alias validated. Certificate fingerprint:"
+          ACTUAL_KEYSTORE_SHA1="$(grep -m1 'SHA1:' "$RUNNER_TEMP/keystore-info.txt" | sed 's/.*SHA1:[[:space:]]*//' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          EXPECTED_ANDROID_SHA1="43ACCB26091F9CF94830688F59C7181E8ACE91E5"
+          if [ "$ACTUAL_KEYSTORE_SHA1" != "$EXPECTED_ANDROID_SHA1" ]; then
+            echo "::error::The configured keystore does not match the Android OAuth SHA-1 registered in Google Cloud."
+            echo "::error::Expected: $EXPECTED_ANDROID_SHA1"
+            echo "::error::Actual:   $ACTUAL_KEYSTORE_SHA1"
+            exit 1
+          fi
+          echo "Verified Android OAuth SHA-1: $ACTUAL_KEYSTORE_SHA1"
+          python3 - <<'PY'
+          from pathlib import Path
+          kts = Path("android/app/build.gradle.kts")
+          groovy = Path("android/app/build.gradle")
+          if kts.exists():
+              p = kts
+              block = '''
+          android {
+              signingConfigs {
+                  create("release") {
+                      storeFile = file("upload-keystore.jks")
+                      storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  getByName("release") {
+                      signingConfig = signingConfigs.getByName("release")
+                  }
+              }
+          }
+          '''
+          elif groovy.exists():
+              p = groovy
+              block = '''
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file("upload-keystore.jks")
+                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          '''
+          else:
+              raise SystemExit("Android Gradle file was not generated")
+          content = p.read_text()
+          if "upload-keystore.jks" not in content:
+              p.write_text(content + chr(10) + block + chr(10))
+          PY
       - name: Build release APK
         env:
-          NEWS_ADMIN_PIN: ${{ secrets.NEWS_ADMIN_PIN }}
-        run: flutter build apk --release --dart-define=NEWS_ADMIN_PIN="$NEWS_ADMIN_PIN"
-      - name: Build release Android App Bundle
-        env:
-          NEWS_ADMIN_PIN: ${{ secrets.NEWS_ADMIN_PIN }}
-        run: flutter build appbundle --release --dart-define=NEWS_ADMIN_PIN="$NEWS_ADMIN_PIN"
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build apk --release
+      - name: Print release APK signing certificate SHA-1
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner was not found in the Android SDK."
+            exit 1
+          fi
+          CERT_INFO="$("$APKSIGNER" verify --print-certs "$APK")"
+          printf '%s\n' "$CERT_INFO"
+          APK_SHA1="$(printf '%s\n' "$CERT_INFO" | sed -n 's/.*certificate SHA-1 digest: //p' | head -n 1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          EXPECTED_ANDROID_SHA1="43ACCB26091F9CF94830688F59C7181E8ACE91E5"
+          if [ "$APK_SHA1" != "$EXPECTED_ANDROID_SHA1" ]; then
+            echo "::error::The generated APK is not signed with the Android OAuth certificate registered in Google Cloud."
+            echo "::error::Expected: $EXPECTED_ANDROID_SHA1"
+            echo "::error::Actual:   $APK_SHA1"
+            exit 1
+          fi
+          echo "Verified APK signing SHA-1: $APK_SHA1"
       - uses: actions/upload-artifact@v4
         with:
           name: dalilak-lilnajah-android-preview
           path: |
             build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
-
-  ios-build:
-    name: Validate iOS build
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - name: Generate iOS project
-        run: flutter create --platforms=ios --project-name game --org com.fitna .
-      - name: Configure iOS display and frame settings
-        run: |
-          /usr/bin/python3 - <<'PY'
-          import plistlib
-          from pathlib import Path
-          path = Path("ios/Runner/Info.plist")
-          with path.open("rb") as f:
-              data = plistlib.load(f)
-          data["CFBundleDisplayName"] = "دليلك للنجاح"
-          data["CADisableMinimumFrameDurationOnPhone"] = True
-          with path.open("wb") as f:
-              plistlib.dump(data, f)
-          PY
-      - name: Install Flutter dependencies
-        run: flutter pub get
-      - name: Analyze
-        run: flutter analyze
-      - name: Test
-        run: flutter test
-      - name: Build iOS without code signing
-        run: flutter build ios --release --no-codesign

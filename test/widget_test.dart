@@ -3,12 +3,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:third_intermediate_iraq/main.dart';
+import 'package:third_intermediate_iraq/student_tools.dart';
 import 'package:third_intermediate_iraq/exam_archive_data.dart';
 import 'package:third_intermediate_iraq/review_quiz.dart';
 import 'package:third_intermediate_iraq/academic_stages.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Supabase once outside widget-test fake-async zones. Disable
+  // token auto-refresh and deep-link handling because this suite uses a
+  // local, unauthenticated client and never exercises OAuth.
+  setUpAll(() async {
+    // Register the SharedPreferences mock before Supabase creates its auth storage.
+    // Supabase.initialize reads SharedPreferences during startup in widget tests.
+    SharedPreferences.setMockInitialValues({});
+    await Supabase.initialize(
+      url: 'https://example.supabase.co',
+      publishableKey: 'test-anon-key',
+      authOptions: const FlutterAuthClientOptions(
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUri: false,
+      ),
+    );
+  });
   test('academic stage choice is saved locally and restored', () async {
     SharedPreferences.setMockInitialValues({});
     await AcademicStageController.load();
@@ -154,14 +175,31 @@ void main() {
 
 
   testWidgets('home screen loads', (tester) async {
+    // Simulate an existing installation so the first-run onboarding gate
+    // correctly lets this home-screen test reach the Shell.
+    SharedPreferences.setMockInitialValues({
+      'dalilak_student_onboarding_done_v1': true,
+      'dalilak_home_welcome_seen_v1': true,
+    });
+    // Supabase is initialized once in setUpAll, outside this fake-async zone.
     await tester.pumpWidget(const StudyApp());
+    await tester.pumpAndSettle();
 
     // The subjects catalog is intentionally displayed in its own bottom tab,
     // not on the home screen. Keep this test focused on the home screen.
-    expect(find.text('دليلك للنجاح'), findsOneWidget);
-    expect(find.text('الثالث المتوسط • العراق'), findsOneWidget);
-    expect(find.text('المساعد الذكي'), findsOneWidget);
-    expect(find.text('ابدأ المحادثة الآن'), findsOneWidget);
+    // Shell uses an IndexedStack, so off-screen tabs are built too.
+    // Scope these assertions to the Home tab to avoid matching duplicate
+    // labels that legitimately appear in other tabs.
+    final home = find.byType(Home);
+    expect(home, findsOneWidget);
+    expect(find.descendant(
+      of: home, matching: find.text('دليلك للنجاح')), findsOneWidget);
+    expect(find.descendant(
+      of: home, matching: find.text('الثالث المتوسط • العراق')), findsOneWidget);
+    expect(find.descendant(
+      of: home, matching: find.text('المساعد الذكي')), findsOneWidget);
+    expect(find.descendant(
+      of: home, matching: find.text('ابدأ المحادثة الآن')), findsOneWidget);
   });
 
   testWidgets('subjects catalog scrolls from ministerial archive to review notes', (tester) async {

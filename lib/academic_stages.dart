@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// المراحل الدراسية المدعومة في التطبيق.
 enum AcademicStage {
@@ -116,3 +117,24 @@ const String sixthPreparatoryReviewUrl =
 /// يوضح للطالب عند غياب رابط موثوق، دون عرض استثناء تقني.
 const String stageContentPendingMessage =
     'لم نعثر بعد على رابط موثوق لهذا المحتوى. يمكنك الرجوع لاحقاً بعد تحديث المصادر.';
+
+
+/// يحفظ المرحلة الدراسية المختارة ويتيح لبقية الشاشات مراقبتها.
+class AcademicStageController {
+  AcademicStageController._();
+
+  static const String _storageKey = 'dalilak_selected_academic_stage_v1';
+  static final ValueNotifier<AcademicStage> current =
+      ValueNotifier<AcademicStage>(AcademicStage.intermediateThird);
+
+  static Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    current.value = AcademicStage.fromStorage(prefs.getString(_storageKey));
+  }
+
+  static Future<void> select(AcademicStage stage) async {
+    current.value = stage;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_storageKey, stage.name);
+  }
+}

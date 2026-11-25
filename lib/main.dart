@@ -11,6 +11,7 @@ import 'supabase_config.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'student_tools.dart';
 import 'student_community.dart';
+import 'student_onboarding.dart';
 import 'exam_archive_data.dart';
 import 'review_quiz.dart';
 import 'academic_stages.dart';
@@ -238,27 +239,6 @@ class ThemeController {
     await prefs.setDouble(_radiusKey, 18);
     await prefs.setBool(_motionKey, true);
     await prefs.setBool(_eyeCareKey, false);
-  }
-}
-
-class AcademicStageController {
-  static const _storageKey = 'dalilak_selected_academic_stage_v1';
-  static final ValueNotifier<AcademicStage> current =
-      ValueNotifier<AcademicStage>(AcademicStage.intermediateThird);
-
-  static Future<void> load() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      current.value = AcademicStage.fromStorage(prefs.getString(_storageKey));
-    } catch (_) {
-      current.value = AcademicStage.intermediateThird;
-    }
-  }
-
-  static Future<void> select(AcademicStage stage) async {
-    current.value = stage;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_storageKey, stage.name);
   }
 }
 
@@ -796,7 +776,7 @@ class StudyApp extends StatelessWidget {
               ),
           ]),
         ),
-        home: const Shell());
+        home: const StudentOnboardingGate(child: Shell()));
     },
   );
 }
@@ -841,6 +821,56 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
         ])));
   }
 }
+class HomeChatRoomEntryCard extends StatelessWidget {
+  const HomeChatRoomEntryCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.only(top: 12, bottom: 4),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const StudentCommunityScreen()),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(Icons.forum_rounded, color: colors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('غرفة الدردشة',
+                      style: TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 3),
+                    Text('تواصل مع زملائك وشارك الفائدة الدراسية',
+                      style: TextStyle(fontSize: 11,
+                        color: colors.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_left_rounded, color: colors.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class Home extends StatefulWidget {
   final ValueChanged<Subject> onOpen;
   final VoidCallback onAll;
@@ -850,7 +880,7 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
-  bool _showWelcome = true;
+  bool _showWelcome = false;
   late final AnimationController _welcomeController;
   late final Animation<double> _welcomeSize;
   late final Animation<double> _welcomeOpacity;
@@ -875,6 +905,16 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
       begin: Offset.zero,
       end: const Offset(0, -0.18),
     ).animate(curved);
+    _loadFirstWelcome();
+  }
+
+  Future<void> _loadFirstWelcome() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alreadyShown = prefs.getBool('dalilak_home_welcome_seen_v1') ?? false;
+    if (alreadyShown || !mounted) return;
+    await prefs.setBool('dalilak_home_welcome_seen_v1', true);
+    if (!mounted) return;
+    setState(() => _showWelcome = true);
     _welcomeTimer = Timer(const Duration(seconds: 4), _dismissWelcome);
   }
 
@@ -938,7 +978,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded)),
         ),
       ]),
-      const AcademicStagePicker(),
+      const HomeChatRoomEntryCard(),
       if (_showWelcome)
         SizeTransition(
           sizeFactor: _welcomeSize,
@@ -2784,9 +2824,6 @@ class _StudyNoteDetailScreenState extends State<StudyNoteDetailScreen> {
   }
 }
 
-// Owner-only UI access code. Change this single constant when required.
-const String kNewsAdminPin = '123@123@';
-
 class NewsPost {
   final String id, title, body, category, date;
   final bool pinned;
@@ -2807,8 +2844,7 @@ class NewsScreen extends StatefulWidget {
   @override State<NewsScreen> createState() => _NewsScreenState();
 }
 class _NewsScreenState extends State<NewsScreen> {
-  // Change this UI access code here when needed. Server-side validation is
-  // also enforced by NEWS_ADMIN_PIN in the Cloudflare Worker environment.
+  // The PIN is entered by the owner and checked only by the Cloudflare Worker.
   static final Uri _workerNewsUri = Uri.parse(
     'https://wispy-union-276e.dhwa634.workers.dev/news');
   static final Uri _feedUri = Uri.parse(
@@ -2890,7 +2926,7 @@ class _NewsScreenState extends State<NewsScreen> {
           autofocus: true,
           obscureText: true,
           keyboardType: TextInputType.visiblePassword,
-          maxLength: 24,
+          maxLength: 64,
           decoration: const InputDecoration(
             labelText: 'رمز المطوّر',
             prefixIcon: Icon(Icons.lock_outline_rounded),
@@ -2899,22 +2935,66 @@ class _NewsScreenState extends State<NewsScreen> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('دخول')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('تحقق ودخول')),
         ],
       )),
     );
     controller.dispose();
     if (!mounted || entered == null) return;
-    if (entered != kNewsAdminPin) {
+
+    final pin = entered.trim();
+    if (pin.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('رمز المطوّر غير صحيح.')),
+        const SnackBar(content: Text('أدخل رمز المطوّر أولاً.')),
       );
       return;
     }
-    await Navigator.push(context, MaterialPageRoute(
-      builder: (_) => const NewsAdminScreen(),
-    ));
-    if (mounted) await _loadNews();
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://wispy-union-276e.dhwa634.workers.dev/news/admin'),
+        headers: const {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: jsonEncode({'action': 'verify', 'pin': pin}),
+      ).timeout(const Duration(seconds: 15));
+
+      Map<String, dynamic> result = {};
+      try {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        if (decoded is Map) result = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+
+      if (response.statusCode != 200 || result['success'] != true ||
+          result['verified'] != true) {
+        final code = (result['code'] ?? '').toString();
+        final detail = (result['error'] ?? 'رفض الخادم التحقق من الرمز.').toString();
+        if (code == 'UNKNOWN_NEWS_ADMIN_ACTION' ||
+            detail.contains('عملية إدارة الأخبار غير معروفة') ||
+            detail.contains('عملية إدارة الأخبار غير مدعومة')) {
+          throw Exception(
+            'نسخة Cloudflare Worker المنشورة قديمة ولا تدعم التحقق من رمز المطوّر. '
+            'يجب نشر الملف worker/src/index.js من فرع التطوير على Worker wispy-union-276e.',
+          );
+        }
+        throw Exception('HTTP ${response.statusCode}: $detail');
+      }
+
+      if (!mounted) return;
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => NewsAdminScreen(adminPin: pin),
+      ));
+      if (mounted) await _loadNews();
+    } catch (error) {
+      if (mounted) {
+        final details = error.toString().replaceFirst('Exception: ', '').trim();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(
+            details.isEmpty
+              ? 'تعذر فتح غرفة المطوّر. تحقق من اتصال الخادم وإعداداته.'
+              : 'تعذر فتح غرفة المطوّر: $details',
+          )),
+        );
+      }
+    }
   }
   Future<void> _share(NewsPost post) async {
     final text = '${post.title}\n\n${post.body}\n\nمن تطبيق دليلك للنجاح — الثالث متوسط • العراق';
@@ -3006,7 +3086,8 @@ class _NewsScreenState extends State<NewsScreen> {
 }
 
 class NewsAdminScreen extends StatefulWidget {
-  const NewsAdminScreen({super.key});
+  final String adminPin;
+  const NewsAdminScreen({super.key, required this.adminPin});
   @override State<NewsAdminScreen> createState() => _NewsAdminScreenState();
 }
 class _NewsAdminScreenState extends State<NewsAdminScreen> {
@@ -3094,10 +3175,11 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     } catch (_) {}
     if(mounted)setState(()=>_loading=false);
   }
+  String get _adminPin => widget.adminPin.trim();
   Future<Map<String,dynamic>> _send(Map<String,dynamic> payload) async {
     final response=await http.post(_workerAdminUri,
       headers:const {'Content-Type':'application/json','Accept':'application/json'},
-      body:jsonEncode({...payload,'pin':kNewsAdminPin}))
+      body:jsonEncode({...payload,'pin':_adminPin}))
       .timeout(const Duration(seconds:18));
     Map<String,dynamic> decoded={};
     try {final value=jsonDecode(utf8.decode(response.bodyBytes));if(value is Map)decoded=Map<String,dynamic>.from(value);}catch(_){}
@@ -3575,15 +3657,9 @@ class MoreScreen extends StatelessWidget {
               builder: (_) => const PersonalizationScreen())),
           ),
 
-          _sectionTitle(context, 'الدعم والمجتمع', Icons.favorite_outline_rounded),
-          _actionTile(
-            context: context,
-            icon: Icons.groups_rounded,
-            title: 'مجتمع الطلاب',
-            subtitle: 'الملف الشخصي وتسجيل الدخول وغرفة الدردشة',
-            onTap: () => Navigator.push(context, MaterialPageRoute(
-              builder: (_) => const StudentCommunityScreen())),
-          ),
+          _sectionTitle(context, 'الحساب', Icons.manage_accounts_outlined),
+          const MoreAccountSection(),
+
           _actionTile(
             context: context,
             icon: Icons.edit_note_rounded,
@@ -3709,6 +3785,164 @@ class MoreScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+
+class MoreAccountSection extends StatefulWidget {
+  const MoreAccountSection({super.key});
+
+  @override
+  State<MoreAccountSection> createState() => _MoreAccountSectionState();
+}
+
+class _MoreAccountSectionState extends State<MoreAccountSection> {
+  bool _busy = false;
+  final _client = Supabase.instance.client;
+
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : null,
+      ));
+  }
+
+  Future<void> _signOut() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await signOutStudentSession();
+      _showMessage('تم تسجيل الخروج من حسابك بنجاح.');
+    } catch (error) {
+      _showMessage("تعذر تسجيل الخروج: ${error.toString().replaceFirst('Exception: ', '')}",
+        isError: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    if (_busy) return;
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      _showMessage('لا يوجد حساب مسجّل الدخول حالياً.', isError: true);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          icon: const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+          title: const Text('حذف الحساب نهائياً؟'),
+          content: const Text(
+            'سيتم حذف حسابك وملفك الشخصي ورسائلك وملفاتك الصوتية والملصقات '
+            'المرتبطة به من الخادم. لا يمكن التراجع عن هذه العملية.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('حذف الحساب'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final response = await _client.functions.invoke(
+        'delete-account',
+        body: const {'confirm': true},
+      );
+      final data = response.data;
+      if (response.status < 200 || response.status >= 300 ||
+          data is! Map || data['success'] != true) {
+        final detail = data is Map ? (data['error'] ?? '').toString() : '';
+        throw Exception(detail.isEmpty
+          ? 'لم يؤكد الخادم حذف الحساب (HTTP ${response.status}).'
+          : detail);
+      }
+
+      await signOutStudentSession();
+      _showMessage('تم حذف حسابك وبياناته بنجاح.');
+    } catch (error) {
+      _showMessage(
+        "تعذر حذف الحساب: ${error.toString().replaceFirst('Exception: ', '')}",
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<AuthState>(
+    stream: _client.auth.onAuthStateChange,
+    builder: (context, snapshot) {
+      final user = snapshot.hasData
+        ? snapshot.data!.session?.user
+        : _client.auth.currentUser;
+      return Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: Column(children: [
+          ListTile(
+            leading: const Icon(Icons.account_circle_outlined),
+            title: const Text('حالة الحساب',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: Text(user == null
+              ? 'تستخدم التطبيق حالياً دون تسجيل الدخول.'
+              : (user.email ?? 'حساب Google مسجّل')),
+          ),
+          if (user == null)
+            ListTile(
+              leading: const Icon(Icons.login_rounded),
+              title: const Text('تسجيل الدخول بواسطة Google'),
+              onTap: _busy ? null : () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const StudentGoogleLoginScreen())),
+            )
+          else ...[
+            const Divider(height: 1),
+            ListTile(
+              enabled: !_busy,
+              leading: const Icon(Icons.logout_rounded),
+              title: const Text('تسجيل الخروج'),
+              subtitle: const Text('إنهاء جلسة الحساب على هذا الجهاز'),
+              trailing: _busy
+                ? const SizedBox(width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.chevron_left_rounded),
+              onTap: _busy ? null : _signOut,
+            ),
+            ListTile(
+              enabled: !_busy,
+              leading: const Icon(Icons.delete_forever_outlined,
+                color: Colors.redAccent),
+              title: const Text('حذف الحساب نهائياً',
+                style: TextStyle(color: Colors.redAccent,
+                  fontWeight: FontWeight.w800)),
+              subtitle: const Text('حذف بيانات الحساب من الخادم بعد التأكيد'),
+              trailing: const Icon(Icons.chevron_left_rounded,
+                color: Colors.redAccent),
+              onTap: _busy ? null : _deleteAccount,
+            ),
+          ],
+          if (_busy) const LinearProgressIndicator(minHeight: 2),
+        ]),
+      );
+    },
+  );
 }
 
 class PrivacyScreen extends StatelessWidget {

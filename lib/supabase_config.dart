@@ -4,4 +4,6 @@ class SupabaseConfig {
   static const String publishableKey = 'sb_publishable_WZ2_HsgcOGDVVsYKj4pLsw_COETNnEh';
   /// Public OAuth Web Client ID from Google Cloud; never place its client secret here.
   static const String googleWebClientId = '760019056304-jdgihe83s80nnq82f6e64v1jqlduf07c.apps.googleusercontent.com';
+  /// Optional iOS OAuth client ID supplied at build time; never a client secret.
+  static const String googleIosClientId = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID');
 }
