@@ -336,14 +336,14 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         name.text = (row['display_name'] ?? '').toString();
         bio.text = (row['bio'] ?? '').toString();
         avatarUrl = row['avatar_url']?.toString()
-            ?? user.userMetadata['picture']?.toString();
+            ?? user.userMetadata?['picture']?.toString();
         age = (row['age_band'] ?? '13_15').toString();
         stage = (row['stage'] ?? stage).toString();
         gender = row['gender']?.toString();
       } else {
-        name.text = (user.userMetadata['full_name']
-            ?? user.userMetadata['name'] ?? 'طالب').toString();
-        avatarUrl = user.userMetadata['picture']?.toString();
+        name.text = (user.userMetadata?['full_name']
+            ?? user.userMetadata?['name'] ?? 'طالب').toString();
+        avatarUrl = user.userMetadata?['picture']?.toString();
         final prefs = await SharedPreferences.getInstance();
         age = prefs.getString('dalilak_student_age_band_v1') ?? age;
         gender = prefs.getString('dalilak_student_gender_v1');
@@ -410,7 +410,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         uploaded = true;
         final publicUrl = _db.storage.from('avatars').getPublicUrl(path);
         final displayName = name.text.trim().isEmpty
-            ? (user.userMetadata['full_name'] ?? user.userMetadata['name'] ?? 'طالب').toString()
+            ? (user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? 'طالب').toString()
             : name.text.trim();
         await _db.from('profiles').upsert({
           'user_id': user.id,
@@ -487,7 +487,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         'age_band': age,
         'gender': gender,
         'stage': stage,
-        'avatar_url': avatarUrl ?? user.userMetadata['picture']?.toString(),
+        'avatar_url': avatarUrl ?? user.userMetadata?['picture']?.toString(),
         'bio': bioText,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
@@ -1272,8 +1272,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final profile = profiles.data?[row['user_id'].toString()];
                   final currentUser = _db.auth.currentUser;
                   final name = (profile?['display_name'] ??
-                    (mine ? (currentUser?.userMetadata['full_name'] ??
-                      currentUser?.userMetadata['name'] ??
+                    (mine ? (currentUser?.userMetadata?['full_name'] ??
+                      currentUser?.userMetadata?['name'] ??
                       currentUser?.email?.split('@').first) : null) ??
                     'طالب').toString();
                   final type = row['message_type']?.toString() ?? 'text';
@@ -1282,7 +1282,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final colors = Theme.of(context).colorScheme;
                   final avatar = profile?['avatar_url']?.toString();
                   final fallbackAvatar = mine
-                      ? currentUser?.userMetadata['picture']?.toString()
+                      ? currentUser?.userMetadata?['picture']?.toString()
                       : null;
                   final avatarSource = avatar != null && avatar.startsWith('http')
                       ? avatar
