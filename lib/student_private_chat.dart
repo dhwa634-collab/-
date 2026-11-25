@@ -112,7 +112,7 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
               ]),
             ),
             const SizedBox(height: 18),
-            Center(child: Text('معرّف العضو: \${widget.userId.substring(0, 8)}',
+            Center(child: Text('معرّف العضو: ${widget.userId.substring(0, 8)}',
               style: const TextStyle(color: Colors.white60, fontSize: 14))),
             if (!isMe) ...[
               const SizedBox(height: 22),
@@ -238,7 +238,7 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
     } on PostgrestException catch (e) {
       _toast(e.code == '42501'
         ? 'تعذر الإرسال بسبب إعدادات الخصوصية أو الحظر.'
-        : 'تعذر إرسال الرسالة: \${e.message}');
+        : 'تعذر إرسال الرسالة: ${e.message}');
     } catch (_) {
       _toast('تعذر إرسال الرسالة. تحقق من الإنترنت وحاول مجدداً.');
     } finally {
@@ -376,6 +376,6 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
   String _time(dynamic value) {
     final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
     if (date == null) return '';
-    return '\${date.hour.toString().padLeft(2, '0')}:\${date.minute.toString().padLeft(2, '0')}';
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
