@@ -4,8 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 final _dmDb = Supabase.instance.client;
 
 class StudentPublicProfileScreen extends StatefulWidget {
-  const StudentPublicProfileScreen({super.key, required this.userId});
+  const StudentPublicProfileScreen({super.key, required this.userId, this.fallbackData = const {}});
   final String userId;
+  final Map<String, dynamic> fallbackData;
   @override
   State<StudentPublicProfileScreen> createState() => _StudentPublicProfileScreenState();
 }
@@ -27,7 +28,10 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
       params: {'p_user_id': widget.userId},
     );
     final rows = result as List<dynamic>;
-    if (rows.isEmpty) return null;
+    if (rows.isEmpty) {
+      return widget.fallbackData.isEmpty
+          ? null : Map<String, dynamic>.from(widget.fallbackData);
+    }
     return Map<String, dynamic>.from(rows.first as Map);
   }
 
@@ -90,7 +94,7 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
           if (snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snap.hasError) {
+          if (snap.hasError && widget.fallbackData.isEmpty) {
             return Center(child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -108,7 +112,7 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
               ]),
             ));
           }
-          final p = snap.data;
+          final p = snap.data ?? (widget.fallbackData.isEmpty ? null : widget.fallbackData);
           if (p == null) {
             return Center(child: Padding(
               padding: const EdgeInsets.all(24),
@@ -125,9 +129,11 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
               ]),
             ));
           }
-          final name = (p['display_name'] ?? 'طالب').toString();
+          final name = (p['display_name'] ?? p['name'] ?? 'طالب').toString();
           final avatar = p['avatar_url']?.toString();
           final username = (p['username'] ?? '').toString().trim();
+          final bio = (p['bio'] ?? 'لا توجد نبذة بعد').toString();
+          final grade = (p['stage'] ?? p['grade'] ?? 'غير محدد').toString();
           final isMe = _dmDb.auth.currentUser?.id == widget.userId;
           return ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 30), children: [
             Container(
@@ -199,12 +205,12 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
                 borderRadius: BorderRadius.circular(28)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 _ProfileField(label: 'النبذة',
-                  value: (p['bio'] ?? '').toString().isEmpty ? 'لا توجد نبذة بعد.' : p['bio'].toString()),
+                  value: bio.isEmpty ? 'لا توجد نبذة بعد.' : bio),
                 const SizedBox(height: 24),
                 _ProfileField(label: 'اسم المستخدم',
                   value: username.isEmpty ? 'غير محدد' : '@$username'),
                 const SizedBox(height: 24),
-                _ProfileField(label: 'الصف', value: (p['stage'] ?? 'غير محدد').toString()),
+                _ProfileField(label: 'الصف', value: grade,
                 const SizedBox(height: 24),
                 _ProfileField(label: 'النقاط · بنك الأسئلة',
                   value: p['question_points'] == null
@@ -287,6 +293,8 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
     final me = _dmDb.auth.currentUser;
     final body = input.text.trim();
     if (me == null || body.isEmpty || sending) return;
+    input.clear();
+    FocusScope.of(context).unfocus();
     if (body.length > 2000) return;
     setState(() => sending = true);
     try {
@@ -388,7 +396,7 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
                 return Align(
                   alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
-                    constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .82),
+                    constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .74),
                     margin: const EdgeInsets.symmetric(vertical: 4),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
@@ -399,7 +407,7 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
                         bottomRight: Radius.circular(mine ? 18 : 5))),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Text((row['body'] ?? '').toString(),
-                        style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.35)),
+                        style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.35)),
                       const SizedBox(height: 4),
                       Text(_time(row['created_at']),
                         style: const TextStyle(color: Colors.white54, fontSize: 10)),
@@ -424,9 +432,9 @@ class _StudentPrivateChatScreenState extends State<StudentPrivateChatScreen> {
                 icon: const Icon(Icons.emoji_emotions_outlined, color: Colors.white70, size: 30)),
               Expanded(child: TextField(controller: input, minLines: 1, maxLines: 4,
                 maxLength: 2000, onSubmitted: (_) => send(), textDirection: TextDirection.rtl,
-                style: const TextStyle(color: Colors.white, fontSize: 15),
+                style: const TextStyle(color: Colors.white, fontSize: 13.5),
                 decoration: const InputDecoration(hintText: 'الرسالة',
-                  hintStyle: TextStyle(color: Colors.white54, fontSize: 15),
+                  hintStyle: TextStyle(color: Colors.white54, fontSize: 13.5),
                   counterText: '', border: InputBorder.none, isDense: true))),
               Container(width: 52, height: 52,
                 decoration: const BoxDecoration(color: Color(0xFF5278EE), shape: BoxShape.circle),
