@@ -2079,6 +2079,32 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     _pickCustomSticker();
                                   },
                                 ),
+                                ListTile(
+                                  leading: const Icon(Icons.emoji_emotions_outlined),
+                                  title: const Text('ملصقات جاهزة'),
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    showModalBottomSheet<void>(
+                                      context: context,
+                                      builder: (stickerContext) => SafeArea(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(14),
+                                          child: Wrap(
+                                            spacing: 8,
+                                            runSpacing: 8,
+                                            children: stickers.entries.map((entry) => ActionChip(
+                                              label: Text(entry.value, style: const TextStyle(fontSize: 22)),
+                                              onPressed: sending ? null : () {
+                                                Navigator.pop(stickerContext);
+                                                send(sticker: entry.key);
+                                              },
+                                            )).toList(),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ]),
                             ),
                           );
