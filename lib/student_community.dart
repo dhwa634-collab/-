@@ -403,11 +403,11 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
   Widget panel(Widget child)=>Card(elevation:0,color:const Color(0xFF112B45),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20),side:BorderSide(color:Colors.white.withValues(alpha:.07))),child:Padding(padding:const EdgeInsets.all(16),child:child));
   @override void dispose(){usernameTimer?.cancel();profileScroll.dispose();name.dispose();username.dispose();bio.dispose();age.dispose();super.dispose();}
   @override Widget build(BuildContext context){
-    const c=ColorScheme.dark(primary:Color(0xFF56B4F8),surface:Color(0xFF0A1928),onSurface:Colors.white,onSurfaceVariant:Color(0xFFB8C7D8));final dark=true;
+    const c=ColorScheme.dark(primary:Color(0xFF56B4F8),surface:Color(0xFF0A1928),onSurface:Colors.white,onSurfaceVariant:Color(0xFFB8C7D8));
     final avatar=selectedAvatar!=null?FileImage(File(selectedAvatar!.path)) as ImageProvider<Object>:avatarUrl!=null?NetworkImage(avatarUrl!) as ImageProvider<Object>:null;
     return Theme(data:Theme.of(context).copyWith(brightness:Brightness.dark,colorScheme:c),child:Directionality(textDirection:TextDirection.rtl,child:Scaffold(backgroundColor:const Color(0xFF071421),appBar:AppBar(backgroundColor:const Color(0xFF071421),foregroundColor:Colors.white,title:const Text('الملف الشخصي'),elevation:0),
       body:loading?const Center(child:CircularProgressIndicator()):ListView(controller:profileScroll,padding:const EdgeInsets.all(16),children:[
-        Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(25),gradient:LinearGradient(colors:dark?const[Color(0xFF142C4B),Color(0xFF285080)]:const[Color(0xFF17427E),Color(0xFF347FE8),Color(0xFF6A7CEB)])),
+        Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(25),gradient:const LinearGradient(colors:[Color(0xFF142C4B),Color(0xFF285080)])),
           child:Column(children:[
             Stack(alignment:Alignment.bottomLeft,children:[
               Container(padding:const EdgeInsets.all(4),decoration:BoxDecoration(shape:BoxShape.circle,border:Border.all(color:Colors.white,width:3)),child:CircleAvatar(radius:48,backgroundImage:avatar,child:avatar==null?const Icon(Icons.person,size:48,color:Colors.white):null)),
@@ -451,6 +451,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
   }
 }
 Widget _profileHeading(BuildContext c,String text,IconData icon)=>Row(children:[Icon(icon,color:Theme.of(c).colorScheme.primary),const SizedBox(width:8),Text(text,style:Theme.of(c).textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900))]);
+Widget _profileChip(BuildContext context,IconData icon,String label)=>Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),decoration:BoxDecoration(color:Colors.white.withValues(alpha:.14),borderRadius:BorderRadius.circular(18),border:Border.all(color:Colors.white.withValues(alpha:.18))),child:Row(mainAxisSize:MainAxisSize.min,children:[Icon(icon,size:14,color:const Color(0xFFFFD36A)),const SizedBox(width:5),Text(label,style:const TextStyle(color:Colors.white,fontSize:11,fontWeight:FontWeight.w700))]));
 
 class StudentSearchScreen extends StatefulWidget{const StudentSearchScreen({super.key});@override State<StudentSearchScreen> createState()=>_StudentSearchScreenState();}
 class _StudentSearchScreenState extends State<StudentSearchScreen>{
@@ -491,12 +492,12 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
     final r=await _db.rpc('search_student_profiles_v1',params:{'p_query':null,'p_stage':null,'p_user_id':widget.userId,'p_limit':1});
     final l=r as List;final me=_db.auth.currentUser?.id;var mine=false,theirs=false;
     if(me!=null&&me!=widget.userId){final rows=await _db.from('user_blocks').select('blocker_id,blocked_id').or('and(blocker_id.eq.$me,blocked_id.eq.${widget.userId}),and(blocker_id.eq.${widget.userId},blocked_id.eq.$me)');mine=(rows as List).any((x)=>x['blocker_id']==me&&x['blocked_id']==widget.userId);theirs=rows.any((x)=>x['blocker_id']==widget.userId&&x['blocked_id']==me);}
-    if(mounted)setState(()=>{p=l.isEmpty?null:Map<String,dynamic>.from(l.first as Map),blockedByMe=mine,blockedByThem=theirs,loading=false});
+    if(mounted)setState(() { p=l.isEmpty?null:Map<String,dynamic>.from(l.first as Map);blockedByMe=mine;blockedByThem=theirs;loading=false; });
   }catch(_){if(mounted)setState(()=>loading=false);}}
   Future<void> toggleBlock()async{
     final me=_db.auth.currentUser?.id;if(me==null||me==widget.userId||blockBusy)return;final removing=blockedByMe;
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text(removing?'إلغاء الحظر؟':'حظر هذا الطالب؟'),content:Text(removing?'سيعود خيار المراسلة إذا لم يكن هناك حظر من الطرف الآخر.':'لن تتمكنوا من مراسلة بعضكما ما دام الحظر مفعّلاً.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:Text(removing?'إلغاء الحظر':'حظر'))]));
-    if(ok!=true)return;setState(()=>{blockBusy=true,blockedByMe=!removing});
+    if(ok!=true)return;setState(() { blockBusy=true;blockedByMe=!removing; });
     try{if(removing){await _db.from('user_blocks').delete().eq('blocker_id',me).eq('blocked_id',widget.userId);}else{await _db.from('user_blocks').insert({'blocker_id':me,'blocked_id':widget.userId});}if(mounted)ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content:Text(removing?'تم إلغاء الحظر.':'تم حظر الطالب.')));}
     catch(e){if(mounted){setState(()=>blockedByMe=removing);ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تحديث الحظر: $e')));}}
     finally{if(mounted)setState(()=>blockBusy=false);}
