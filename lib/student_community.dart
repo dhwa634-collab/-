@@ -428,7 +428,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
               if(developer)...[const SizedBox(width:6),const _DeveloperBadge(onPrimary:true)],
             ]),
             const SizedBox(height:10),Wrap(alignment:WrapAlignment.center,spacing:7,runSpacing:7,children:[
-              if(username.text.isNotEmpty)ActionChip(avatar:const Icon(Icons.copy,size:14),label:Text('@${username.text.trim().replaceFirst(RegExp(r'^@'),'')}'),onPressed:copyId,backgroundColor:Colors.white.withValues(alpha:.18),labelStyle:const TextStyle(color:Colors.white,fontWeight:FontWeight.w800)),
+              if(username.text.isNotEmpty)ActionChip(avatar:const Icon(Icons.copy,size:14),label:Text('@${username.text.trim().replaceFirst(RegExp(r'^@'),'')}'),onPressed:copyId,backgroundColor:const Color(0xFF071421),labelStyle:const TextStyle(color:Colors.white,fontWeight:FontWeight.w900)),
               _profileChip(context,Icons.school,stage),_profileChip(context,Icons.workspace_premium,badge),_profileChip(context,Icons.quiz,'نقاط البنك: —'),
             ]),
           ])),
