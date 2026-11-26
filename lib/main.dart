@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +19,25 @@ import 'academic_stages.dart';
 import 'notifications/study_notification_service.dart';
 Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await Supabase.initialize(url: SupabaseConfig.projectUrl, publishableKey: SupabaseConfig.publishableKey); unawaited(StudentPresenceService.initialize()); await SavedExamsStore.load(); await ThemeController.load(); await AcademicStageController.load(); await StudyNotificationService.instance.initialize(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
+
+Future<String> _readRegisteredStageLabel() async {
+  String? label;
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user != null) {
+    try {
+      final profile = await Supabase.instance.client
+          .from('profiles').select('stage').eq('user_id', user.id).maybeSingle();
+      label = profile?['stage']?.toString();
+    } catch (_) {}
+  }
+  if (label == null || label.trim().isEmpty) {
+    final prefs = await SharedPreferences.getInstance();
+    label = prefs.getString('dalilak_student_stage_label_v1');
+  }
+  return label?.trim().isNotEmpty == true
+      ? label!.trim()
+      : AcademicStageController.current.value.label;
+}
 class SavedExamsStore {
   static const String _storageKey = 'saved_exam_sheets_v1';
   static final ValueNotifier<List<Map<String, String>>> items =
@@ -320,7 +340,6 @@ class StageCatalogScreen extends StatefulWidget {
 
 class _StageCatalogScreenState extends State<StageCatalogScreen> {
   String _branch = 'العلمي';
-  String _scientificTrack = 'الأحيائي';
 
   @override
   void initState() {
@@ -382,24 +401,12 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
                 DropdownMenuItem(value: branch, child: Text(branch))).toList(),
               onChanged: (value) => setState(() {
                 _branch = value ?? 'العلمي';
-                _scientificTrack = 'الأحيائي';
               }),
             ),
-            if (_branch == 'العلمي') ...[
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _scientificTrack,
-                decoration: const InputDecoration(labelText: 'مسار الفرع العلمي'),
-                items: sixthPreparatoryScientificTracks.map((track) =>
-                  DropdownMenuItem(value: track, child: Text(track))).toList(),
-                onChanged: (value) => setState(() =>
-                  _scientificTrack = value ?? 'الأحيائي'),
-              ),
-            ],
             const SizedBox(height: 8),
             Text(_branch == 'الأدبي'
                 ? 'يعرض هذا القسم كتب الفرع الأدبي المتاحة في فهرس المصادر.'
-                : 'المسار: $_scientificTrack — يعرض الكتب العلمية المدرجة حالياً.',
+                : 'يعرض هذا القسم كتب الفرع العلمي المدرجة حالياً.',
               style: TextStyle(color: colors.onSurfaceVariant)),
           ],
           const SizedBox(height: 18),
@@ -1169,6 +1176,7 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   Stream<List<Map<String,dynamic>>>? _unreadMessagesStream;
   bool _showWelcome = false;
+  String _stageDisplayLabel = AcademicStage.intermediateThird.label;
   late final AnimationController _welcomeController;
   late final Animation<double> _welcomeSize;
   late final Animation<double> _welcomeOpacity;
@@ -1200,6 +1208,12 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
       end: const Offset(0, -0.18),
     ).animate(curved);
     _loadFirstWelcome();
+    _loadStageDisplayLabel();
+  }
+
+  Future<void> _loadStageDisplayLabel() async {
+    final label = await _readRegisteredStageLabel();
+    if (mounted) setState(() => _stageDisplayLabel = label);
   }
 
   Future<void> _loadFirstWelcome() async {
@@ -1236,7 +1250,9 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
           decoration: BoxDecoration(gradient: const LinearGradient(
             colors: [Color(0xFF17427E), Color(0xFF347FE8)]),
             borderRadius: BorderRadius.circular(15)),
-          child: const Icon(Icons.school_rounded, color: Colors.white, size: 27)),
+          padding: const EdgeInsets.all(7),
+          child: ClipRRect(borderRadius: BorderRadius.circular(10),
+            child: SvgPicture.asset('assets/brand/app_icon.svg', fit: BoxFit.contain))),
         const SizedBox(width: 11),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1377,15 +1393,15 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                     child: const Icon(Icons.auto_awesome_rounded,
                       color: Colors.white, size: 27)),
                   const SizedBox(width: 12),
-                  const Expanded(child: Column(
+                  Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('المساعد الذكي',
+                      const Text('المساعد الذكي',
                         style: TextStyle(color: Colors.white,
                           fontSize: 18, fontWeight: FontWeight.w900)),
-                      SizedBox(height: 4),
-                      Text('مساعدك الدراسي للثالث متوسط',
-                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      const SizedBox(height: 4),
+                      Text('مساعدك الدراسي لمرحلة $_stageDisplayLabel',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12)),
                     ],
                   )),
                   const Icon(Icons.arrow_back_ios_new_rounded,
@@ -4043,22 +4059,29 @@ class MoreScreen extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Row(children: [
-              CircleAvatar(
-                radius: 27,
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.school_rounded, color: Colors.white, size: 30),
+            child: Row(children: [
+              Container(
+                width: 54, height: 54, padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+                child: ClipOval(child: SvgPicture.asset('assets/brand/app_icon.svg', fit: BoxFit.contain)),
               ),
-              SizedBox(width: 13),
+              const SizedBox(width: 13),
               Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_appName, style: TextStyle(
+                  Text(_appName, style: const TextStyle(
                     color: Colors.white, fontSize: 18,
                     fontWeight: FontWeight.w900)),
-                  SizedBox(height: 5),
-                  Text('رفيقك في المراجعة والاستعداد للامتحانات',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  const SizedBox(height: 5),
+                  FutureBuilder<String>(
+                    future: _readRegisteredStageLabel(),
+                    builder: (context, snapshot) => Text(
+                      snapshot.data == null
+                          ? 'رفيقك في المراجعة والاستعداد للامتحانات'
+                          : 'المرحلة الدراسية: ${snapshot.data}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ),
                 ],
               )),
             ]),
@@ -4785,10 +4808,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     {'role': 'assistant', 'text': 'هلا بيك! آني مساعدك الدراسي. اسألني عن مواد الثالث المتوسط، وأشرحلك الحل خطوة بخطوة. وتكدر تسأل سؤال متابعة عن نفس الموضوع.'},
   ];
   bool loading = false;
+  String _stageDisplayLabel = AcademicStage.intermediateThird.label;
 
   @override
   void initState() {
     super.initState();
+    _readRegisteredStageLabel().then((label) {
+      if (mounted) setState(() => _stageDisplayLabel = label);
+    });
     final prompt = widget.initialPrompt?.trim();
     if (prompt != null && prompt.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -5023,12 +5050,12 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     textDirection: TextDirection.rtl,
     child: Scaffold(
       appBar: AppBar(
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('المساعد الذكي', style: TextStyle(fontWeight: FontWeight.w900)),
-            Text('مساعدك لمواد الثالث المتوسط',
-              style: TextStyle(fontSize: 11,)),
+            const Text('المساعد الذكي', style: TextStyle(fontWeight: FontWeight.w900)),
+            Text('مساعدك لمواد $_stageDisplayLabel',
+              style: const TextStyle(fontSize: 11)),
           ],
         ),
         actions: [
