@@ -783,16 +783,153 @@ class StudyApp extends StatelessWidget {
 class Shell extends StatefulWidget {const Shell({super.key}); @override State<Shell> createState()=>_ShellState();}
 class _ShellState extends State<Shell> with WidgetsBindingObserver {
   int tab=0;
+  StreamSubscription<List<Map<String,dynamic>>>? _notificationSubscription;
+  final Set<String> _seenNotificationIds = {};
+  late final DateTime _notificationStartedAt;
+  bool _appForeground = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _notificationStartedAt = DateTime.now().toUtc();
+    StudyNotificationService.instance.onNotificationTap = _handleNotificationTap;
     StudyNotificationService.instance.onAppResumed();
+    _listenToUserNotifications();
+  }
+
+  void _listenToUserNotifications() {
+    final client = Supabase.instance.client;
+    final userId = client.auth.currentUser?.id;
+    if (userId == null) return;
+    _notificationSubscription = client.from('user_notifications')
+      .stream(primaryKey: ['id'])
+      .eq('recipient_id', userId)
+      .order('created_at', ascending: false)
+      .listen((rows) {
+        for (final row in rows) {
+          final id = row['id']?.toString() ?? '';
+          final created = DateTime.tryParse(row['created_at']?.toString() ?? '');
+          if (id.isEmpty || created == null ||
+              !created.toUtc().isAfter(_notificationStartedAt) ||
+              !_seenNotificationIds.add(id)) continue;
+          _showLiveNotification(row);
+        }
+      }, onError: (error) {
+        debugPrint('Supabase live notifications stream failed: $error');
+      });
+  }
+
+  Future<void> _showLiveNotification(Map<String,dynamic> row) async {
+    final type = row['type']?.toString() ?? '';
+    final actorId = row['actor_id']?.toString();
+    if (type == 'direct_message' && actorId != null &&
+        activeDirectMessageUserId.value == actorId) {
+      try {
+        await Supabase.instance.client.rpc('mark_user_notification_read',
+          params: {'p_notification_id': row['id']});
+      } catch (_) {}
+      return;
+    }
+    final payload = jsonEncode({
+      'id': row['id'],
+      'type': type,
+      'actor_id': actorId,
+      'reference_id': row['reference_id'],
+    });
+    final title = row['title']?.toString() ?? 'تنبيه جديد';
+    final body = row['body']?.toString() ?? '';
+    if (!_appForeground) {
+      await StudyNotificationService.instance.showRealtimeNotification(
+        id: row['id'].toString().hashCode & 0x7fffffff,
+        title: title,
+        body: body,
+        payload: payload,
+      );
+      return;
+    }
+    if (!mounted) return;
+    String? avatar;
+    if (actorId != null && type == 'direct_message') {
+      try {
+        final profile = await Supabase.instance.client.from('profiles')
+          .select('avatar_url').eq('user_id', actorId).maybeSingle();
+        avatar = profile?['avatar_url']?.toString();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentMaterialBanner()
+      ..showMaterialBanner(MaterialBanner(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+        leading: CircleAvatar(
+          backgroundImage: avatar != null && avatar.startsWith('http')
+            ? NetworkImage(avatar) : null,
+          child: avatar == null || !avatar.startsWith('http')
+            ? Icon(type == 'news' ? Icons.campaign_rounded : Icons.person_rounded)
+            : null,
+        ),
+        content: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900)),
+          if (body.isNotEmpty) Text(body, maxLines: 2, overflow: TextOverflow.ellipsis),
+        ]),
+        actions: [
+          TextButton(onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+            _openNotification(row);
+          }, child: const Text('فتح')),
+          TextButton(onPressed: () => ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
+            child: const Text('إغلاق')),
+        ],
+      ));
+  }
+
+  void _handleNotificationTap(String? payload) {
+    if (payload == null || payload.isEmpty || !mounted) return;
+    try {
+      final data = jsonDecode(payload);
+      if (data is Map) _openNotification(Map<String,dynamic>.from(data));
+    } catch (error) {
+      debugPrint('Invalid notification payload: $error');
+    }
+  }
+
+  Future<void> _openNotification(Map<String,dynamic> data) async {
+    final notificationId = data['id']?.toString();
+    if (notificationId != null) {
+      try {
+        await Supabase.instance.client.rpc('mark_user_notification_read',
+          params: {'p_notification_id': notificationId});
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    if (data['type'] == 'news') {
+      setState(() => tab = 2);
+      return;
+    }
+    final actorId = data['actor_id']?.toString();
+    if (actorId == null || actorId.isEmpty) return;
+    try {
+      final profile = await Supabase.instance.client.from('profiles')
+        .select('display_name,avatar_url')
+        .eq('user_id', actorId).maybeSingle();
+      if (!mounted) return;
+      Navigator.push(context, MaterialPageRoute(builder: (_) =>
+        StudentDirectMessageScreen(
+          otherUserId: actorId,
+          otherName: profile?['display_name']?.toString() ?? 'طالب',
+          otherAvatar: profile?['avatar_url']?.toString(),
+        )));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر فتح المحادثة: $error')));
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appForeground = state == AppLifecycleState.resumed;
     if (state == AppLifecycleState.resumed) {
       StudyNotificationService.instance.onAppResumed();
     }
@@ -800,6 +937,8 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _notificationSubscription?.cancel();
+    StudyNotificationService.instance.onNotificationTap = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
