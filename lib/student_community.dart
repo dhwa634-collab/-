@@ -2134,7 +2134,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               maxLength: 500,
                               textAlignVertical: TextAlignVertical.center,
                               style: TextStyle(color: colors.onSurface, fontSize: 15),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: 'الرسالة',
                                 hintStyle: TextStyle(color: colors.onSurfaceVariant, fontSize: 15),
                                 counterText: '',
