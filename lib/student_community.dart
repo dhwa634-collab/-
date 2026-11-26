@@ -663,8 +663,10 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
   }
   void _scrollToLatest() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) _scrollController.animateTo(_scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(_scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+      }
     });
   }
   Stream<List<Map<String,dynamic>>> stream()=>_db.from('direct_messages').stream(primaryKey:['id']).order('created_at',ascending:true).map((items){final seen=<String>{};return items.where((r)=>((r['sender_id']==me&&r['receiver_id']==widget.otherUserId)||(r['sender_id']==widget.otherUserId&&r['receiver_id']==me))&&seen.add(r['id'].toString())).toList();});
@@ -677,6 +679,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () => Navigator.pop(ctx, 'edit')),
         ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('حذف الرسالة'), onTap: () => Navigator.pop(ctx, 'delete')),
       ]))));
+    if (!mounted) return;
     if (action == 'edit') {
       final ctl = TextEditingController(text: row['body']?.toString() ?? '');
       final value = await showDialog<String>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
@@ -703,9 +706,12 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       if(s.hasError)return Center(child:Text('تعذر تحميل المحادثة: ${s.error}'));
       if(!s.hasData)return const Center(child:CircularProgressIndicator());
       final l=s.data!; if(l.isEmpty)return const Center(child:Text('ابدأ المحادثة برسالة ترحيبية 👋'));
-      WidgetsBinding.instance.addPostFrameCallback((_) { if(_scrollController.hasClients &&
-        _scrollController.position.maxScrollExtent-_scrollController.offset<180)
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent); });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients &&
+            _scrollController.position.maxScrollExtent - _scrollController.offset < 180) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+      });
       return ListView.builder(controller:_scrollController,padding:const EdgeInsets.all(14),itemCount:l.length,itemBuilder:(ctx,i){
         final r=l[i]; final mine=r['sender_id']==me;
         final senderName=_participantNames[r['sender_id']?.toString()] ?? (mine?'حسابي':_resolvedOtherName);
@@ -1217,6 +1223,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           if (!mine) ListTile(leading: const Icon(Icons.person_off_outlined), title: const Text('الإبلاغ عن المستخدم'), onTap: () => Navigator.pop(ctx, 'report_user')),
           if (!mine) ListTile(leading: const Icon(Icons.block_outlined), title: const Text('حظر المستخدم'), onTap: () => Navigator.pop(ctx, 'block')),
         ]))));
+    if (!mounted) return;
     if (action == 'edit') await _editGroupMessage(row);
     if (action == 'delete') {
       final ok = await showDialog<bool>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
