@@ -175,14 +175,9 @@ void main() {
 
 
   testWidgets('home screen loads', (tester) async {
-    // Simulate an existing installation so the first-run onboarding gate
-    // correctly lets this home-screen test reach the Shell.
-    SharedPreferences.setMockInitialValues({
-      'dalilak_student_onboarding_done_v1': true,
-      'dalilak_home_welcome_seen_v1': true,
-    });
-    // Supabase is initialized once in setUpAll, outside this fake-async zone.
-    await tester.pumpWidget(const StudyApp());
+    // Test the Shell directly: StudyApp intentionally routes signed-out users
+    // to Google welcome before the authenticated home screen.
+    await tester.pumpWidget(const MaterialApp(home: Shell()));
     await tester.pumpAndSettle();
 
     // The subjects catalog is intentionally displayed in its own bottom tab,
