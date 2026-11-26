@@ -636,13 +636,30 @@ class StudentDirectMessageScreen extends StatefulWidget{
 class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>{
   final input=TextEditingController();late final Stream<List<Map<String,dynamic>>> messages;late final StreamSubscription<List<Map<String,dynamic>>> blockSubscription;bool sending=false,blocked=false;String? get me=>_db.auth.currentUser?.id;
   late final StreamSubscription<List<Map<String,dynamic>>> messageSubscription;
-  @override void initState(){super.initState();activeDirectMessageUserId.value=widget.otherUserId;messages=stream();messageSubscription=messages.listen((_)=>markIncomingAsRead());blockSubscription=_db.from('user_blocks').stream(primaryKey:['blocker_id','blocked_id']).listen((rows){final user=me;final next=user==null||rows.any((r)=>(r['blocker_id']==user&&r['blocked_id']==widget.otherUserId)||(r['blocker_id']==widget.otherUserId&&r['blocked_id']==user));if(mounted&&blocked!=next)setState(()=>blocked=next);});refreshBlockStatus();markIncomingAsRead();}
+  late String _resolvedOtherName;
+  @override void initState(){super.initState();_resolvedOtherName=widget.otherName;_loadOtherProfileName();activeDirectMessageUserId.value=widget.otherUserId;messages=stream();messageSubscription=messages.listen((_)=>markIncomingAsRead());blockSubscription=_db.from('user_blocks').stream(primaryKey:['blocker_id','blocked_id']).listen((rows){final user=me;final next=user==null||rows.any((r)=>(r['blocker_id']==user&&r['blocked_id']==widget.otherUserId)||(r['blocker_id']==widget.otherUserId&&r['blocked_id']==user));if(mounted&&blocked!=next)setState(()=>blocked=next);});refreshBlockStatus();markIncomingAsRead();}
+  Future<void> _loadOtherProfileName() async {
+    try {
+      final profile = await _db.from('profiles')
+        .select('display_name,username')
+        .eq('user_id', widget.otherUserId).maybeSingle();
+      final displayName = profile?['display_name']?.toString().trim() ?? '';
+      final username = profile?['username']?.toString().trim() ?? '';
+      final resolved = displayName.isNotEmpty
+        ? displayName : (username.isNotEmpty ? '@$username' : widget.otherName);
+      if (mounted && resolved.isNotEmpty && resolved != _resolvedOtherName) {
+        setState(() => _resolvedOtherName = resolved);
+      }
+    } catch (error) {
+      debugPrint('Load private chat participant profile failed: $error');
+    }
+  }
   Stream<List<Map<String,dynamic>>> stream()=>_db.from('direct_messages').stream(primaryKey:['id']).order('created_at').map((items){final seen=<String>{};return items.where((r)=>((r['sender_id']==me&&r['receiver_id']==widget.otherUserId)||(r['sender_id']==widget.otherUserId&&r['receiver_id']==me))&&seen.add(r['id'].toString())).toList();});
   Future<bool> refreshBlockStatus()async{final user=me;if(user==null)return true;try{final rows=await _db.from('user_blocks').select('blocker_id,blocked_id').or('and(blocker_id.eq.$user,blocked_id.eq.${widget.otherUserId}),and(blocker_id.eq.${widget.otherUserId},blocked_id.eq.$user)');final value=(rows as List).isNotEmpty;if(mounted)setState(()=>blocked=value);return value;}catch(_){return blocked;}}
   Future<void> markIncomingAsRead()async{final user=me;if(user==null)return;try{await _db.rpc('mark_direct_messages_read',params:{'p_sender_id':widget.otherUserId});}catch(error){debugPrint('Mark private messages read failed: $error');}}
   Future<void> send()async{final v=input.text.trim();final user=me;if(v.isEmpty||user==null||sending)return;if(v.length>2000){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الرسالة طويلة جداً.')));return;}FocusScope.of(context).unfocus();setState(()=>sending=true);try{if(await refreshBlockStatus()){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')));return;}await _db.from('direct_messages').insert({'sender_id':user,'receiver_id':widget.otherUserId,'body':v});input.clear();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إرسال الرسالة: $e')));}finally{if(mounted)setState(()=>sending=false);}}
   @override void dispose(){activeDirectMessageUserId.value=null;messageSubscription.cancel();blockSubscription.cancel();input.dispose();super.dispose();}
-  @override Widget build(BuildContext context){final c=Theme.of(context).colorScheme;return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:Text(widget.otherName)),body:Column(children:[
+  @override Widget build(BuildContext context){final c=Theme.of(context).colorScheme;return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:Text(_resolvedOtherName)),body:Column(children:[
     Expanded(child:StreamBuilder<List<Map<String,dynamic>>>(stream:messages,builder:(ctx,s){if(s.hasError)return Center(child:Text('تعذر تحميل المحادثة: ${s.error}'));if(!s.hasData)return const Center(child:CircularProgressIndicator());final l=s.data!;if(l.isEmpty)return const Center(child:Text('ابدأ المحادثة برسالة ترحيبية 👋'));return ListView.builder(reverse:true,padding:const EdgeInsets.all(14),itemCount:l.length,itemBuilder:(ctx,i){final r=l[l.length-1-i];final mine=r['sender_id']==me;return Align(alignment:mine?Alignment.centerRight:Alignment.centerLeft,child:Container(margin:const EdgeInsets.symmetric(vertical:4),padding:const EdgeInsets.all(12),constraints:const BoxConstraints(maxWidth:300),decoration:BoxDecoration(color:mine?c.primary:c.surfaceContainerHighest,borderRadius:BorderRadius.circular(16)),child:Row(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.end,children:[Flexible(child:Text(r['body']?.toString()??'',style:TextStyle(color:mine?c.onPrimary:c.onSurface))),if(mine)...[const SizedBox(width:7),Icon(r['read_at']!=null?Icons.done_all_rounded:Icons.done_rounded,size:15,color:r['read_at']!=null?Colors.lightBlueAccent:(mine?c.onPrimary.withValues(alpha:.72):c.onSurfaceVariant))]])));});})),
     if(blocked)const Padding(padding:EdgeInsets.fromLTRB(14,6,14,0),child:Text('المراسلة متوقفة بسبب الحظر بين الحسابين.',style:TextStyle(color:Color(0xFFB87922)))),
     SafeArea(top:false,child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[Expanded(child:TextField(controller:input,enabled:!blocked,minLines:1,maxLines:4,textInputAction:TextInputAction.send,onSubmitted:(_)=>send(),decoration:InputDecoration(hintText:blocked?'المراسلة غير متاحة بسبب الحظر':'اكتب رسالتك...',filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(24),borderSide:BorderSide.none)))),IconButton.filled(onPressed:sending||blocked?null:send,icon:sending?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.send))]))),
@@ -1806,7 +1823,7 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
                   final last = item['last'] as Map<String,dynamic>;
                   final userId = item['user_id'].toString();
                   final avatar = profile['avatar_url']?.toString();
-                  final name = (profile['display_name'] ?? 'طالب').toString();
+                  final displayName = profile['display_name']?.toString().trim() ?? '';\n                  final usernameValue = profile['username']?.toString().trim() ?? '';\n                  final name = displayName.isNotEmpty ? displayName : (usernameValue.isNotEmpty ? '@$usernameValue' : 'مستخدم');
                   final username = (profile['username'] ?? '').toString();
                   final unread = item['unread'] as int;
                   return ListTile(
