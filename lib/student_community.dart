@@ -687,7 +687,9 @@ class StudentDirectMessageScreen extends StatefulWidget{
   @override State<StudentDirectMessageScreen> createState()=>_StudentDirectMessageScreenState();
 }
 class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>{
-  final input=TextEditingController(); final ScrollController _scrollController=ScrollController();
+  final input=TextEditingController();
+  final FocusNode inputFocus = FocusNode();
+  final ScrollController _scrollController=ScrollController();
   late final Stream<List<Map<String,dynamic>>> messages; late final StreamSubscription<List<Map<String,dynamic>>> blockSubscription;
   bool sending=false,blocked=false; String? get me=>_db.auth.currentUser?.id;
   late final StreamSubscription<List<Map<String,dynamic>>> messageSubscription; late String _resolvedOtherName;
@@ -757,8 +759,50 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر حذف الرسالة: $e'))); } }
     }
   }
-  Future<void> send()async{final v=input.text.trim();final user=me;if(v.isEmpty||user==null||sending)return;if(v.length>2000){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الرسالة طويلة جداً.')));return;}FocusScope.of(context).unfocus();setState(()=>sending=true);try{if(await refreshBlockStatus()){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')));return;}await _db.from('direct_messages').insert({'sender_id':user,'receiver_id':widget.otherUserId,'body':v});input.clear();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إرسال الرسالة: $e')));}finally{if(mounted)setState(()=>sending=false);}}
-  @override void dispose(){activeDirectMessageUserId.value=null;StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);messageSubscription.cancel();blockSubscription.cancel();_scrollController.dispose();input.dispose();super.dispose();}
+  Future<void> send() async {
+    final value = input.text.trim();
+    final user = me;
+    if (value.isEmpty || user == null || sending) return;
+    if (value.length > 2000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الرسالة طويلة جداً.')),
+      );
+      return;
+    }
+    setState(() => sending = true);
+    try {
+      if (await refreshBlockStatus()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')),
+          );
+        }
+        return;
+      }
+      await _db.from('direct_messages').insert({
+        'sender_id': user,
+        'receiver_id': widget.otherUserId,
+        'body': value,
+      });
+      input.clear();
+      if (mounted) {
+        inputFocus.requestFocus();
+        SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر إرسال الرسالة: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => sending = false);
+        inputFocus.requestFocus();
+      }
+    }
+  }
+  @override void dispose(){activeDirectMessageUserId.value=null;StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);messageSubscription.cancel();blockSubscription.cancel();_scrollController.dispose();inputFocus.dispose();input.dispose();super.dispose();}
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -771,10 +815,23 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         appBar: AppBar(
           title: Row(
             children: [
-              CircleAvatar(
-                radius: 19,
-                backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
-                child: hasAvatar ? null : const Icon(Icons.person_rounded, size: 20),
+              InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StudentPublicProfileScreen(
+                      userId: widget.otherUserId,
+                      fallbackName: _resolvedOtherName,
+                      fallbackAvatar: avatar,
+                    ),
+                  ),
+                ),
+                child: CircleAvatar(
+                  radius: 19,
+                  backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+                  child: hasAvatar ? null : const Icon(Icons.person_rounded, size: 20),
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -880,7 +937,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                             child: Container(
                               margin: const EdgeInsets.symmetric(vertical: 4),
                               padding: const EdgeInsets.all(12),
-                              constraints: const BoxConstraints(maxWidth: 300),
+                              constraints: const BoxConstraints(maxWidth: 280),
                               decoration: BoxDecoration(
                                 color: mine
                                     ? colors.primary
@@ -971,6 +1028,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                     Expanded(
                       child: TextField(
                         controller: input,
+                        focusNode: inputFocus,
                         enabled: !blocked,
                         minLines: 1,
                         maxLines: 4,
@@ -1024,6 +1082,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final FocusNode inputFocus = FocusNode();
   final Set<String> _blockedUserIds = {};
   bool _recording = false;
   DateTime? _recordStartedAt;
@@ -1616,17 +1675,21 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     _completeSub?.cancel();
     unawaited(_recorder.dispose());
     unawaited(_audioPlayer.dispose());
+    inputFocus.dispose();
     input.dispose();
     scroll.dispose();
     super.dispose();
   }
   @override
-  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl,
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Directionality(textDirection: TextDirection.rtl,
     child: Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: dark ? const Color(0xFF0C1B2D) : colors.surface,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        backgroundColor: dark ? const Color(0xFF142B46) : colors.surface,
+        foregroundColor: dark ? Colors.white : colors.onSurface,
         elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1641,11 +1704,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFFEAF3FF), Color(0xFFDCEAFF), Color(0xFFF2F7FF)],
+            colors: dark
+                ? const [Color(0xFF0C1B2D), Color(0xFF132B46), Color(0xFF102238)]
+                : const [Color(0xFFEAF3FF), Color(0xFFDCEAFF), Color(0xFFF2F7FF)],
           ),
         ),
         child: Stack(children: [
@@ -1764,7 +1829,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           ],
                           Container(
                             constraints: BoxConstraints(
-                              maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+                              maxWidth: MediaQuery.sizeOf(context).width * 0.72,
                             ),
                             margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
@@ -1920,12 +1985,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         else
           SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
             child: Column(children: [
-              SizedBox(height: 42, child: ListView(scrollDirection: Axis.horizontal,
-                children: stickers.entries.map((e) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: ActionChip(label: Text(e.value, style: const TextStyle(fontSize: 20)),
-                    onPressed: sending ? null : () => send(sticker: e.key)),
-                )).toList())),
               Row(
                 textDirection: TextDirection.rtl,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -1988,7 +2047,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       constraints: const BoxConstraints(minHeight: 54, maxHeight: 118),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF17191B),
+                        color: dark ? const Color(0xFF1A304A) : Colors.white,
                         borderRadius: BorderRadius.circular(32),
                         border: Border.all(
                           color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
@@ -2000,14 +2059,15 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           Expanded(
                             child: TextField(
                               controller: input,
+                              focusNode: inputFocus,
                               minLines: 1,
                               maxLines: 4,
                               maxLength: 500,
                               textAlignVertical: TextAlignVertical.center,
-                              style: const TextStyle(color: Colors.white, fontSize: 15),
+                              style: TextStyle(color: colors.onSurface, fontSize: 15),
                               decoration: const InputDecoration(
                                 hintText: 'الرسالة',
-                                hintStyle: TextStyle(color: Colors.white54, fontSize: 15),
+                                hintStyle: TextStyle(color: colors.onSurfaceVariant, fontSize: 15),
                                 counterText: '',
                                 border: InputBorder.none,
                                 isDense: true,
@@ -2019,39 +2079,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             tooltip: 'إضافة رمز تعبيري',
                             visualDensity: VisualDensity.compact,
                             onPressed: () {
-                              const emojis = ['😀','😂','🥰','😍','❤️','👍','🙏','🔥','🎯','📚','🌟','👏'];
-                              showModalBottomSheet<void>(
-                                context: context,
-                                builder: (sheetContext) => SafeArea(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Wrap(
-                                      spacing: 10,
-                                      runSpacing: 10,
-                                      children: emojis.map((emoji) => InkWell(
-                                        onTap: () {
-                                          final old = input.value;
-                                          final selection = old.selection;
-                                          final start = selection.isValid ? selection.start : old.text.length;
-                                          final finish = selection.isValid ? selection.end : old.text.length;
-                                          final text = old.text.replaceRange(start, finish, emoji);
-                                          input.value = TextEditingValue(
-                                            text: text,
-                                            selection: TextSelection.collapsed(offset: start + emoji.length),
-                                          );
-                                          Navigator.pop(sheetContext);
-                                        },
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(5),
-                                          child: Text(emoji, style: const TextStyle(fontSize: 27)),
-                                        ),
-                                      )).toList(),
-                                    ),
-                                  ),
-                                ),
-                              );
+                              inputFocus.requestFocus();
+                              SystemChannels.textInput.invokeMethod<void>('TextInput.show');
                             },
-                            icon: const Icon(Icons.emoji_emotions_outlined, color: Colors.white70, size: 25),
+                            icon: Icon(Icons.emoji_emotions_outlined, color: colors.onSurfaceVariant, size: 25),
                           ),
                         ],
                       ),
@@ -2068,6 +2099,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           ]),
         ]),
       )));
+  }
 }
 
 
