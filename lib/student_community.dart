@@ -680,7 +680,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     if (action == 'edit') {
       final ctl = TextEditingController(text: row['body']?.toString() ?? '');
       final value = await showDialog<String>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
-        child: AlertDialog(title: const Text('تعديل الرسالة'), content: TextField(controller: ctl, autofocus: true, maxLines: 5, maxLength: 2000),
+        child: AlertDialog(title: const Text('تعديل الرسالة'), content: TextField(controller: ctl, autofocus: true, maxLines: 5, maxLength: 500),
           actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text.trim()), child: const Text('حفظ'))])));
       ctl.dispose();
@@ -1237,6 +1237,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
           FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text.trim()), child: const Text('حفظ'))])));
     ctl.dispose(); if (value == null || value.isEmpty || value == row['body']) return;
+    if (value.length > 500 || unsafe(value)) { toast('لم تُعدّل الرسالة: تجنب الإساءة أو أرقام الهواتف أو البريد أو الروابط، والحد 500 حرف.'); return; }
     try { await _db.from('chat_messages').update({'body': value, 'edited_at': DateTime.now().toUtc().toIso8601String()}).eq('id', row['id']).eq('user_id', _db.auth.currentUser!.id); }
     catch (e) { toast('تعذر تعديل الرسالة: $e'); }
   }
