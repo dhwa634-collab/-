@@ -1764,9 +1764,9 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
     if (date == null) return '';
     final now = DateTime.now();
     if (date.year == now.year && date.month == now.month && date.day == now.day) {
-      return '\${date.hour.toString().padLeft(2,'0')}:\${date.minute.toString().padLeft(2,'0')}';
+      return '${date.hour.toString().padLeft(2,'0')}:${date.minute.toString().padLeft(2,'0')}';
     }
-    return '\${date.day}/\${date.month}';
+    return '${date.day}/${date.month}';
   }
 
   @override void dispose() {
