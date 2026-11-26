@@ -814,7 +814,9 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
           final created = DateTime.tryParse(row['created_at']?.toString() ?? '');
           if (id.isEmpty || created == null ||
               !created.toUtc().isAfter(_notificationStartedAt) ||
-              !_seenNotificationIds.add(id)) continue;
+              !_seenNotificationIds.add(id)) {
+            continue;
+          }
           _showLiveNotification(row);
         }
       }, onError: (error) {
@@ -963,8 +965,11 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
           otherAvatar: profile?['avatar_url']?.toString(),
         )));
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تعذر فتح المحادثة: $error')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر فتح المحادثة: $error')),
+        );
+      }
     }
   }
 
