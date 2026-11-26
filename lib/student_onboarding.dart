@@ -475,7 +475,9 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
       bytes,
       fileOptions: const FileOptions(
         contentType: 'image/jpeg',
-        upsert: true,
+        // Every onboarding upload uses a unique timestamped path, so an
+        // overwrite is unnecessary and would require extra UPDATE/SELECT RLS.
+        upsert: false,
       ),
     );
     return _client.storage.from('avatars').getPublicUrl(path);
