@@ -780,6 +780,13 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
             tween: Tween<double>(begin: 0, end: 1),
             duration: const Duration(milliseconds: 360),
             curve: Curves.easeOutCubic,
+            builder: (context, value, child) => Opacity(
+              opacity: value,
+              child: Transform.translate(
+                offset: Offset(0, 22 * (1 - value)),
+                child: child,
+              ),
+            ),
             child: GestureDetector(
               onLongPress: mine ? () => _privateMessageActions(r) : null,
               child: Container(
@@ -838,13 +845,6 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                     ),
                   ],
                 ),
-              ),
-            ),
-            builder: (context, value, child) => Opacity(
-              opacity: value,
-              child: Transform.translate(
-                offset: Offset(0, 22 * (1 - value)),
-                child: child,
               ),
             ),
           ),
