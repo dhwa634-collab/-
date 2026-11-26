@@ -545,51 +545,49 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
       await AcademicStageController.select(_mappedAcademicStage());
 
       var avatarUploadFailed = false;
-      if (user != null) {
-        final name = _nameController.text.trim();
-        String? avatar;
-        try {
-          avatar = await _uploadAvatar(user);
-        } catch (error, stackTrace) {
-          // Avatar is optional: a Storage RLS/network failure must not block
-          // saving the student's required profile fields.
-          avatarUploadFailed = true;
-          debugPrint(
-            'Student onboarding avatar upload failed: '
-            '${error.runtimeType}: $error',
-          );
-          debugPrintStack(stackTrace: stackTrace);
-        }
-        // profiles.age_band is a constrained category, while profiles.age
-        // stores the student's manually entered numeric age.
-        final ageBand = age < 13
-            ? 'under_13'
-            : age <= 15
-                ? '13_15'
-                : age <= 17
-                    ? '16_17'
-                    : '18_plus';
-        await _client.from('profiles').upsert({
-          'user_id': user.id,
-          'display_name': name,
-          'username': _usernameController.text.trim(),
-          'age_band': ageBand,
-          'age': age,
-          'gender': _gender,
-          'stage': _stage,
-          'avatar_url': avatar,
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
-        }, onConflict: 'user_id');
-        await prefs.setString('dalilak_student_display_name_v1', name);
-        await prefs.setString(
-          'dalilak_student_username_v1',
-          _usernameController.text.trim(),
+      final name = _nameController.text.trim();
+      String? avatar;
+      try {
+        avatar = await _uploadAvatar(user);
+      } catch (error, stackTrace) {
+        // Avatar is optional: a Storage RLS/network failure must not block
+        // saving the student's required profile fields.
+        avatarUploadFailed = true;
+        debugPrint(
+          'Student onboarding avatar upload failed: '
+          '${error.runtimeType}: $error',
         );
+        debugPrintStack(stackTrace: stackTrace);
       }
+      // profiles.age_band is a constrained category, while profiles.age
+      // stores the student's manually entered numeric age.
+      final ageBand = age < 13
+          ? 'under_13'
+          : age <= 15
+              ? '13_15'
+              : age <= 17
+                  ? '16_17'
+                  : '18_plus';
+      await _client.from('profiles').upsert({
+        'user_id': user.id,
+        'display_name': name,
+        'username': _usernameController.text.trim(),
+        'age_band': ageBand,
+        'age': age,
+        'gender': _gender,
+        'stage': _stage,
+        'avatar_url': avatar,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'user_id');
+      await prefs.setString('dalilak_student_display_name_v1', name);
+      await prefs.setString(
+        'dalilak_student_username_v1',
+        _usernameController.text.trim(),
+      );
       await prefs.setBool('dalilak_student_onboarding_done_v1', true);
       await prefs.setBool('dalilak_home_welcome_seen_v1', true);
       if (!mounted) return;
-      if (user != null && avatarUploadFailed) {
+      if (avatarUploadFailed) {
         _message('تم حفظ بياناتك، لكن تعذر رفع الصورة. يمكنك إضافتها لاحقاً.');
       }
       widget.onComplete();
