@@ -506,10 +506,49 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
       body:loading?const Center(child:CircularProgressIndicator()):ListView(controller:profileScroll,padding:const EdgeInsets.all(16),children:[
         Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(25),gradient:LinearGradient(colors:dark?const[Color(0xFF142C4B),Color(0xFF285080)]:const[Color(0xFF17427E),Color(0xFF347FE8)])),
           child:Column(children:[
-            Stack(alignment:Alignment.bottomLeft,children:[
-              Container(padding:const EdgeInsets.all(4),decoration:BoxDecoration(shape:BoxShape.circle,border:Border.all(color:Colors.white,width:3)),child:CircleAvatar(radius:48,backgroundImage:avatar,child:avatar==null?const Icon(Icons.person,size:48,color:Colors.white):null)),
-              IconButton.filled(onPressed:uploading?null:pickAvatar,style:IconButton.styleFrom(backgroundColor:Colors.white,foregroundColor:c.primary),icon:uploading?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.camera_alt)),
-            ]),
+            GestureDetector(
+              onTap: avatar == null ? null : () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => Dialog(
+                  backgroundColor: Colors.black,
+                  insetPadding: const EdgeInsets.all(18),
+                  child: Stack(
+                    children: [
+                      InteractiveViewer(
+                        minScale: 0.7,
+                        maxScale: 4,
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: Image(image: avatar, fit: BoxFit.contain),
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        left: 4,
+                        child: IconButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          icon: const Icon(Icons.close_rounded, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                ),
+                child: CircleAvatar(
+                  radius: 48,
+                  backgroundImage: avatar,
+                  child: avatar == null
+                      ? const Icon(Icons.person, size: 48, color: Colors.white)
+                      : null,
+                ),
+              ),
+            ),
             const SizedBox(height:12),Row(mainAxisAlignment:MainAxisAlignment.center,children:[
               Flexible(child:Text(name.text.isEmpty?'الملف الشخصي':name.text,style:const TextStyle(color:Colors.white,fontSize:21,fontWeight:FontWeight.w900))),
               if(developer)...[const SizedBox(width:6),const _DeveloperBadge(onPrimary:true)],
@@ -806,13 +845,17 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final avatar = widget.otherAvatar;
     final hasAvatar = avatar != null && avatar.startsWith('http');
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: dark ? const Color(0xFF0C1B2D) : colors.surface,
         appBar: AppBar(
+          backgroundColor: dark ? const Color(0xFF142B46) : colors.surface,
+          foregroundColor: dark ? Colors.white : colors.onSurface,
           title: Row(
             children: [
               InkWell(
