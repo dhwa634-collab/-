@@ -821,6 +821,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   OverlayEntry? _liveBannerEntry;
   Timer? _liveBannerTimer;
   bool _appForeground = true;
+  DateTime? _lastBackPressedAt;
 
   @override
   void initState() {
@@ -1033,7 +1034,21 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s)));
   @override Widget build(BuildContext context){
     final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const NewsScreen(),const PomodoroScreen(),const MoreScreen()];
-    return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
+    return Directionality(textDirection:TextDirection.rtl,child:PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop || !mounted) return;
+        final now = DateTime.now();
+        final previous = _lastBackPressedAt;
+        if (previous != null && now.difference(previous) <= const Duration(seconds: 2)) { SystemNavigator.pop(); return; }
+        _lastBackPressedAt = now;
+        ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          content: Row(children: [SizedBox(width: 25, height: 25, child: SvgPicture.asset('assets/brand/app_icon.svg', fit: BoxFit.contain)), const SizedBox(width: 10), const Expanded(child: Text('اضغط مرة أخرى للخروج من التطبيق'))]),
+        ));
+      },
+      child:Scaffold(
       body:SafeArea(child:IndexedStack(index:tab,children:pages)),
       bottomNavigationBar:NavigationBar(
         selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),
@@ -1044,7 +1059,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
           NavigationDestination(icon:Icon(Icons.campaign_rounded),label:'الأخبار'),
           NavigationDestination(icon:Icon(Icons.timer_rounded),label:'المؤقت'),
           NavigationDestination(icon:Icon(Icons.more_horiz_rounded),label:'المزيد')
-        ])));
+        ]))));
   }
 }
 class HomeChatRoomEntryCard extends StatelessWidget {
@@ -1320,17 +1335,13 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.waving_hand_rounded,
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? const Color(0xFFFFD27A)
-                          : const Color(0xFF2868D7),
-                      size: 25),
+                    ClipRRect(borderRadius: BorderRadius.circular(8), child: SizedBox(width: 30, height: 30, child: SvgPicture.asset('assets/brand/app_icon.svg', fit: BoxFit.contain))),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('أهلاً بك في دليلك للنجاح',
+                          Text('أهلاً بك في دليل النجاح',
                             style: TextStyle(
                               fontWeight: FontWeight.w900,
                               color: Theme.of(context).colorScheme.onSurface,
