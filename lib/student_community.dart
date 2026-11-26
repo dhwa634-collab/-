@@ -1873,8 +1873,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         child: AlertDialog(title: const Text('حذف الرسالة؟'), content: const Text('سيتم حذف الرسالة من الدردشة.'),
           actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
             FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف'))])));
-      if (ok == true) { try { await _db.from('chat_messages').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', row['id']).eq('user_id', _db.auth.currentUser!.id); }
-        catch (e) { toast('تعذر حذف الرسالة: $e'); } }
+      if (ok == true) {
+        final userId = _db.auth.currentUser?.id;
+        if (userId == null) { toast('انتهت جلسة تسجيل الدخول.'); return; }
+        try { await _db.from('chat_messages').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', row['id']).eq('user_id', userId); }
+        catch (e) { toast('تعذر حذف الرسالة: $e'); }
+      }
     }
     if (action == 'report') await report(row);
     if (action == 'report_user') await report(row, reportUser: true);
@@ -2377,10 +2381,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           IconButton(
                             tooltip: 'إضافة رمز تعبيري',
                             visualDensity: VisualDensity.compact,
-                            onPressed: () {
-                              inputFocus.requestFocus();
-                              SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-                            },
+                            onPressed: _openGroupEmojiPicker,
                             icon: Icon(Icons.emoji_emotions_outlined, color: colors.onSurfaceVariant, size: 25),
                           ),
                         ],
