@@ -132,7 +132,6 @@ const List<StageSubjectInfo> vocationalCommonSubjects = [
 ];
 
 const List<String> sixthPreparatoryBranches = ['العلمي', 'الأدبي'];
-const List<String> sixthPreparatoryScientificTracks = ['الأحيائي', 'التطبيقي'];
 
 const String sixthPrimaryArchiveUrl =
     'https://iraqedu.net/ملزمة-وزاريات-السادس-الابتدائي-طابعي/';
