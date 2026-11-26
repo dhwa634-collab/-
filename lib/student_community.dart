@@ -655,9 +655,9 @@ class StudentPresenceService {
     }
     final channel = _client.channel('student-presence');
     _channel = channel;
-    channel.onPresenceSync.listen((_) => _refreshOnlineUsers());
-    channel.onStatusChange.listen((change) async {
-      if (change.status == RealtimeSubscribeStatus.subscribed &&
+    channel.onPresenceSync((_) => _refreshOnlineUsers());
+    channel.subscribe((status, error) async {
+      if (status == RealtimeSubscribeStatus.subscribed &&
           identical(_channel, channel)) {
         await channel.track({
           'user_id': userId,
@@ -665,7 +665,6 @@ class StudentPresenceService {
         });
       }
     });
-    channel.subscribe();
   }
 
   static void _refreshOnlineUsers() {
@@ -774,19 +773,82 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       return ListView.builder(controller:_scrollController,padding:const EdgeInsets.all(14),itemCount:l.length,itemBuilder:(ctx,i){
         final r=l[i]; final mine=r['sender_id']==me;
         final senderName=_participantNames[r['sender_id']?.toString()] ?? (mine?'حسابي':_resolvedOtherName);
-        return Align(alignment:mine?Alignment.centerRight:Alignment.centerLeft,
-          child:TweenAnimationBuilder<double>(key:ValueKey(r['id']),tween:Tween<double>(begin:0,end:1),duration:const Duration(milliseconds:360),curve:Curves.easeOutCubic,builder:(context,value,child)=>Opacity(opacity:value,child:Transform.translate(offset:Offset(0,22*(1-value)),child:child)),child:GestureDetector(onLongPress:mine?()=>_privateMessageActions(r):null,
-            child:Container(margin:const EdgeInsets.symmetric(vertical:4),padding:const EdgeInsets.all(12),
-              constraints:const BoxConstraints(maxWidth:300),decoration:BoxDecoration(color:mine?c.primary:c.surfaceContainerHighest,borderRadius:BorderRadius.circular(16)),
-              child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
-                Text(senderName,style:TextStyle(fontSize:11,fontWeight:FontWeight.w800,color:mine?c.onPrimary.withValues(alpha:.85):c.primary)),
-                const SizedBox(height:3),
-                Row(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.end,children:[
-                  Flexible(child:Text(r['body']?.toString()??'',style:TextStyle(color:mine?c.onPrimary:c.onSurface))),
-                  if(r['edited_at']!=null) Padding(padding:const EdgeInsets.only(left:5),child:Text('معدّلة',style:TextStyle(fontSize:9,color:mine?c.onPrimary.withValues(alpha:.7):c.onSurfaceVariant))),
-                  if(mine)...[const SizedBox(width:7),Icon(r['read_at']!=null?Icons.done_all_rounded:Icons.done_rounded,size:15,color:r['read_at']!=null?Colors.lightBlueAccent:c.onPrimary.withValues(alpha:.72))],
-                ]),
-              ])))));
+        return Align(
+          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+          child: TweenAnimationBuilder<double>(
+            key: ValueKey(r['id']),
+            tween: Tween<double>(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 360),
+            curve: Curves.easeOutCubic,
+            child: GestureDetector(
+              onLongPress: mine ? () => _privateMessageActions(r) : null,
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.all(12),
+                constraints: const BoxConstraints(maxWidth: 300),
+                decoration: BoxDecoration(
+                  color: mine ? c.primary : c.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      senderName,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: mine ? c.onPrimary.withValues(alpha: .85) : c.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            r['body']?.toString() ?? '',
+                            style: TextStyle(color: mine ? c.onPrimary : c.onSurface),
+                          ),
+                        ),
+                        if (r['edited_at'] != null)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 5),
+                            child: Text(
+                              'معدّلة',
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: mine ? c.onPrimary.withValues(alpha: .7) : c.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        if (mine) ...[
+                          const SizedBox(width: 7),
+                          Icon(
+                            r['read_at'] != null ? Icons.done_all_rounded : Icons.done_rounded,
+                            size: 15,
+                            color: r['read_at'] != null
+                                ? Colors.lightBlueAccent
+                                : c.onPrimary.withValues(alpha: .72),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            builder: (context, value, child) => Opacity(
+              opacity: value,
+              child: Transform.translate(
+                offset: Offset(0, 22 * (1 - value)),
+                child: child,
+              ),
+            ),
+          ),
+        );
       });
     })),
     if(blocked)const Padding(padding:EdgeInsets.fromLTRB(14,6,14,0),child:Text('المراسلة متوقفة بسبب الحظر بين الحسابين.',style:TextStyle(color:Color(0xFFB87922)))),
