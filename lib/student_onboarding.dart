@@ -534,10 +534,10 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
       await prefs.setString('dalilak_student_stage_label_v1', _stage);
       await AcademicStageController.select(_mappedAcademicStage());
 
+      var avatarUploadFailed = false;
       if (user != null) {
         final name = _nameController.text.trim();
         String? avatar;
-        var avatarUploadFailed = false;
         try {
           avatar = await _uploadAvatar(user);
         } catch (error, stackTrace) {
