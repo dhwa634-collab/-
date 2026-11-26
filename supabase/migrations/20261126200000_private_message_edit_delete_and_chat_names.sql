@@ -77,3 +77,6 @@ begin
   return new;
 end;
 $$;
+
+revoke update on table public.direct_messages from authenticated;
+grant update (body, edited_at) on table public.direct_messages to authenticated;
