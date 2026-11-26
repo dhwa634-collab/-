@@ -1258,7 +1258,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       input.clear();
       if (scroll.hasClients) {
         await scroll.animateTo(
-          0,
+          scroll.position.maxScrollExtent,
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOut,
         );
