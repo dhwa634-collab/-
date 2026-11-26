@@ -634,33 +634,96 @@ class StudentDirectMessageScreen extends StatefulWidget{
   @override State<StudentDirectMessageScreen> createState()=>_StudentDirectMessageScreenState();
 }
 class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>{
-  final input=TextEditingController();late final Stream<List<Map<String,dynamic>>> messages;late final StreamSubscription<List<Map<String,dynamic>>> blockSubscription;bool sending=false,blocked=false;String? get me=>_db.auth.currentUser?.id;
-  late final StreamSubscription<List<Map<String,dynamic>>> messageSubscription;
-  late String _resolvedOtherName;
-  @override void initState(){super.initState();_resolvedOtherName=widget.otherName;_loadOtherProfileName();activeDirectMessageUserId.value=widget.otherUserId;messages=stream();messageSubscription=messages.listen((_)=>markIncomingAsRead());blockSubscription=_db.from('user_blocks').stream(primaryKey:['blocker_id','blocked_id']).listen((rows){final user=me;final next=user==null||rows.any((r)=>(r['blocker_id']==user&&r['blocked_id']==widget.otherUserId)||(r['blocker_id']==widget.otherUserId&&r['blocked_id']==user));if(mounted&&blocked!=next)setState(()=>blocked=next);});refreshBlockStatus();markIncomingAsRead();}
+  final input=TextEditingController(); final ScrollController _scrollController=ScrollController();
+  late final Stream<List<Map<String,dynamic>>> messages; late final StreamSubscription<List<Map<String,dynamic>>> blockSubscription;
+  bool sending=false,blocked=false; String? get me=>_db.auth.currentUser?.id;
+  late final StreamSubscription<List<Map<String,dynamic>>> messageSubscription; late String _resolvedOtherName;
+  final Map<String,String> _participantNames={};
+  @override void initState(){super.initState();_resolvedOtherName=widget.otherName;_loadOtherProfileName();_loadParticipantNames();activeDirectMessageUserId.value=widget.otherUserId;messages=stream();messageSubscription=messages.listen((_) { markIncomingAsRead(); _scrollToLatest(); });blockSubscription=_db.from('user_blocks').stream(primaryKey:['blocker_id','blocked_id']).listen((rows){final user=me;final next=user==null||rows.any((r)=>(r['blocker_id']==user&&r['blocked_id']==widget.otherUserId)||(r['blocker_id']==widget.otherUserId&&r['blocked_id']==user));if(mounted&&blocked!=next)setState(()=>blocked=next);});refreshBlockStatus();markIncomingAsRead();}
   Future<void> _loadOtherProfileName() async {
     try {
-      final profile = await _db.from('profiles')
-        .select('display_name,username')
-        .eq('user_id', widget.otherUserId).maybeSingle();
+      final rows = await _db.rpc('get_student_public_profile_v1', params: {'p_user_id': widget.otherUserId});
+      final profile = (rows as List).isEmpty ? null : rows.first;
       final displayName = profile?['display_name']?.toString().trim() ?? '';
       final username = profile?['username']?.toString().trim() ?? '';
-      final resolved = displayName.isNotEmpty
-        ? displayName : (username.isNotEmpty ? '@$username' : widget.otherName);
-      if (mounted && resolved.isNotEmpty && resolved != _resolvedOtherName) {
-        setState(() => _resolvedOtherName = resolved);
-      }
-    } catch (error) {
-      debugPrint('Load private chat participant profile failed: $error');
-    }
+      final resolved = displayName.isNotEmpty ? displayName : (username.isNotEmpty ? '@$username' : widget.otherName);
+      if (mounted && resolved.isNotEmpty && resolved != _resolvedOtherName) setState(() => _resolvedOtherName = resolved);
+      _participantNames[widget.otherUserId] = resolved;
+    } catch (error) { debugPrint('Load private chat participant profile failed: $error'); }
   }
-  Stream<List<Map<String,dynamic>>> stream()=>_db.from('direct_messages').stream(primaryKey:['id']).order('created_at').map((items){final seen=<String>{};return items.where((r)=>((r['sender_id']==me&&r['receiver_id']==widget.otherUserId)||(r['sender_id']==widget.otherUserId&&r['receiver_id']==me))&&seen.add(r['id'].toString())).toList();});
+  Future<void> _loadParticipantNames() async {
+    final user = _db.auth.currentUser; if (user == null) return;
+    try {
+      final own = await _db.from('profiles').select('display_name').eq('user_id', user.id).maybeSingle();
+      final meta = user.userMetadata ?? const <String,dynamic>{};
+      final value = own?['display_name']?.toString().trim() ?? '';
+      _participantNames[user.id] = value.isNotEmpty ? value : (meta['full_name'] ?? meta['name'] ?? user.email?.split('@').first ?? 'حسابي').toString();
+      if (mounted) setState(() {});
+    } catch (error) { debugPrint('Load own private chat name failed: $error'); }
+  }
+  void _scrollToLatest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) _scrollController.animateTo(_scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+    });
+  }
+  Stream<List<Map<String,dynamic>>> stream()=>_db.from('direct_messages').stream(primaryKey:['id']).order('created_at',ascending:true).map((items){final seen=<String>{};return items.where((r)=>((r['sender_id']==me&&r['receiver_id']==widget.otherUserId)||(r['sender_id']==widget.otherUserId&&r['receiver_id']==me))&&seen.add(r['id'].toString())).toList();});
   Future<bool> refreshBlockStatus()async{final user=me;if(user==null)return true;try{final rows=await _db.from('user_blocks').select('blocker_id,blocked_id').or('and(blocker_id.eq.$user,blocked_id.eq.${widget.otherUserId}),and(blocker_id.eq.${widget.otherUserId},blocked_id.eq.$user)');final value=(rows as List).isNotEmpty;if(mounted)setState(()=>blocked=value);return value;}catch(_){return blocked;}}
   Future<void> markIncomingAsRead()async{final user=me;if(user==null)return;try{await _db.rpc('mark_direct_messages_read',params:{'p_sender_id':widget.otherUserId});}catch(error){debugPrint('Mark private messages read failed: $error');}}
+  Future<void> _privateMessageActions(Map<String,dynamic> row) async {
+    if (row['sender_id'] != me) return;
+    final action = await showModalBottomSheet<String>(context: context, builder: (ctx) =>
+      Directionality(textDirection: TextDirection.rtl, child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () => Navigator.pop(ctx, 'edit')),
+        ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('حذف الرسالة'), onTap: () => Navigator.pop(ctx, 'delete')),
+      ]))));
+    if (action == 'edit') {
+      final ctl = TextEditingController(text: row['body']?.toString() ?? '');
+      final value = await showDialog<String>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: AlertDialog(title: const Text('تعديل الرسالة'), content: TextField(controller: ctl, autofocus: true, maxLines: 5, maxLength: 2000),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text.trim()), child: const Text('حفظ'))])));
+      ctl.dispose();
+      if (value == null || value.isEmpty || value == row['body']) return;
+      try { await _db.from('direct_messages').update({'body': value, 'edited_at': DateTime.now().toUtc().toIso8601String()}).eq('id', row['id']).eq('sender_id', me!); }
+      catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تعديل الرسالة: $e'))); }
+    } else if (action == 'delete') {
+      final ok = await showDialog<bool>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: AlertDialog(title: const Text('حذف الرسالة؟'), content: const Text('سيتم حذفها من المحادثة لدى الطرفين.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف'))])));
+      if (ok == true) { try { await _db.from('direct_messages').delete().eq('id', row['id']).eq('sender_id', me!); }
+        catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر حذف الرسالة: $e'))); } }
+    }
+  }
   Future<void> send()async{final v=input.text.trim();final user=me;if(v.isEmpty||user==null||sending)return;if(v.length>2000){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الرسالة طويلة جداً.')));return;}FocusScope.of(context).unfocus();setState(()=>sending=true);try{if(await refreshBlockStatus()){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')));return;}await _db.from('direct_messages').insert({'sender_id':user,'receiver_id':widget.otherUserId,'body':v});input.clear();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إرسال الرسالة: $e')));}finally{if(mounted)setState(()=>sending=false);}}
-  @override void dispose(){activeDirectMessageUserId.value=null;messageSubscription.cancel();blockSubscription.cancel();input.dispose();super.dispose();}
+  @override void dispose(){activeDirectMessageUserId.value=null;messageSubscription.cancel();blockSubscription.cancel();_scrollController.dispose();input.dispose();super.dispose();}
   @override Widget build(BuildContext context){final c=Theme.of(context).colorScheme;return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:Text(_resolvedOtherName)),body:Column(children:[
-    Expanded(child:StreamBuilder<List<Map<String,dynamic>>>(stream:messages,builder:(ctx,s){if(s.hasError)return Center(child:Text('تعذر تحميل المحادثة: ${s.error}'));if(!s.hasData)return const Center(child:CircularProgressIndicator());final l=s.data!;if(l.isEmpty)return const Center(child:Text('ابدأ المحادثة برسالة ترحيبية 👋'));return ListView.builder(reverse:true,padding:const EdgeInsets.all(14),itemCount:l.length,itemBuilder:(ctx,i){final r=l[l.length-1-i];final mine=r['sender_id']==me;return Align(alignment:mine?Alignment.centerRight:Alignment.centerLeft,child:Container(margin:const EdgeInsets.symmetric(vertical:4),padding:const EdgeInsets.all(12),constraints:const BoxConstraints(maxWidth:300),decoration:BoxDecoration(color:mine?c.primary:c.surfaceContainerHighest,borderRadius:BorderRadius.circular(16)),child:Row(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.end,children:[Flexible(child:Text(r['body']?.toString()??'',style:TextStyle(color:mine?c.onPrimary:c.onSurface))),if(mine)...[const SizedBox(width:7),Icon(r['read_at']!=null?Icons.done_all_rounded:Icons.done_rounded,size:15,color:r['read_at']!=null?Colors.lightBlueAccent:(mine?c.onPrimary.withValues(alpha:.72):c.onSurfaceVariant))]])));});})),
+    Expanded(child:StreamBuilder<List<Map<String,dynamic>>>(stream:messages,builder:(ctx,s){
+      if(s.hasError)return Center(child:Text('تعذر تحميل المحادثة: ${s.error}'));
+      if(!s.hasData)return const Center(child:CircularProgressIndicator());
+      final l=s.data!; if(l.isEmpty)return const Center(child:Text('ابدأ المحادثة برسالة ترحيبية 👋'));
+      WidgetsBinding.instance.addPostFrameCallback((_) { if(_scrollController.hasClients &&
+        _scrollController.position.maxScrollExtent-_scrollController.offset<180)
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent); });
+      return ListView.builder(controller:_scrollController,padding:const EdgeInsets.all(14),itemCount:l.length,itemBuilder:(ctx,i){
+        final r=l[i]; final mine=r['sender_id']==me;
+        final senderName=_participantNames[r['sender_id']?.toString()] ?? (mine?'حسابي':_resolvedOtherName);
+        return Align(alignment:mine?Alignment.centerRight:Alignment.centerLeft,
+          child:GestureDetector(onLongPress:mine?()=>_privateMessageActions(r):null,
+            child:Container(margin:const EdgeInsets.symmetric(vertical:4),padding:const EdgeInsets.all(12),
+              constraints:const BoxConstraints(maxWidth:300),decoration:BoxDecoration(color:mine?c.primary:c.surfaceContainerHighest,borderRadius:BorderRadius.circular(16)),
+              child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Text(senderName,style:TextStyle(fontSize:11,fontWeight:FontWeight.w800,color:mine?c.onPrimary.withValues(alpha:.85):c.primary)),
+                const SizedBox(height:3),
+                Row(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.end,children:[
+                  Flexible(child:Text(r['body']?.toString()??'',style:TextStyle(color:mine?c.onPrimary:c.onSurface))),
+                  if(r['edited_at']!=null) Padding(padding:const EdgeInsets.only(left:5),child:Text('معدّلة',style:TextStyle(fontSize:9,color:mine?c.onPrimary.withValues(alpha:.7):c.onSurfaceVariant))),
+                  if(mine)...[const SizedBox(width:7),Icon(r['read_at']!=null?Icons.done_all_rounded:Icons.done_rounded,size:15,color:r['read_at']!=null?Colors.lightBlueAccent:c.onPrimary.withValues(alpha:.72))],
+                ]),
+              ]))));
+      });
+    })),
     if(blocked)const Padding(padding:EdgeInsets.fromLTRB(14,6,14,0),child:Text('المراسلة متوقفة بسبب الحظر بين الحسابين.',style:TextStyle(color:Color(0xFFB87922)))),
     SafeArea(top:false,child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[Expanded(child:TextField(controller:input,enabled:!blocked,minLines:1,maxLines:4,textInputAction:TextInputAction.send,onSubmitted:(_)=>send(),decoration:InputDecoration(hintText:blocked?'المراسلة غير متاحة بسبب الحظر':'اكتب رسالتك...',filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(24),borderSide:BorderSide.none)))),IconButton.filled(onPressed:sending||blocked?null:send,icon:sending?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.send))]))),
   ])));}
@@ -711,7 +774,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     });
   }
   Stream<List<Map<String, dynamic>>> _messageStream() =>
-      _db.from('chat_messages').stream(primaryKey: ['id']).order('created_at', ascending: false);
+      _db.from('chat_messages').stream(primaryKey: ['id']).order('created_at', ascending: true);
 
   void _retryMessages() {
     setState(() => messages = _messageStream());
@@ -1143,24 +1206,39 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
 
   Future<void> _messageActions(Map<String, dynamic> row) async {
+    final mine = row['user_id'] == _db.auth.currentUser?.id;
     final action = await showModalBottomSheet<String>(context: context,
       builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
         child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const Icon(Icons.flag_outlined),
-            title: const Text('الإبلاغ عن الرسالة'),
-            onTap: () => Navigator.pop(ctx, 'report')),
-          if (row['user_id'] != _db.auth.currentUser?.id)
-            ListTile(leading: const Icon(Icons.person_off_outlined),
-              title: const Text('الإبلاغ عن المستخدم'),
-              onTap: () => Navigator.pop(ctx, 'report_user')),
-          if (row['user_id'] != _db.auth.currentUser?.id)
-            ListTile(leading: const Icon(Icons.block_outlined),
-              title: const Text('حظر المستخدم'),
-              onTap: () => Navigator.pop(ctx, 'block')),
+          if (mine && row['message_type'] == 'text' && (row['body']?.toString().isNotEmpty ?? false))
+            ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () => Navigator.pop(ctx, 'edit')),
+          if (mine) ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('حذف الرسالة'), onTap: () => Navigator.pop(ctx, 'delete')),
+          ListTile(leading: const Icon(Icons.flag_outlined), title: const Text('الإبلاغ عن الرسالة'), onTap: () => Navigator.pop(ctx, 'report')),
+          if (!mine) ListTile(leading: const Icon(Icons.person_off_outlined), title: const Text('الإبلاغ عن المستخدم'), onTap: () => Navigator.pop(ctx, 'report_user')),
+          if (!mine) ListTile(leading: const Icon(Icons.block_outlined), title: const Text('حظر المستخدم'), onTap: () => Navigator.pop(ctx, 'block')),
         ]))));
+    if (action == 'edit') await _editGroupMessage(row);
+    if (action == 'delete') {
+      final ok = await showDialog<bool>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: AlertDialog(title: const Text('حذف الرسالة؟'), content: const Text('سيتم حذف الرسالة من الدردشة.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف'))])));
+      if (ok == true) { try { await _db.from('chat_messages').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', row['id']).eq('user_id', _db.auth.currentUser!.id); }
+        catch (e) { toast('تعذر حذف الرسالة: $e'); } }
+    }
     if (action == 'report') await report(row);
     if (action == 'report_user') await report(row, reportUser: true);
     if (action == 'block') await _blockUser(row);
+  }
+  Future<void> _editGroupMessage(Map<String,dynamic> row) async {
+    final ctl = TextEditingController(text: row['body']?.toString() ?? '');
+    final value = await showDialog<String>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+      child: AlertDialog(title: const Text('تعديل الرسالة'), content: TextField(controller: ctl, autofocus: true, maxLines: 5, maxLength: 2000),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text.trim()), child: const Text('حفظ'))])));
+    ctl.dispose(); if (value == null || value.isEmpty || value == row['body']) return;
+    try { await _db.from('chat_messages').update({'body': value, 'edited_at': DateTime.now().toUtc().toIso8601String()}).eq('id', row['id']).eq('user_id', _db.auth.currentUser!.id); }
+    catch (e) { toast('تعذر تعديل الرسالة: $e'); }
   }
 
   Future<void> send({String? sticker}) async {
@@ -1213,7 +1291,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     final ids = rows.map((r) => r['user_id'].toString()).toSet().toList();
     if (ids.isEmpty) return {};
     try {
-      final result = await _db.rpc('get_chat_profiles_v2', params: {'user_ids': ids});
+      final result = await _db.rpc('get_student_chat_profiles_v1', params: {'p_user_ids': ids});
       return {for (final p in (result as List)) p['user_id'].toString(): Map<String, dynamic>.from(p)};
     } catch (_) { return {}; }
   }
@@ -1312,15 +1390,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             if (rows.length != _lastMessageCount) {
               final hadPreviousMessages = _lastMessageCount > 0;
               _lastMessageCount = rows.length;
-              if (hadPreviousMessages) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (scroll.hasClients && scroll.offset <= 120) {
-                    scroll.animateTo(0,
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOut);
-                  }
-                });
-              }
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!scroll.hasClients) return;
+                final distanceFromBottom = scroll.position.maxScrollExtent - scroll.offset;
+                if (!hadPreviousMessages || distanceFromBottom <= 120) {
+                  scroll.animateTo(scroll.position.maxScrollExtent,
+                    duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+                }
+              });
             }
             if (rows.isEmpty) return const Center(child: Text('ابدأ المحادثة برسالة مفيدة 🌟'));
             final profileIds = rows.map((r) => r['user_id'].toString()).toSet().toList()..sort();
@@ -1332,7 +1409,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             return FutureBuilder<Map<String, Map<String, dynamic>>>(future: _profilesFuture,
               builder: (context, profiles) => ListView.builder(
                 controller: scroll,
-                reverse: true,
+                reverse: false,
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
                 itemCount: rows.length,
                 itemBuilder: (context, index) {
@@ -1797,9 +1874,8 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
       }
       final profiles = <String,Map<String,dynamic>>{};
       if (ids.isNotEmpty) {
-        final rows = await _client.from('profiles')
-          .select('user_id,display_name,username,avatar_url,badge')
-          .inFilter('user_id', ids.toList());
+        final rows = await _client.rpc('get_student_chat_profiles_v1',
+          params: {'p_user_ids': ids.toList()});
         for (final row in (rows as List).whereType<Map>()) {
           final profile = Map<String,dynamic>.from(row);
           profiles[profile['user_id'].toString()] = profile;
