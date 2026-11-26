@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -70,36 +71,43 @@ Future<void> signOutStudentSession() async {
   await _db.auth.signOut();
 }
 
+/// Opens the public room directly while preserving the existing Google sign-in gate.
+Future<void> openStudentChat(BuildContext context) async {
+  if (_db.auth.currentUser != null) {
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => const StudentChatScreen(),
+    ));
+    return;
+  }
+  final goToLogin = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('الدردشة للطلاب المسجلين'),
+      content: const Text('حتى نحافظ على أمان الطلاب ونمنع الرسائل المجهولة، تحتاج تسجّل الدخول بحساب Google قبل دخول الغرفة الجماعية. تقدر تواصل تصفح الكتب والأدوات كضيف.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('لاحقاً')),
+        FilledButton.icon(onPressed: () => Navigator.pop(ctx, true),
+          icon: const Icon(Icons.login_rounded),
+          label: const Text('تسجيل الدخول')),
+      ],
+    ),
+  );
+  if (goToLogin != true || !context.mounted) return;
+  final signedIn = await Navigator.push<bool>(context, MaterialPageRoute(
+    builder: (_) => const StudentGoogleLoginScreen(returnToCaller: true),
+  ));
+  if (signedIn == true && context.mounted && _db.auth.currentUser != null) {
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => const StudentChatScreen(),
+    ));
+  }
+}
+
 class StudentCommunityScreen extends StatelessWidget {
   const StudentCommunityScreen({super.key});
 
-  Future<void> _openChat(BuildContext context) async {
-    if (_db.auth.currentUser != null) {
-      await Navigator.push(context, MaterialPageRoute(
-        builder: (_) => const StudentChatScreen(),
-      ));
-      return;
-    }
-    final goToLogin = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('الدردشة للطلاب المسجلين'),
-        content: const Text('حتى نحافظ على أمان الطلاب ونمنع الرسائل المجهولة، تحتاج تسجّل الدخول بحساب Google قبل دخول الغرفة الجماعية. تقدر تواصل تصفح الكتب والأدوات كضيف.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('لاحقاً')),
-          FilledButton.icon(onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.login_rounded),
-            label: const Text('تسجيل الدخول')),
-        ],
-      ),
-    );
-    if (goToLogin == true && context.mounted) {
-      await Navigator.push(context, MaterialPageRoute(
-        builder: (_) => const StudentGoogleLoginScreen(),
-      ));
-    }
-  }
+  Future<void> _openChat(BuildContext context) => openStudentChat(context);
   @override
   Widget build(BuildContext context) {
     final user = _db.auth.currentUser;
@@ -242,7 +250,7 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
                       ),
                       borderRadius: BorderRadius.circular(25),
                     ),
-                    child: const Icon(Icons.school_rounded, color: Colors.white, size: 44),
+                    child: ClipRRect(borderRadius: BorderRadius.circular(25), child: SvgPicture.asset('assets/brand/app_icon.svg', fit: BoxFit.contain)),
                   ),
                   const SizedBox(height: 20),
                   const Text('أهلاً بك في مجتمع الطلاب',
@@ -400,14 +408,16 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
   }
   void toast(String s){if(mounted)ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content:Text(s)));}
   Future<void> copyId()async{final v=username.text.trim().replaceFirst(RegExp(r'^@'),'');if(v.isEmpty){toast('لا يوجد معرّف لنسخه.');return;}await Clipboard.setData(ClipboardData(text:'@$v'));toast('تم نسخ المعرّف');}
-  Widget panel(Widget child)=>Card(elevation:0,color:const Color(0xFF112B45),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20),side:BorderSide(color:Colors.white.withValues(alpha:.07))),child:Padding(padding:const EdgeInsets.all(16),child:child));
+  Widget panel(Widget child){final dark=Theme.of(context).brightness==Brightness.dark;return Card(elevation:0,color:dark?const Color(0xFF112B45):Colors.white,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20),side:BorderSide(color:Theme.of(context).colorScheme.outlineVariant.withValues(alpha:.55))),child:Padding(padding:const EdgeInsets.all(16),child:child));}
   @override void dispose(){usernameTimer?.cancel();profileScroll.dispose();name.dispose();username.dispose();bio.dispose();age.dispose();super.dispose();}
   @override Widget build(BuildContext context){
-    const c=ColorScheme.dark(primary:Color(0xFF56B4F8),surface:Color(0xFF0A1928),onSurface:Colors.white,onSurfaceVariant:Color(0xFFB8C7D8));
+    final parentTheme=Theme.of(context);
+    final dark=parentTheme.brightness==Brightness.dark;
+    final c=parentTheme.colorScheme;
     final avatar=selectedAvatar!=null?FileImage(File(selectedAvatar!.path)) as ImageProvider<Object>:avatarUrl!=null?NetworkImage(avatarUrl!) as ImageProvider<Object>:null;
-    return Theme(data:Theme.of(context).copyWith(brightness:Brightness.dark,colorScheme:c),child:Directionality(textDirection:TextDirection.rtl,child:Scaffold(backgroundColor:const Color(0xFF071421),appBar:AppBar(backgroundColor:const Color(0xFF071421),foregroundColor:Colors.white,title:const Text('الملف الشخصي'),elevation:0),
+    return Theme(data:parentTheme,child:Directionality(textDirection:TextDirection.rtl,child:Scaffold(backgroundColor:dark?const Color(0xFF071421):c.surface,appBar:AppBar(backgroundColor:dark?const Color(0xFF071421):c.surface,foregroundColor:c.onSurface,title:const Text('الملف الشخصي'),elevation:0),
       body:loading?const Center(child:CircularProgressIndicator()):ListView(controller:profileScroll,padding:const EdgeInsets.all(16),children:[
-        Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(25),gradient:const LinearGradient(colors:[Color(0xFF142C4B),Color(0xFF285080)])),
+        Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(25),gradient:LinearGradient(colors:dark?const[Color(0xFF142C4B),Color(0xFF285080)]:const[Color(0xFF17427E),Color(0xFF347FE8)])),
           child:Column(children:[
             Stack(alignment:Alignment.bottomLeft,children:[
               Container(padding:const EdgeInsets.all(4),decoration:BoxDecoration(shape:BoxShape.circle,border:Border.all(color:Colors.white,width:3)),child:CircleAvatar(radius:48,backgroundImage:avatar,child:avatar==null?const Icon(Icons.person,size:48,color:Colors.white):null)),
@@ -427,7 +437,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
           Expanded(child:OutlinedButton.icon(onPressed:uploading?null:pickAvatar,icon:const Icon(Icons.camera_alt_rounded),label:const Text('تعيين صورة'),style:OutlinedButton.styleFrom(foregroundColor:const Color(0xFFFFD36A),side:const BorderSide(color:Color(0x55FFD36A)),padding:const EdgeInsets.symmetric(vertical:13)))),
           const SizedBox(width:7),
           Expanded(child:FilledButton.icon(onPressed:()=>profileScroll.animateTo(390,duration:const Duration(milliseconds:350),curve:Curves.easeOut),icon:const Icon(Icons.edit_rounded),label:const Text('تعديل البيانات'),style:FilledButton.styleFrom(backgroundColor:const Color(0xFF17436D),foregroundColor:Colors.white,padding:const EdgeInsets.symmetric(vertical:13)))),
-          IconButton(tooltip:'الإعدادات',onPressed:()=>showModalBottomSheet<void>(context:context,backgroundColor:const Color(0xFF10263D),shape:const RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(24))),builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:SafeArea(child:Padding(padding:const EdgeInsets.all(18),child:Column(mainAxisSize:MainAxisSize.min,children:[const Text('إعدادات الحساب',style:TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),ListTile(leading:const Icon(Icons.verified_user_outlined,color:Color(0xFF56B4F8)),title:const Text('حماية الحساب',style:TextStyle(color:Colors.white)),subtitle:Text(_db.auth.currentUser?.email??'التصفح كضيف',style:const TextStyle(color:Colors.white60))),ListTile(leading:const Icon(Icons.info_outline,color:Color(0xFF56B4F8)),title:const Text('حالة التوثيق',style:TextStyle(color:Colors.white)),subtitle:Text(developer?'حساب المطوّر موثّق':'حساب طالب',style:const TextStyle(color:Colors.white60)))]))))),icon:const Icon(Icons.settings_rounded,color:Color(0xFFFFD36A))),
+          IconButton(tooltip:'الإعدادات',onPressed:()=>showModalBottomSheet<void>(context:context,backgroundColor:const Color(0xFF10263D),shape:const RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(24))),builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:SafeArea(child:Padding(padding:const EdgeInsets.all(18),child:Column(mainAxisSize:MainAxisSize.min,children:[const Text('إعدادات الحساب',style:TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),ListTile(leading:const Icon(Icons.verified_user_outlined,color:Color(0xFF56B4F8)),title:const Text('حماية الحساب',style:TextStyle(color:Colors.white)),subtitle:Text(_db.auth.currentUser?.email??'التصفح كضيف',style:const TextStyle(color:Colors.white60)),trailing:const Icon(Icons.chevron_left,color:Colors.white70),onTap:(){Navigator.pop(ctx);showDialog<void>(context:context,builder:(dialogContext){final user=_db.auth.currentUser;final session=_db.auth.currentSession;final email=user?.email??'غير مرتبط';final google=user?.identities?.any((identity)=>identity.provider.toLowerCase()=='google')??(user?.appMetadata['provider']?.toString().toLowerCase()=='google');final confirmed=user?.emailConfirmedAt;return Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('حماية الحساب'),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[_securityInfoRow('طريقة الدخول',google?'Google':'غير محددة عبر Google'),_securityInfoRow('البريد الإلكتروني',email),_securityInfoRow('تأكيد البريد',confirmed==null?'غير مؤكّد':'مؤكّد'),_securityInfoRow('تاريخ التوثيق',confirmed==null?'—':confirmed.toLocal().toString().split('.').first),_securityInfoRow('حالة الجلسة',session==null?'لا توجد جلسة نشطة':'جلسة نشطة'),_securityInfoRow('انتهاء الجلسة',session?.expiresAt==null?'—':DateTime.fromMillisecondsSinceEpoch(session!.expiresAt!*1000).toLocal().toString().split('.').first)]),actions:[TextButton.icon(onPressed:email=='غير مرتبط'?null:()async{await Clipboard.setData(ClipboardData(text:email));if(dialogContext.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم نسخ البريد الإلكتروني.')));},icon:const Icon(Icons.copy),label:const Text('نسخ البريد')),FilledButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('إغلاق'))]));});}),ListTile(leading:const Icon(Icons.info_outline,color:Color(0xFF56B4F8)),title:const Text('حالة التوثيق',style:TextStyle(color:Colors.white)),subtitle:Text(developer?'حساب المطوّر موثّق':'حساب طالب',style:const TextStyle(color:Colors.white60)))]))))),icon:const Icon(Icons.settings_rounded,color:Color(0xFFFFD36A))),
         ]),
         const SizedBox(height:14),
         panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -450,6 +460,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
       ]))));
   }
 }
+Widget _securityInfoRow(String label,String value)=>Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[Expanded(flex:4,child:Text(label,style:const TextStyle(fontWeight:FontWeight.w700))),const SizedBox(width:8),Expanded(flex:6,child:SelectableText(value))]));
 Widget _profileHeading(BuildContext c,String text,IconData icon)=>Row(children:[Icon(icon,color:Theme.of(c).colorScheme.primary),const SizedBox(width:8),Text(text,style:Theme.of(c).textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900))]);
 Widget _profileChip(BuildContext context,IconData icon,String label)=>Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),decoration:BoxDecoration(color:Colors.white.withValues(alpha:.14),borderRadius:BorderRadius.circular(18),border:Border.all(color:Colors.white.withValues(alpha:.18))),child:Row(mainAxisSize:MainAxisSize.min,children:[Icon(icon,size:14,color:const Color(0xFFFFD36A)),const SizedBox(width:5),Text(label,style:const TextStyle(color:Colors.white,fontSize:11,fontWeight:FontWeight.w700))]));
 
