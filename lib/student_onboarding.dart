@@ -294,7 +294,6 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
   String _usernameState = 'أدخل اسم مستخدم باللغة الإنجليزية';
   String? _avatarUrl;
   Uint8List? _avatarBytes;
-  bool _guest = false;
   bool _busy = false;
   bool _usernameChecking = false;
   bool? _usernameAvailable;
@@ -455,15 +454,6 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
     _goTo(1);
   }
 
-  void _continueAsGuest() {
-    if (_busy) return;
-    setState(() {
-      _guest = true;
-      _avatarBytes = null;
-    });
-    _goTo(2);
-  }
-
   Future<void> _pickAvatar(ImageSource source) async {
     try {
       final image = await _picker.pickImage(
@@ -521,8 +511,8 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
 
   Future<void> _save() async {
     if (_busy) return;
-    final user = _guest ? null : _user;
-    if (!_guest && user == null) {
+    final user = _user;
+    if (user == null) {
       _message('سجّل الدخول عبر Google أولاً حتى نحفظ معلومات حسابك.');
       _goTo(0);
       return;
@@ -532,19 +522,17 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
       _message('اكتب عمراً صحيحاً بين 10 و80 سنة.');
       return;
     }
-    if (!_guest) {
-      if (_nameController.text.trim().isEmpty ||
-          _nameController.text.trim().length > 40 ||
-          !_usernameFormatValid) {
-        _goTo(0);
-        _message('راجع الاسم واسم المستخدم قبل الحفظ.');
-        return;
-      }
-      final available = _usernameAvailable == true
-          ? true
-          : await _checkUsername();
-      if (!available || !mounted) return;
+    if (_nameController.text.trim().isEmpty ||
+        _nameController.text.trim().length > 40 ||
+        !_usernameFormatValid) {
+      _goTo(0);
+      _message('راجع الاسم واسم المستخدم قبل الحفظ.');
+      return;
     }
+    final available = _usernameAvailable == true
+        ? true
+        : await _checkUsername();
+    if (!available || !mounted) return;
 
     setState(() => _busy = true);
     try {
@@ -695,7 +683,7 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
                           tooltip: 'الخطوة السابقة',
                           onPressed: _busy
                               ? null
-                              : () => _goTo(_page == 2 && _guest ? 0 : _page - 1),
+                              : () => _goTo(_page - 1),
                           icon: const Icon(Icons.arrow_back_rounded),
                         )
                       else
@@ -827,22 +815,6 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
               minimumSize: const Size.fromHeight(54),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
             ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _busy ? null : _continueAsGuest,
-            icon: const Icon(Icons.explore_outlined),
-            label: const Text('الدخول كضيف ومتابعة التصفح'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(50),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'تقدر تتصفح الكتب والأدوات كضيف، وتحتاج حساب Google للمشاركة في الدردشة الجماعية.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11.5, height: 1.5),
           ),
         ],
       ),
