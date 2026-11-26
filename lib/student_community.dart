@@ -798,6 +798,58 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر حذف الرسالة: $e'))); } }
     }
   }
+  final List<Map<String, dynamic>> _optimisticMessages = [];
+
+  List<Map<String, dynamic>> _mergeOptimisticMessages(
+    List<Map<String, dynamic>> remote,
+  ) {
+    final merged = <String, Map<String, dynamic>>{
+      for (final row in remote) row['id'].toString(): row,
+    };
+    for (final row in _optimisticMessages) {
+      final id = row['id'].toString();
+      if (!merged.containsKey(id)) merged[id] = row;
+    }
+    final result = merged.values.toList()
+      ..sort((a, b) => (a['created_at'] ?? '').toString()
+          .compareTo((b['created_at'] ?? '').toString()));
+    final remoteIds = remote.map((row) => row['id'].toString()).toSet();
+    if (remoteIds.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final before = _optimisticMessages.length;
+        _optimisticMessages.removeWhere(
+          (row) => remoteIds.contains(row['id'].toString()),
+        );
+        if (before != _optimisticMessages.length) setState(() {});
+      });
+    }
+    return result;
+  }
+
+  Future<void> _openEmojiPicker() async {
+    inputFocus.unfocus();
+    final emoji = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PrivateEmojiPicker(
+        dark: Theme.of(context).brightness == Brightness.dark,
+      ),
+    );
+    if (!mounted || emoji == null) return;
+    final oldValue = input.value;
+    final selection = oldValue.selection;
+    final start = selection.isValid ? selection.start : oldValue.text.length;
+    final end = selection.isValid ? selection.end : oldValue.text.length;
+    final updated = oldValue.text.replaceRange(start, end, emoji);
+    input.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: start + emoji.length),
+    );
+    inputFocus.requestFocus();
+  }
+
   Future<void> send() async {
     final value = input.text.trim();
     final user = me;
@@ -808,26 +860,70 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       );
       return;
     }
-    setState(() => sending = true);
+    if (blocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')),
+      );
+      return;
+    }
+
+    final localId = 'local-${DateTime.now().microsecondsSinceEpoch}';
+    final optimistic = <String, dynamic>{
+      'id': localId,
+      'sender_id': user,
+      'receiver_id': widget.otherUserId,
+      'body': value,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'read_at': null,
+      'edited_at': null,
+      '_local_status': 'sending',
+    };
+    input.clear();
+    setState(() {
+      sending = true;
+      _optimisticMessages.add(optimistic);
+    });
+    _scrollToLatest();
+
     try {
       if (await refreshBlockStatus()) {
+        _optimisticMessages.removeWhere((row) => row['id'] == localId);
         if (mounted) {
+          setState(() {});
+          input.value = TextEditingValue(
+            text: value,
+            selection: TextSelection.collapsed(offset: value.length),
+          );
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')),
           );
         }
         return;
       }
-      await _db.from('direct_messages').insert({
+      final inserted = await _db.from('direct_messages').insert({
         'sender_id': user,
         'receiver_id': widget.otherUserId,
         'body': value,
-      });
-      input.clear();
-      // Keep the existing focus; do not force the keyboard back if the user
-      // intentionally dismissed it with the device Back button.
-    } catch (error) {
+      }).select().single();
+      final index = _optimisticMessages.indexWhere((row) => row['id'] == localId);
+      if (index != -1) {
+        _optimisticMessages[index] = Map<String, dynamic>.from(inserted)
+          ..['_local_status'] = 'sent';
+      }
       if (mounted) {
+        setState(() {});
+        _scrollToLatest();
+      }
+    } catch (error) {
+      _optimisticMessages.removeWhere((row) => row['id'] == localId);
+      if (mounted) {
+        setState(() {});
+        if (input.text.isEmpty) {
+          input.value = TextEditingValue(
+            text: value,
+            selection: TextSelection.collapsed(offset: value.length),
+          );
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('تعذر إرسال الرسالة: $error')),
         );
@@ -939,7 +1035,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final items = snapshot.data!;
+                  final items = _mergeOptimisticMessages(snapshot.data!);
                   if (items.isEmpty) {
                     return const Center(child: Text('ابدأ المحادثة برسالة ترحيبية 👋'));
                   }
@@ -968,8 +1064,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
 
                       return Align(
                         alignment: mine
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
+                            ? Alignment.centerLeft
+                            : Alignment.centerRight,
                         child: TweenAnimationBuilder<double>(
                           key: ValueKey(row['id']),
                           tween: Tween<double>(begin: 0, end: 1),
@@ -1172,14 +1268,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                             IconButton(
                               tooltip: 'إضافة رمز تعبيري',
                               visualDensity: VisualDensity.compact,
-                              onPressed: blocked
-                                  ? null
-                                  : () {
-                                      inputFocus.requestFocus();
-                                      SystemChannels.textInput.invokeMethod<void>(
-                                        'TextInput.show',
-                                      );
-                                    },
+                              onPressed: blocked ? null : _openEmojiPicker,
                               icon: Icon(
                                 Icons.emoji_emotions_outlined,
                                 color: colors.onSurfaceVariant,
@@ -1198,6 +1287,139 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         )]),
       ),
     ));
+  }
+}
+
+
+class _PrivateEmojiPicker extends StatefulWidget {
+  final bool dark;
+  const _PrivateEmojiPicker({required this.dark});
+
+  @override
+  State<_PrivateEmojiPicker> createState() => _PrivateEmojiPickerState();
+}
+
+class _PrivateEmojiPickerState extends State<_PrivateEmojiPicker> {
+  static const Map<String, List<String>> _categories = {
+    'الوجوه': [
+      '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃',
+      '😉','😍','🥰','😘','😗','😙','😚','😋','😛','😜','🤪','😎',
+      '🤓','🧐','🤔','🤫','🤭','😐','😑','😶','😏','😒','🙄','😬',
+      '😴','🥱','😷','🤒','🤕','🤧','🥵','🥶','😵','🤯','🥳','😭',
+      '😢','😤','😡','🤬','😱','😨','😰','😥','🤗','🤩','🥺','🫡',
+    ],
+    'القلوب': [
+      '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','🩷','🩵','🩶',
+      '💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','♥️','💌',
+      '👍','👎','👏','🙌','🤝','🙏','💪','🫶','👊','✊','🤞','✌️',
+    ],
+    'الإشارات': [
+      '👋','🤚','🖐️','✋','🖖','👌','🤌','🤏','✍️','💅','🤳','💃',
+      '🕺','☝️','👇','👆','👉','👈','🫵','🫰','🤟','🤘','🤙','🖕',
+      '✅','❌','⭕','🚫','⚠️','❗','❓','💯','🔥','✨','⭐','🌟',
+    ],
+    'الدراسة': [
+      '📚','📖','📕','📗','📘','📙','📓','📝','✏️','🖊️','📐','📏',
+      '🎓','🏫','🧑‍🎓','👨‍🏫','👩‍🏫','🧠','💡','🔬','🧪','🧮','📊','📈',
+      '🏆','🥇','🎯','⏰','📅','🔔','💻','⌨️','🖥️','🌍','☀️','🌈',
+    ],
+  };
+
+  int _selected = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final entries = _categories.entries.toList();
+    final background = widget.dark
+        ? const Color(0xFF142B46)
+        : colors.surface;
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 350,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .18),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.onSurfaceVariant.withValues(alpha: .35),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'الإيموجيات',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  Text(
+                    '${_categories.values.fold<int>(0, (sum, list) => sum + list.length)} رمز',
+                    style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 42,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                itemCount: entries.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 7),
+                itemBuilder: (context, index) => ChoiceChip(
+                  label: Text(entries[index].key),
+                  selected: _selected == index,
+                  onSelected: (_) => setState(() => _selected = index),
+                ),
+              ),
+            ),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                child: GridView.builder(
+                  key: ValueKey(_selected),
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 8,
+                    mainAxisSpacing: 3,
+                    crossAxisSpacing: 3,
+                  ),
+                  itemCount: entries[_selected].value.length,
+                  itemBuilder: (context, index) {
+                    final emoji = entries[_selected].value[index];
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => Navigator.pop(context, emoji),
+                      child: Center(
+                        child: Text(emoji, style: const TextStyle(fontSize: 25)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
