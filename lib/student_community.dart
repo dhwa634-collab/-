@@ -145,8 +145,17 @@ Future<bool> confirmStudentSignOut(BuildContext context) async {
     ),
   );
   if (confirmed != true) return false;
-  await signOutStudentSession();
-  return true;
+  try {
+    await signOutStudentSession();
+    return true;
+  } catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('تعذر تسجيل الخروج: $error'),
+      ));
+    }
+    return false;
+  }
 }
 
 /// Opens the public room directly while preserving the existing Google sign-in gate.
