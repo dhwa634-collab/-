@@ -126,12 +126,10 @@ jobs:
         run: flutter pub get
       - name: Generate app icon and launch screen
         run: |
-          python3 -m pip install --quiet cairosvg
+          sudo apt-get update -qq
+          sudo apt-get install -y librsvg2-bin
           mkdir -p assets/brand
-          python3 - <<'PY'
-          import cairosvg
-          cairosvg.svg2png(url='assets/brand/app_icon.svg', write_to='assets/brand/app_icon.png', output_width=1024, output_height=1024)
-          PY
+          rsvg-convert -w 1024 -h 1024 assets/brand/app_icon.svg > assets/brand/app_icon.png
           dart run flutter_launcher_icons
           dart run flutter_native_splash:create
       - name: Analyze
