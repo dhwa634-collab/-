@@ -856,9 +856,9 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     String? avatar;
     if (actorId != null && type == 'direct_message') {
       try {
-        final profile = await Supabase.instance.client.from('profiles')
-          .select('display_name,username,avatar_url')
-          .eq('user_id', actorId).maybeSingle();
+        final rows = await Supabase.instance.client.rpc(
+          'get_student_chat_profiles_v1', params: {'p_user_ids': [actorId]});
+        final profile = (rows as List).isEmpty ? null : rows.first;
         avatar = profile?['avatar_url']?.toString();
         final displayName = profile?['display_name']?.toString().trim() ?? '';
         final username = profile?['username']?.toString().trim() ?? '';
@@ -962,9 +962,9 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     final actorId = data['actor_id']?.toString();
     if (actorId == null || actorId.isEmpty) return;
     try {
-      final profile = await Supabase.instance.client.from('profiles')
-        .select('display_name,avatar_url')
-        .eq('user_id', actorId).maybeSingle();
+      final rows = await Supabase.instance.client.rpc(
+        'get_student_chat_profiles_v1', params: {'p_user_ids': [actorId]});
+      final profile = (rows as List).isEmpty ? null : rows.first;
       if (!mounted) return;
       Navigator.push(context, MaterialPageRoute(builder: (_) =>
         StudentDirectMessageScreen(
