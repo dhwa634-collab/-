@@ -3433,7 +3433,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     if(mounted)setState(()=>_loading=false);
   }
   bool _isSupabaseNewsId(String id) =>
-    RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}
+    id.length == 36 && id.split('-').length == 5;
   String get _adminPin => widget.adminPin.trim();
   Future<Map<String,dynamic>> _send(Map<String,dynamic> payload) async {
     final response=await http.post(_workerAdminUri,
