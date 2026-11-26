@@ -1027,20 +1027,14 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
           ])),
-        IconButton(tooltip: 'البحث في الأرشيف',
-          onPressed: () {
-            final stage = AcademicStageController.current.value;
-            Navigator.push(context, MaterialPageRoute(builder: (_) =>
-              stage == AcademicStage.intermediateThird
-                  ? const ArchiveSearchScreen()
-                  : StageInternalArchiveScreen(
-                      stage: stage,
-                      subjects: (stage == AcademicStage.primarySixth
-                        ? sixthPrimarySubjects : sixthPreparatorySubjects),
-                      isReview: false,
-                    )));
-          },
-          icon: const Icon(Icons.search_rounded)),
+        IconButton(
+          tooltip: 'البحث عن الطلاب',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const StudentSearchScreen()),
+          ),
+          icon: const Icon(Icons.search_rounded),
+        ),
         const _HomeProfileButton(),
         ValueListenableBuilder<bool>(
           valueListenable: ThemeController.isDark,
