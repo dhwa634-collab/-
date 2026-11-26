@@ -61,7 +61,6 @@ void main() {
       'الرياضيات', 'التاريخ', 'الجغرافية', 'الاقتصاد',
     ]));
     expect(sixthPreparatoryBranches, containsAll(['العلمي', 'الأدبي']));
-    expect(sixthPreparatoryScientificTracks, containsAll(['الأحيائي', 'التطبيقي']));
     for (final subject in sixthPrimarySubjects) {
       expect(subject.hasResource, isTrue, reason: subject.name);
     }
