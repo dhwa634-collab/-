@@ -683,7 +683,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     if (action == 'edit') {
       final ctl = TextEditingController(text: row['body']?.toString() ?? '');
       final value = await showDialog<String>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
-        child: AlertDialog(title: const Text('تعديل الرسالة'), content: TextField(controller: ctl, autofocus: true, maxLines: 5, maxLength: 500),
+        child: AlertDialog(title: const Text('تعديل الرسالة'), content: TextField(controller: ctl, autofocus: true, maxLines: 5, maxLength: 2000),
           actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
             FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text.trim()), child: const Text('حفظ'))])));
       ctl.dispose();
