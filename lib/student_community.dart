@@ -144,7 +144,8 @@ class StudentCommunityScreen extends StatelessWidget {
 }
 
 class StudentGoogleLoginScreen extends StatefulWidget {
-  const StudentGoogleLoginScreen({super.key});
+  final bool returnToCaller;
+  const StudentGoogleLoginScreen({super.key, this.returnToCaller = false});
   @override
   State<StudentGoogleLoginScreen> createState() => _StudentGoogleLoginScreenState();
 }
@@ -172,7 +173,11 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
       await _db.auth.signInWithIdToken(provider: OAuthProvider.google,
         idToken: tokens.idToken!, accessToken: tokens.accessToken!);
       if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const StudentProfileScreen()));
+      if (widget.returnToCaller) {
+        Navigator.pop(context, true);
+      } else {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const StudentProfileScreen()));
+      }
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
