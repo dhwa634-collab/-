@@ -857,8 +857,16 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     if (actorId != null && type == 'direct_message') {
       try {
         final profile = await Supabase.instance.client.from('profiles')
-          .select('avatar_url').eq('user_id', actorId).maybeSingle();
+          .select('display_name,username,avatar_url')
+          .eq('user_id', actorId).maybeSingle();
         avatar = profile?['avatar_url']?.toString();
+        final displayName = profile?['display_name']?.toString().trim() ?? '';
+        final username = profile?['username']?.toString().trim() ?? '';
+        if (displayName.isNotEmpty) {
+          row['title'] = displayName;
+        } else if (username.isNotEmpty) {
+          row['title'] = '@$username';
+        }
       } catch (_) {}
     }
     if (!mounted) return;
@@ -1210,12 +1218,6 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             Text('دليلك للنجاح', style: TextStyle(fontSize: 21,
               fontWeight: FontWeight.w900,
               color: Theme.of(context).colorScheme.onSurface)),
-            ValueListenableBuilder<AcademicStage>(
-              valueListenable: AcademicStageController.current,
-              builder: (context, stage, _) => Text('${stage.label} • العراق',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
-            ),
           ])),
         IconButton(
           tooltip: 'البحث عن الطلاب',
@@ -1237,7 +1239,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
               icon: Badge(
                 isLabelVisible: count > 0,
                 label: Text(count > 99 ? '99+' : '$count'),
-                child: const Icon(Icons.mark_unread_chat_alt_rounded),
+                child: const Icon(Icons.forum_rounded, color: Color(0xFF3976D8)),
               ),
             );
           },
