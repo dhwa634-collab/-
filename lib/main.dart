@@ -945,6 +945,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     }
     if (!mounted) return;
     if (data['type'] == 'news') {
+      newsRefreshNotifier.value++;
       setState(() => tab = 2);
       return;
     }
@@ -3091,6 +3092,8 @@ class _StudyNoteDetailScreenState extends State<StudyNoteDetailScreen> {
   }
 }
 
+final ValueNotifier<int> newsRefreshNotifier = ValueNotifier<int>(0);
+
 class NewsPost {
   final String id, title, body, category, date;
   final bool pinned;
@@ -3137,7 +3140,16 @@ class _NewsScreenState extends State<NewsScreen> {
   List<NewsPost> _posts = _fallback;
   String _selected = 'all';
   bool _loading = false;
-  @override void initState() { super.initState(); _loadNews(); }
+  @override void initState() {
+    super.initState();
+    newsRefreshNotifier.addListener(_refreshFromNotification);
+    _loadNews();
+  }
+  void _refreshFromNotification() => _loadNews();
+  @override void dispose() {
+    newsRefreshNotifier.removeListener(_refreshFromNotification);
+    super.dispose();
+  }
   Future<void> _loadNews() async {
     if (!mounted) return;
     setState(() => _loading = true);
