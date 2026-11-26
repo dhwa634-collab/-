@@ -759,101 +759,254 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
   }
   Future<void> send()async{final v=input.text.trim();final user=me;if(v.isEmpty||user==null||sending)return;if(v.length>2000){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الرسالة طويلة جداً.')));return;}FocusScope.of(context).unfocus();setState(()=>sending=true);try{if(await refreshBlockStatus()){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')));return;}await _db.from('direct_messages').insert({'sender_id':user,'receiver_id':widget.otherUserId,'body':v});input.clear();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إرسال الرسالة: $e')));}finally{if(mounted)setState(()=>sending=false);}}
   @override void dispose(){activeDirectMessageUserId.value=null;StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);messageSubscription.cancel();blockSubscription.cancel();_scrollController.dispose();input.dispose();super.dispose();}
-  @override Widget build(BuildContext context){final c=Theme.of(context).colorScheme;return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:Row(children:[CircleAvatar(radius:19,backgroundImage:widget.otherAvatar!=null&&widget.otherAvatar!.startsWith('http')?NetworkImage(widget.otherAvatar!):null,child:widget.otherAvatar==null||!widget.otherAvatar!.startsWith('http')?const Icon(Icons.person_rounded,size:20):null)),const SizedBox(width:10),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[Text(_resolvedOtherName,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w800)),const SizedBox(height:2),Row(children:[Container(width:7,height:7,decoration:BoxDecoration(color:_otherOnline?const Color(0xFF24B47E):c.outline,borderRadius:BorderRadius.circular(10))),const SizedBox(width:5),Text(_otherOnline?'متصل الآن':'غير متصل',style:TextStyle(fontSize:11,color:_otherOnline?const Color(0xFF24B47E):c.onSurfaceVariant))])]))])),body:Column(children:[
-    Expanded(child:StreamBuilder<List<Map<String,dynamic>>>(stream:messages,builder:(ctx,s){
-      if(s.hasError)return Center(child:Text('تعذر تحميل المحادثة: ${s.error}'));
-      if(!s.hasData)return const Center(child:CircularProgressIndicator());
-      final l=s.data!; if(l.isEmpty)return const Center(child:Text('ابدأ المحادثة برسالة ترحيبية 👋'));
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients &&
-            _scrollController.position.maxScrollExtent - _scrollController.offset < 180) {
-          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-        }
-      });
-      return ListView.builder(controller:_scrollController,padding:const EdgeInsets.all(14),itemCount:l.length,itemBuilder:(ctx,i){
-        final r=l[i]; final mine=r['sender_id']==me;
-        final senderName=_participantNames[r['sender_id']?.toString()] ?? (mine?'حسابي':_resolvedOtherName);
-        return Align(
-          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-          child: TweenAnimationBuilder<double>(
-            key: ValueKey(r['id']),
-            tween: Tween<double>(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 360),
-            curve: Curves.easeOutCubic,
-            builder: (context, value, child) => Opacity(
-              opacity: value,
-              child: Transform.translate(
-                offset: Offset(0, 22 * (1 - value)),
-                child: child,
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final avatar = widget.otherAvatar;
+    final hasAvatar = avatar != null && avatar.startsWith('http');
+
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              CircleAvatar(
+                radius: 19,
+                backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+                child: hasAvatar ? null : const Icon(Icons.person_rounded, size: 20),
               ),
-            ),
-            child: GestureDetector(
-              onLongPress: mine ? () => _privateMessageActions(r) : null,
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                padding: const EdgeInsets.all(12),
-                constraints: const BoxConstraints(maxWidth: 300),
-                decoration: BoxDecoration(
-                  color: mine ? c.primary : c.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(16),
-                ),
+              const SizedBox(width: 10),
+              Expanded(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      senderName,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: mine ? c.onPrimary.withValues(alpha: .85) : c.primary,
-                      ),
+                      _resolvedOtherName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 2),
                     Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Flexible(
-                          child: Text(
-                            r['body']?.toString() ?? '',
-                            style: TextStyle(color: mine ? c.onPrimary : c.onSurface),
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: _otherOnline ? const Color(0xFF24B47E) : colors.outline,
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        if (r['edited_at'] != null)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 5),
-                            child: Text(
-                              'معدّلة',
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: mine ? c.onPrimary.withValues(alpha: .7) : c.onSurfaceVariant,
-                              ),
-                            ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _otherOnline ? 'متصل الآن' : 'غير متصل',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _otherOnline
+                                ? const Color(0xFF24B47E)
+                                : colors.onSurfaceVariant,
                           ),
-                        if (mine) ...[
-                          const SizedBox(width: 7),
-                          Icon(
-                            r['read_at'] != null ? Icons.done_all_rounded : Icons.done_rounded,
-                            size: 15,
-                            color: r['read_at'] != null
-                                ? Colors.lightBlueAccent
-                                : c.onPrimary.withValues(alpha: .72),
-                          ),
-                        ],
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
-        );
-      });
-    })),
-    if(blocked)const Padding(padding:EdgeInsets.fromLTRB(14,6,14,0),child:Text('المراسلة متوقفة بسبب الحظر بين الحسابين.',style:TextStyle(color:Color(0xFFB87922)))),
-    SafeArea(top:false,child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[Expanded(child:TextField(controller:input,enabled:!blocked,minLines:1,maxLines:4,textInputAction:TextInputAction.send,onSubmitted:(_)=>send(),decoration:InputDecoration(hintText:blocked?'المراسلة غير متاحة بسبب الحظر':'اكتب رسالتك...',filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(24),borderSide:BorderSide.none)))),IconButton.filled(onPressed:sending||blocked?null:send,icon:sending?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.send))]))),
-  ])));}
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: messages,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('تعذر تحميل المحادثة: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final items = snapshot.data!;
+                  if (items.isEmpty) {
+                    return const Center(child: Text('ابدأ المحادثة برسالة ترحيبية 👋'));
+                  }
+
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (_scrollController.hasClients &&
+                        _scrollController.position.maxScrollExtent -
+                                _scrollController.offset <
+                            180) {
+                      _scrollController.jumpTo(
+                        _scrollController.position.maxScrollExtent,
+                      );
+                    }
+                  });
+
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(14),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final row = items[index];
+                      final mine = row['sender_id'] == me;
+                      final senderName = _participantNames[
+                              row['sender_id']?.toString()] ??
+                          (mine ? 'حسابي' : _resolvedOtherName);
+
+                      return Align(
+                        alignment: mine
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: TweenAnimationBuilder<double>(
+                          key: ValueKey(row['id']),
+                          tween: Tween<double>(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 360),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, child) => Opacity(
+                            opacity: value,
+                            child: Transform.translate(
+                              offset: Offset(0, 22 * (1 - value)),
+                              child: child,
+                            ),
+                          ),
+                          child: GestureDetector(
+                            onLongPress: mine
+                                ? () => _privateMessageActions(row)
+                                : null,
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              padding: const EdgeInsets.all(12),
+                              constraints: const BoxConstraints(maxWidth: 300),
+                              decoration: BoxDecoration(
+                                color: mine
+                                    ? colors.primary
+                                    : colors.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    senderName,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: mine
+                                          ? colors.onPrimary.withValues(alpha: .85)
+                                          : colors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          row['body']?.toString() ?? '',
+                                          style: TextStyle(
+                                            color: mine
+                                                ? colors.onPrimary
+                                                : colors.onSurface,
+                                          ),
+                                        ),
+                                      ),
+                                      if (row['edited_at'] != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(left: 5),
+                                          child: Text(
+                                            'معدّلة',
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              color: mine
+                                                  ? colors.onPrimary.withValues(alpha: .7)
+                                                  : colors.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
+                                      if (mine) ...[
+                                        const SizedBox(width: 7),
+                                        Icon(
+                                          row['read_at'] != null
+                                              ? Icons.done_all_rounded
+                                              : Icons.done_rounded,
+                                          size: 15,
+                                          color: row['read_at'] != null
+                                              ? Colors.lightBlueAccent
+                                              : colors.onPrimary.withValues(alpha: .72),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            if (blocked)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(14, 6, 14, 0),
+                child: Text(
+                  'المراسلة متوقفة بسبب الحظر بين الحسابين.',
+                  style: TextStyle(color: Color(0xFFB87922)),
+                ),
+              ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: input,
+                        enabled: !blocked,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => send(),
+                        decoration: InputDecoration(
+                          hintText: blocked
+                              ? 'المراسلة غير متاحة بسبب الحظر'
+                              : 'اكتب رسالتك...',
+                          filled: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton.filled(
+                      onPressed: sending || blocked ? null : send,
+                      icon: sending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class StudentChatScreen extends StatefulWidget {
