@@ -638,7 +638,7 @@ class StudentPresenceService {
 
   static Future<void> initialize() async {
     _authSubscription ??= _client.auth.onAuthStateChange.listen((event) {
-      _startTracking(event.session?.user.id);
+      unawaited(_startTracking(event.session?.user.id));
     });
     await _startTracking(_client.auth.currentUser?.id);
   }
