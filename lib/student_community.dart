@@ -1874,7 +1874,9 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
                   final last = item['last'] as Map<String,dynamic>;
                   final userId = item['user_id'].toString();
                   final avatar = profile['avatar_url']?.toString();
-                  final displayName = profile['display_name']?.toString().trim() ?? '';\n                  final usernameValue = profile['username']?.toString().trim() ?? '';\n                  final name = displayName.isNotEmpty ? displayName : (usernameValue.isNotEmpty ? '@$usernameValue' : 'مستخدم');
+                  final displayName = profile['display_name']?.toString().trim() ?? '';
+                  final usernameValue = profile['username']?.toString().trim() ?? '';
+                  final name = displayName.isNotEmpty ? displayName : (usernameValue.isNotEmpty ? '@$usernameValue' : 'مستخدم');
                   final username = (profile['username'] ?? '').toString();
                   final unread = item['unread'] as int;
                   return ListTile(
