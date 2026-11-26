@@ -794,11 +794,17 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         child: AlertDialog(title: const Text('حذف الرسالة؟'), content: const Text('سيتم حذفها من المحادثة لدى الطرفين.'),
           actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
             FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف'))])));
-      if (ok == true) { try { await _db.from('direct_messages').delete().eq('id', row['id']).eq('sender_id', me!); }
-        catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر حذف الرسالة: $e'))); } }
+      if (ok == true) {
+        final id = row['id'].toString();
+        if (mounted) setState(() => _deletingMessageIds.add(id));
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        try { await _db.from('direct_messages').delete().eq('id', id).eq('sender_id', me!); }
+        catch (e) { if (mounted) { setState(() => _deletingMessageIds.remove(id)); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر حذف الرسالة: $e'))); } }
+      }
     }
   }
   final List<Map<String, dynamic>> _optimisticMessages = [];
+  final Set<String> _deletingMessageIds = {};
 
   List<Map<String, dynamic>> _mergeOptimisticMessages(
     List<Map<String, dynamic>> remote,
@@ -806,21 +812,27 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     final merged = <String, Map<String, dynamic>>{
       for (final row in remote) row['id'].toString(): row,
     };
+    final matchedLocalIds = <String>{};
     for (final row in _optimisticMessages) {
       final id = row['id'].toString();
-      if (!merged.containsKey(id)) merged[id] = row;
+      if (merged.containsKey(id)) continue;
+      final localTime = DateTime.tryParse(row['created_at']?.toString() ?? '');
+      final match = remote.any((candidate) {
+        if (candidate['sender_id'] != row['sender_id'] || candidate['receiver_id'] != row['receiver_id'] || candidate['body'] != row['body']) return false;
+        final serverTime = DateTime.tryParse(candidate['created_at']?.toString() ?? '');
+        return localTime != null && serverTime != null && serverTime.difference(localTime).inSeconds.abs() <= 30;
+      });
+      if (match) { matchedLocalIds.add(id); } else { merged[id] = row; }
     }
     final result = merged.values.toList()
       ..sort((a, b) => (a['created_at'] ?? '').toString()
           .compareTo((b['created_at'] ?? '').toString()));
     final remoteIds = remote.map((row) => row['id'].toString()).toSet();
-    if (remoteIds.isNotEmpty) {
+    if (remoteIds.isNotEmpty || matchedLocalIds.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final before = _optimisticMessages.length;
-        _optimisticMessages.removeWhere(
-          (row) => remoteIds.contains(row['id'].toString()),
-        );
+        _optimisticMessages.removeWhere((row) => remoteIds.contains(row['id'].toString()) || matchedLocalIds.contains(row['id'].toString()));
         if (before != _optimisticMessages.length) setState(() {});
       });
     }
@@ -1200,16 +1212,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                       child: IconButton(
                         tooltip: 'إرسال الرسالة',
                         onPressed: sending || blocked ? null : send,
-                        icon: sending
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.send_rounded, color: Colors.white),
+                        icon: const Icon(Icons.send_rounded, color: Colors.white),
                       ),
                     ),
                     const SizedBox(width: 7),
@@ -1887,6 +1890,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (value.length > 500 || unsafe(value)) { toast('لم تُعدّل الرسالة: تجنب الإساءة أو أرقام الهواتف أو البريد أو الروابط، والحد 500 حرف.'); return; }
     try { await _db.from('chat_messages').update({'body': value, 'edited_at': DateTime.now().toUtc().toIso8601String()}).eq('id', row['id']).eq('user_id', _db.auth.currentUser!.id); }
     catch (e) { toast('تعذر تعديل الرسالة: $e'); }
+  }
+
+  Future<void> _openGroupEmojiPicker() async {
+    inputFocus.unfocus();
+    final emoji = await showModalBottomSheet<String>(context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      builder: (_) => _PrivateEmojiPicker(dark: Theme.of(context).brightness == Brightness.dark));
+    if (!mounted || emoji == null) return;
+    final oldValue = input.value;
+    final selection = oldValue.selection;
+    final start = selection.isValid ? selection.start : oldValue.text.length;
+    final end = selection.isValid ? selection.end : oldValue.text.length;
+    input.value = TextEditingValue(text: oldValue.text.replaceRange(start, end, emoji), selection: TextSelection.collapsed(offset: start + emoji.length));
+    inputFocus.requestFocus();
   }
 
   Future<void> send({String? sticker}) async {
