@@ -16,7 +16,7 @@ import 'exam_archive_data.dart';
 import 'review_quiz.dart';
 import 'academic_stages.dart';
 import 'notifications/study_notification_service.dart';
-Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await Supabase.initialize(url: SupabaseConfig.projectUrl, publishableKey: SupabaseConfig.publishableKey); await SavedExamsStore.load(); await ThemeController.load(); await AcademicStageController.load(); await StudyNotificationService.instance.initialize(); runApp(const StudyApp()); }
+Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await Supabase.initialize(url: SupabaseConfig.projectUrl, publishableKey: SupabaseConfig.publishableKey); unawaited(StudentPresenceService.initialize()); await SavedExamsStore.load(); await ThemeController.load(); await AcademicStageController.load(); await StudyNotificationService.instance.initialize(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 class SavedExamsStore {
   static const String _storageKey = 'saved_exam_sheets_v1';
@@ -311,7 +311,8 @@ class StageContentPlaceholderScreen extends StatelessWidget {
 
 class StageCatalogScreen extends StatefulWidget {
   final AcademicStage stage;
-  const StageCatalogScreen({super.key, required this.stage});
+  final String? initialBranch;
+  const StageCatalogScreen({super.key, required this.stage, this.initialBranch});
   @override
   State<StageCatalogScreen> createState() => _StageCatalogScreenState();
 }
@@ -320,20 +321,29 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
   String _branch = 'العلمي';
   String _scientificTrack = 'الأحيائي';
 
+  @override
+  void initState() {
+    super.initState();
+    _branch = widget.initialBranch ?? 'العلمي';
+  }
+
   List<StageSubjectInfo> get _stageSubjects {
-    if (widget.stage == AcademicStage.primarySixth) {
-      return sixthPrimarySubjects;
+    if (widget.stage == AcademicStage.primarySixth) return sixthPrimarySubjects;
+    if (widget.stage == AcademicStage.vocationalThird ||
+        widget.stage == AcademicStage.vocationalSixth) {
+      return vocationalCommonSubjects;
     }
     return _branch == 'الأدبي'
         ? sixthPreparatoryLiterarySubjects
         : sixthPreparatorySubjects;
   }
 
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isPreparatory = widget.stage == AcademicStage.preparatorySixth;
+    final isVocational = widget.stage == AcademicStage.vocationalThird ||
+        widget.stage == AcademicStage.vocationalSixth;
     final subjectsForNotes = _stageSubjects.map((subject) => subject.name).toList();
 
     return Directionality(
@@ -342,12 +352,26 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
         key: PageStorageKey<String>('stage_catalog_${widget.stage.name}'),
         padding: const EdgeInsets.all(16),
         children: [
-          const AcademicStagePicker(),
           Text(widget.stage.label, style: TextStyle(
             fontSize: 24, fontWeight: FontWeight.w900, color: colors.onSurface)),
           const SizedBox(height: 6),
           Text('كتب وموارد وأدوات مخصصة لهذه المرحلة فقط',
             style: TextStyle(color: colors.onSurfaceVariant)),
+          if (isVocational) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer.withValues(alpha: .55),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.primary.withValues(alpha: .18)),
+              ),
+              child: const Text(
+                'تظهر هنا المواد المشتركة للمرحلة المهنية. أما كتب الاختصاص فتختلف حسب القسم المهني، لذلك لن نعرض كتب العلمي أو الأدبي بدلاً منها.',
+                style: TextStyle(height: 1.55, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
           if (isPreparatory) ...[
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
@@ -1529,9 +1553,49 @@ class SubjectTile extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onSurface)),
           ]))));
 }
-class Catalog extends StatelessWidget {
+class Catalog extends StatefulWidget {
   final ValueChanged<Subject> onOpen;
   const Catalog({super.key, required this.onOpen});
+
+  @override
+  State<Catalog> createState() => _CatalogState();
+}
+
+class _CatalogState extends State<Catalog> {
+  String? _profileStageLabel;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncStageFromProfile();
+  }
+
+  Future<void> _syncStageFromProfile() async {
+    String? label;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('stage')
+            .eq('user_id', user.id)
+            .maybeSingle();
+        label = profile?['stage']?.toString();
+      } catch (error) {
+        debugPrint('Load catalog student stage failed: $error');
+      }
+    }
+    if (label == null || label.trim().isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      label = prefs.getString('dalilak_student_stage_label_v1');
+    }
+    if (!mounted || label == null || label.trim().isEmpty) return;
+    final selected = AcademicStage.fromProfileLabel(label);
+    setState(() => _profileStageLabel = label);
+    if (AcademicStageController.current.value != selected) {
+      await AcademicStageController.select(selected);
+    }
+  }
 
   @override
   Widget build(BuildContext context) =>
@@ -1542,6 +1606,7 @@ class Catalog extends StatelessWidget {
             return StageCatalogScreen(
               key: ValueKey('catalog_${stage.name}'),
               stage: stage,
+              initialBranch: _profileStageLabel?.contains('الأدبي') == true ? 'الأدبي' : 'العلمي',
             );
           }
           final colors = Theme.of(context).colorScheme;
