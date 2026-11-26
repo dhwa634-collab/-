@@ -27,7 +27,6 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
   bool _loading = true;
   bool _needsSetup = false;
   bool _signedIn = false;
-  String? _loadError;
 
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -48,7 +47,6 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
           _signedIn = false;
           _needsSetup = false;
           _loading = false;
-          _loadError = null;
         });
       }
       return;
@@ -58,7 +56,6 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
       setState(() {
         _signedIn = true;
         _loading = true;
-        _loadError = null;
       });
     }
 
@@ -85,7 +82,6 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
       setState(() {
         _needsSetup = true;
         _loading = false;
-        _loadError = 'تعذر التحقق من بيانات الحساب. أكمل إعداد حسابك أو تحقق من الاتصال.';
       });
     }
   }
@@ -120,7 +116,6 @@ class StudentWelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const navy = Color(0xFF0D1728);
     const blue = Color(0xFF2868D7);
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -489,11 +484,6 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
     setState(() => _busy = true);
     try {
       final prefs = await SharedPreferences.getInstance();
-      final age = int.tryParse(_ageController.text.trim());
-      if (age == null || age < 10 || age > 80) {
-        _message('اكتب عمراً صحيحاً بين 10 و80 سنة.');
-        return;
-      }
       await prefs.setString('dalilak_student_age_band_v1', age.toString());
       await prefs.setString('dalilak_student_gender_v1', _gender);
       await prefs.setString('dalilak_student_stage_v1', _mappedAcademicStage().name);
