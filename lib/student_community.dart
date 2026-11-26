@@ -1277,7 +1277,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           ],
         ),
       ),
-      body: Column(children: [
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFEAF3FF), Color(0xFFDCEAFF), Color(0xFFF2F7FF)],
+          ),
+        ),
+        child: Stack(children: [
+          const Positioned.fill(child: IgnorePointer(child: CustomPaint(
+            painter: _StudyChatWallpaperPainter(),
+          ))),
+          Column(children: [
         Expanded(child: StreamBuilder<List<Map<String, dynamic>>>(stream: messages,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
@@ -1691,9 +1703,48 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               const Text('اضغط مطولاً على رسالة للإبلاغ أو حظر المستخدم.',
                 style: TextStyle(fontSize: 10, color: Colors.grey)),
             ]))),
-      ])));
+          ]),
+        ]),
+      )));
 }
 
+
+class _StudyChatWallpaperPainter extends CustomPainter {
+  const _StudyChatWallpaperPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF477DBB).withValues(alpha: 0.075)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.7;
+    final symbols = <String>['✎', '▱', '△', '⌁', '▤'];
+    for (var i = 0; i < 18; i++) {
+      final x = (i % 4) * (size.width / 3.6) + 12;
+      final y = (i ~/ 4) * 145.0 + 32;
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate((i.isEven ? -1 : 1) * 0.16);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: symbols[i % symbols.length],
+          style: TextStyle(
+            fontSize: i.isEven ? 31 : 25,
+            color: const Color(0xFF477DBB).withValues(alpha: 0.075),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset.zero);
+      canvas.drawCircle(const Offset(8, 8), 2.2, paint);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StudyChatWallpaperPainter oldDelegate) => false;
+}
 
 /// Current private conversation, used to suppress duplicate live banners while it is open.
 final ValueNotifier<String?> activeDirectMessageUserId = ValueNotifier<String?>(null);
