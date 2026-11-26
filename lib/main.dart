@@ -1494,7 +1494,10 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                   : SolutionsHubScreen(
                       stageLabel: stage.label,
                       availableSubjects: (stage == AcademicStage.primarySixth
-                        ? sixthPrimarySubjects : sixthPreparatorySubjects)
+                        ? sixthPrimarySubjects
+                        : (stage == AcademicStage.vocationalThird || stage == AcademicStage.vocationalSixth)
+                            ? vocationalCommonSubjects
+                            : sixthPreparatorySubjects)
                         .map((item) => Subject(item.name, item.icon, item.color))
                         .toList(),
                     )));
@@ -1517,7 +1520,10 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                   : StageInternalArchiveScreen(
                       stage: stage,
                       subjects: (stage == AcademicStage.primarySixth
-                        ? sixthPrimarySubjects : sixthPreparatorySubjects),
+                        ? sixthPrimarySubjects
+                        : (stage == AcademicStage.vocationalThird || stage == AcademicStage.vocationalSixth)
+                            ? vocationalCommonSubjects
+                            : sixthPreparatorySubjects),
                       isReview: true,
                     )));
           }),
