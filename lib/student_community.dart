@@ -71,6 +71,84 @@ Future<void> signOutStudentSession() async {
   await _db.auth.signOut();
 }
 
+/// Runs the existing native Google ID-token flow without showing an intermediate login screen.
+Future<bool> signInWithGoogleAccount(BuildContext context) async {
+  if (SupabaseConfig.googleWebClientId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('إعداد Google OAuth غير مكتمل.'),
+    ));
+    return false;
+  }
+  try {
+    final google = GoogleSignIn(
+      serverClientId: SupabaseConfig.googleWebClientId.trim(),
+    );
+    final account = await google.signIn();
+    if (account == null) return false;
+    final tokens = await account.authentication;
+    if (tokens.idToken == null || tokens.accessToken == null) {
+      throw const AuthException('لم نستلم رموز Google المطلوبة.');
+    }
+    await _db.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: tokens.idToken!,
+      accessToken: tokens.accessToken!,
+    );
+    return true;
+  } on AuthException catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تسجيل الدخول: ${e.message}')),
+      );
+    }
+    return false;
+  } catch (error, stackTrace) {
+    debugPrint('Google sign-in failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+    if (context.mounted) {
+      final detail = error.toString();
+      final message = detail.length > 420 ? detail.substring(0, 420) : detail;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 12),
+        content: Text('فشل تسجيل الدخول (${error.runtimeType}): $message'),
+      ));
+    }
+    return false;
+  }
+}
+
+/// Asks before ending the current account session.
+Future<bool> confirmStudentSignOut(BuildContext context) async {
+  final theme = Theme.of(context);
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      icon: const Icon(Icons.logout_rounded),
+      title: const Text('تسجيل الخروج'),
+      content: const Text(
+        'هل أنت متأكد من تسجيل الخروج من حسابك؟ بياناتك الدراسية محفوظة ولن تُحذف عند تسجيل الخروج.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('رفض'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: theme.colorScheme.error,
+            foregroundColor: theme.colorScheme.onError,
+          ),
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('موافق'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return false;
+  await signOutStudentSession();
+  return true;
+}
+
 /// Opens the public room directly while preserving the existing Google sign-in gate.
 Future<void> openStudentChat(BuildContext context) async {
   if (_db.auth.currentUser != null) {
@@ -144,8 +222,8 @@ class StudentCommunityScreen extends StatelessWidget {
             icon: const Icon(Icons.login_rounded), label: const Text('تسجيل الدخول بواسطة Google')),
         ] else
           OutlinedButton.icon(onPressed: () async {
-            await signOutStudentSession();
-            if (context.mounted) Navigator.pop(context);
+            final signedOut = await confirmStudentSignOut(context);
+            if (signedOut && context.mounted) Navigator.pop(context);
           }, icon: const Icon(Icons.logout), label: const Text('تسجيل الخروج')),
       ]),
     ));
@@ -437,7 +515,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
           Expanded(child:OutlinedButton.icon(onPressed:uploading?null:pickAvatar,icon:const Icon(Icons.camera_alt_rounded),label:const Text('تعيين صورة'),style:OutlinedButton.styleFrom(foregroundColor:const Color(0xFFFFD36A),side:const BorderSide(color:Color(0x55FFD36A)),padding:const EdgeInsets.symmetric(vertical:13)))),
           const SizedBox(width:7),
           Expanded(child:FilledButton.icon(onPressed:()=>profileScroll.animateTo(390,duration:const Duration(milliseconds:350),curve:Curves.easeOut),icon:const Icon(Icons.edit_rounded),label:const Text('تعديل البيانات'),style:FilledButton.styleFrom(backgroundColor:const Color(0xFF17436D),foregroundColor:Colors.white,padding:const EdgeInsets.symmetric(vertical:13)))),
-          IconButton(tooltip:'الإعدادات',onPressed:()=>showModalBottomSheet<void>(context:context,backgroundColor:const Color(0xFF10263D),shape:const RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(24))),builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:SafeArea(child:Padding(padding:const EdgeInsets.all(18),child:Column(mainAxisSize:MainAxisSize.min,children:[const Text('إعدادات الحساب',style:TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),ListTile(leading:const Icon(Icons.verified_user_outlined,color:Color(0xFF56B4F8)),title:const Text('حماية الحساب',style:TextStyle(color:Colors.white)),subtitle:Text(_db.auth.currentUser?.email??'التصفح كضيف',style:const TextStyle(color:Colors.white60)),trailing:const Icon(Icons.chevron_left,color:Colors.white70),onTap:(){Navigator.pop(ctx);showDialog<void>(context:context,builder:(dialogContext){final user=_db.auth.currentUser;final session=_db.auth.currentSession;final email=user?.email??'غير مرتبط';final google=user?.identities?.any((identity)=>identity.provider.toLowerCase()=='google')??(user?.appMetadata['provider']?.toString().toLowerCase()=='google');final confirmed=user?.emailConfirmedAt;return Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('حماية الحساب'),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[_securityInfoRow('طريقة الدخول',google?'Google':'غير محددة عبر Google'),_securityInfoRow('البريد الإلكتروني',email),_securityInfoRow('تأكيد البريد',confirmed==null?'غير مؤكّد':'مؤكّد'),_securityInfoRow('تاريخ التوثيق',confirmed==null?'—':(DateTime.tryParse(confirmed)?.toLocal().toString().split('.').first??'غير متاح')),_securityInfoRow('حالة الجلسة',session==null?'لا توجد جلسة نشطة':'جلسة نشطة'),_securityInfoRow('انتهاء الجلسة',session?.expiresAt==null?'—':DateTime.fromMillisecondsSinceEpoch(session!.expiresAt!*1000).toLocal().toString().split('.').first)]),actions:[TextButton.icon(onPressed:email=='غير مرتبط'?null:()async{await Clipboard.setData(ClipboardData(text:email));if(dialogContext.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم نسخ البريد الإلكتروني.')));},icon:const Icon(Icons.copy),label:const Text('نسخ البريد')),FilledButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('إغلاق'))]));});}),ListTile(leading:const Icon(Icons.info_outline,color:Color(0xFF56B4F8)),title:const Text('حالة التوثيق',style:TextStyle(color:Colors.white)),subtitle:Text(developer?'حساب المطوّر موثّق':'حساب طالب',style:const TextStyle(color:Colors.white60)))]))))),icon:const Icon(Icons.settings_rounded,color:Color(0xFFFFD36A))),
+          IconButton(tooltip:'الإعدادات',onPressed:()=>showModalBottomSheet<void>(context:context,backgroundColor:const Color(0xFF10263D),shape:const RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(24))),builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:SafeArea(child:Padding(padding:const EdgeInsets.all(18),child:Column(mainAxisSize:MainAxisSize.min,children:[const Text('إعدادات الحساب',style:TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),ListTile(leading:const Icon(Icons.verified_user_outlined,color:Color(0xFF56B4F8)),title:const Text('حماية الحساب',style:TextStyle(color:Colors.white)),subtitle:Text(_db.auth.currentUser?.email??'التصفح كضيف',style:const TextStyle(color:Colors.white60)),trailing:const Icon(Icons.chevron_left,color:Colors.white70),onTap:(){Navigator.pop(ctx);showDialog<void>(context:context,builder:(dialogContext){final user=_db.auth.currentUser;final session=_db.auth.currentSession;final email=user?.email??'غير مرتبط';final google=user?.identities?.any((identity)=>identity.provider.toLowerCase()=='google')??(user?.appMetadata['provider']?.toString().toLowerCase()=='google');final confirmed=user?.emailConfirmedAt;return Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('حماية الحساب'),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[_securityInfoRow('طريقة الدخول',google?'Google':'غير محددة عبر Google'),_securityInfoRow('البريد الإلكتروني',email),_securityInfoRow('تأكيد البريد',confirmed==null?'غير مؤكّد':'مؤكّد'),_securityInfoRow('تاريخ التوثيق',confirmed==null?'—':(DateTime.tryParse(confirmed)?.toLocal().toString().split('.').first??'غير متاح')),_securityInfoRow('حالة الجلسة',session==null?'لا توجد جلسة نشطة':'جلسة نشطة'),_securityInfoRow('انتهاء الجلسة',session?.expiresAt==null?'—':DateTime.fromMillisecondsSinceEpoch(session!.expiresAt!*1000).toLocal().toString().split('.').first)]),actions:[TextButton.icon(onPressed:email=='غير مرتبط'?null:()async{await Clipboard.setData(ClipboardData(text:email));if(dialogContext.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم نسخ البريد الإلكتروني.')));},icon:const Icon(Icons.copy),label:const Text('نسخ البريد')),FilledButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('إغلاق'))]));});}),ListTile(leading:const Icon(Icons.logout_rounded,color:Color(0xFFFF8A80)),title:const Text('تسجيل الخروج',style:TextStyle(color:Colors.white)),subtitle:const Text('إنهاء جلسة الحساب بأمان',style:TextStyle(color:Colors.white60)),trailing:const Icon(Icons.chevron_left,color:Colors.white70),onTap:()async{Navigator.pop(ctx);final signedOut=await confirmStudentSignOut(context);if(signedOut&&context.mounted)Navigator.of(context).popUntil((route)=>route.isFirst);}),ListTile(leading:const Icon(Icons.info_outline,color:Color(0xFF56B4F8)),title:const Text('حالة التوثيق',style:TextStyle(color:Colors.white)),subtitle:Text(developer?'حساب المطوّر موثّق':'حساب طالب',style:const TextStyle(color:Colors.white60)))]))))),icon:const Icon(Icons.settings_rounded,color:Color(0xFFFFD36A))),
         ]),
         const SizedBox(height:14),
         panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -494,17 +572,37 @@ class _StudentSearchScreenState extends State<StudentSearchScreen>{
     ])));
   }
 }
-class StudentPublicProfileScreen extends StatefulWidget{final String userId;const StudentPublicProfileScreen({super.key,required this.userId});@override State<StudentPublicProfileScreen> createState()=>_StudentPublicProfileScreenState();}
+class StudentPublicProfileScreen extends StatefulWidget{
+  final String userId;
+  final String? fallbackName, fallbackUsername, fallbackStage, fallbackAvatar, fallbackBadge, fallbackBio;
+  final bool fallbackDeveloper;
+  const StudentPublicProfileScreen({super.key,required this.userId,this.fallbackName,this.fallbackUsername,this.fallbackStage,this.fallbackAvatar,this.fallbackBadge,this.fallbackBio,this.fallbackDeveloper=false});
+  @override State<StudentPublicProfileScreen> createState()=>_StudentPublicProfileScreenState();
+}
 class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>{
   Map<String,dynamic>? p;bool loading=true,blockedByMe=false,blockedByThem=false,blockBusy=false;
   bool get blocked=>blockedByMe||blockedByThem;
   @override void initState(){super.initState();load();}
-  Future<void> load()async{try{
-    final r=await _db.rpc('search_student_profiles_v1',params:{'p_query':null,'p_stage':null,'p_user_id':widget.userId,'p_limit':1});
-    final l=r as List;final me=_db.auth.currentUser?.id;var mine=false,theirs=false;
-    if(me!=null&&me!=widget.userId){final rows=await _db.from('user_blocks').select('blocker_id,blocked_id').or('and(blocker_id.eq.$me,blocked_id.eq.${widget.userId}),and(blocker_id.eq.${widget.userId},blocked_id.eq.$me)');mine=(rows as List).any((x)=>x['blocker_id']==me&&x['blocked_id']==widget.userId);theirs=rows.any((x)=>x['blocker_id']==widget.userId&&x['blocked_id']==me);}
-    if(mounted)setState(() { p=l.isEmpty?null:Map<String,dynamic>.from(l.first as Map);blockedByMe=mine;blockedByThem=theirs;loading=false; });
-  }catch(_){if(mounted)setState(()=>loading=false);}}
+  Future<void> load()async{
+    p={
+      'user_id':widget.userId,
+      'display_name':widget.fallbackName??'طالب',
+      'username':widget.fallbackUsername,
+      'stage':widget.fallbackStage??'طالب',
+      'avatar_url':widget.fallbackAvatar,
+      'badge':widget.fallbackBadge??'طالب',
+      'bio':widget.fallbackBio,
+      'is_developer':widget.fallbackDeveloper,
+    };
+    try{
+      final r=await _db.rpc('search_student_profiles_v1',params:{'p_query':null,'p_stage':null,'p_user_id':widget.userId,'p_limit':1});
+      final l=r as List;
+      if(l.isNotEmpty)p={...p!,...Map<String,dynamic>.from(l.first as Map)};
+      final me=_db.auth.currentUser?.id;var mine=false,theirs=false;
+      if(me!=null&&me!=widget.userId){final rows=await _db.from('user_blocks').select('blocker_id,blocked_id').or('and(blocker_id.eq.$me,blocked_id.eq.${widget.userId}),and(blocker_id.eq.${widget.userId},blocked_id.eq.$me)');mine=(rows as List).any((x)=>x['blocker_id']==me&&x['blocked_id']==widget.userId);theirs=rows.any((x)=>x['blocker_id']==widget.userId&&x['blocked_id']==me);}
+      if(mounted)setState(() {blockedByMe=mine;blockedByThem=theirs;loading=false;});
+    }catch(_){if(mounted)setState(()=>loading=false);}
+  }
   Future<void> toggleBlock()async{
     final me=_db.auth.currentUser?.id;if(me==null||me==widget.userId||blockBusy)return;final removing=blockedByMe;
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text(removing?'إلغاء الحظر؟':'حظر هذا الطالب؟'),content:Text(removing?'سيعود خيار المراسلة إذا لم يكن هناك حظر من الطرف الآخر.':'لن تتمكنوا من مراسلة بعضكما ما دام الحظر مفعّلاً.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:Text(removing?'إلغاء الحظر':'حظر'))]));
@@ -611,6 +709,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     return phone.hasMatch(compact) || email.hasMatch(normalized) ||
       link.hasMatch(normalized) || shortInsult.hasMatch(normalized) ||
       blockedWords.any(normalized.contains);
+  }
+
+  void _openChatProfile(String userId, Map<String,dynamic>? profile, String name, String? avatar) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => StudentPublicProfileScreen(
+      userId: userId,
+      fallbackName: name,
+      fallbackUsername: profile?['username']?.toString(),
+      fallbackStage: profile?['stage']?.toString(),
+      fallbackAvatar: avatar,
+      fallbackBadge: profile?['badge']?.toString(),
+      fallbackBio: profile?['bio']?.toString(),
+      fallbackDeveloper: profile?['is_developer'] == true,
+    )));
   }
 
   Future<void> _loadBlockedUsers() async {
@@ -1230,16 +1341,22 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           if (!mine) ...[
-                            CircleAvatar(
-                              radius: 15,
-                              backgroundColor: colors.surfaceContainerHighest,
-                              backgroundImage: avatarSource == null
-                                  ? null
-                                  : CachedNetworkImageProvider(avatarSource),
-                              child: avatarSource == null
-                                  ? Icon(Icons.person_rounded,
-                                      size: 17, color: colors.onSurfaceVariant)
-                                  : null,
+                            InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => _openChatProfile(
+                                row['user_id'].toString(), profile, name, avatarSource,
+                              ),
+                              child: CircleAvatar(
+                                radius: 15,
+                                backgroundColor: colors.surfaceContainerHighest,
+                                backgroundImage: avatarSource == null
+                                    ? null
+                                    : CachedNetworkImageProvider(avatarSource),
+                                child: avatarSource == null
+                                    ? Icon(Icons.person_rounded,
+                                        size: 17, color: colors.onSurfaceVariant)
+                                    : null,
+                              ),
                             ),
                             const SizedBox(width: 6),
                           ],
@@ -1369,16 +1486,22 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           ),
                           if (mine) ...[
                             const SizedBox(width: 6),
-                            CircleAvatar(
-                              radius: 15,
-                              backgroundColor: colors.surfaceContainerHighest,
-                              backgroundImage: avatarSource == null
-                                  ? null
-                                  : CachedNetworkImageProvider(avatarSource),
-                              child: avatarSource == null
-                                  ? Icon(Icons.person_rounded,
-                                      size: 17, color: colors.onSurfaceVariant)
-                                  : null,
+                            InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => _openChatProfile(
+                                row['user_id'].toString(), profile, name, avatarSource,
+                              ),
+                              child: CircleAvatar(
+                                radius: 15,
+                                backgroundColor: colors.surfaceContainerHighest,
+                                backgroundImage: avatarSource == null
+                                    ? null
+                                    : CachedNetworkImageProvider(avatarSource),
+                                child: avatarSource == null
+                                    ? Icon(Icons.person_rounded,
+                                        size: 17, color: colors.onSurfaceVariant)
+                                    : null,
+                              ),
                             ),
                           ],
                         ],
