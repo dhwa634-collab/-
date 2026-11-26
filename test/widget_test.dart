@@ -190,7 +190,7 @@ void main() {
     expect(find.descendant(
       of: home, matching: find.text('دليلك للنجاح')), findsOneWidget);
     expect(find.descendant(
-      of: home, matching: find.text('الثالث المتوسط • العراق')), findsOneWidget);
+      of: home, matching: find.text('الثالث المتوسط • العراق')), findsNothing);
     expect(find.descendant(
       of: home, matching: find.text('المساعد الذكي')), findsOneWidget);
     expect(find.descendant(
