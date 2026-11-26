@@ -1224,7 +1224,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           if (!mine) ListTile(leading: const Icon(Icons.block_outlined), title: const Text('حظر المستخدم'), onTap: () => Navigator.pop(ctx, 'block')),
         ]))));
     if (!mounted) return;
-    if (action == 'edit') await _editGroupMessage(row);
+    if (action == 'edit') {
+      await _editGroupMessage(row);
+      return;
+    }
     if (action == 'delete') {
       final ok = await showDialog<bool>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
         child: AlertDialog(title: const Text('حذف الرسالة؟'), content: const Text('سيتم حذف الرسالة من الدردشة.'),
