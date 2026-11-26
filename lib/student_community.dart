@@ -469,7 +469,7 @@ class _StudentSearchScreenState extends State<StudentSearchScreen>{
         return Card(elevation:0,color:c.surfaceContainerLow,child:ListTile(onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>StudentPublicProfileScreen(userId:r['user_id'].toString()))),
           leading:CircleAvatar(backgroundImage:av!=null?NetworkImage(av):null,child:av==null?const Icon(Icons.person):null),
           title:Row(children:[Flexible(child:Text(r['display_name']?.toString()??'طالب',overflow:TextOverflow.ellipsis)),if(r['is_developer']==true)...[const SizedBox(width:5),const _DeveloperBadge(compact:true)]]),
-          subtitle:Text('${r['username']??'—'} • ${r['stage']??'طالب'}'),trailing:const Icon(Icons.chevron_left)));
+          subtitle:Text('@${r['username']??'—'} • ${r['stage']??'طالب'}'),trailing:const Icon(Icons.chevron_left)));
       })),
     ])));
   }
@@ -490,7 +490,7 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
       Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(borderRadius:BorderRadius.circular(24),gradient:LinearGradient(colors:Theme.of(context).brightness==Brightness.dark?const[Color(0xFF142C4B),Color(0xFF285080)]:const[Color(0xFF17427E),Color(0xFF347FE8)])),child:Column(children:[
         CircleAvatar(radius:48,backgroundImage:av!=null?NetworkImage(av):null,child:av==null?const Icon(Icons.person,size:48,color:Colors.white):null),
         const SizedBox(height:12),Row(mainAxisAlignment:MainAxisAlignment.center,children:[Flexible(child:Text(p!['display_name']?.toString()??'طالب',style:const TextStyle(color:Colors.white,fontSize:21,fontWeight:FontWeight.w900))),if(p!['is_developer']==true)...[const SizedBox(width:6),const _DeveloperBadge(onPrimary:true)]]),
-        const SizedBox(height:6),Text('${p!['username']??'—'}',style:const TextStyle(color:Colors.white)),
+        const SizedBox(height:6),Text('@${p!['username']??'—'}',style:const TextStyle(color:Colors.white)),
         const SizedBox(height:12),Wrap(spacing:7,children:[_profileChip(context,Icons.school,p!['stage']?.toString()??'طالب'),_profileChip(context,Icons.workspace_premium,p!['badge']?.toString()??'طالب'),_profileChip(context,Icons.quiz,'النقاط: —')]),
       ])),
       const SizedBox(height:13),Card(color:c.surfaceContainerLow,elevation:0,child:Padding(padding:const EdgeInsets.all(17),child:Text((p!['bio']?.toString().trim().isNotEmpty??false)?p!['bio'].toString():'لم يضف نبذة شخصية بعد.'))),
