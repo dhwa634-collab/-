@@ -708,7 +708,7 @@ class StudyApp extends StatelessWidget {
       final darkCard = ThemeController.darkCardSurfaces[paletteIndex];
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'دليلك للنجاح — العراق',
+        title: 'دليلك للنجاح',
         themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
         theme: ThemeData(
           useMaterial3: true,

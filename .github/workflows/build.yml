@@ -74,7 +74,7 @@ jobs:
           for permission in permissions:
               if permission not in content:
                   content = content.replace(marker, marker + chr(10) + permission, 1)
-          content = re.sub(r'android:label="[^"]*"', 'android:label="دليلك للنجاح — الثالث متوسط"', content, count=1)
+          content = re.sub(r'android:label="[^"]*"', 'android:label="دليلك للنجاح"', content, count=1)
           receivers = """
               <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
               <receiver android:enabled="true" android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
@@ -124,6 +124,16 @@ jobs:
           PY
       - name: Install dependencies
         run: flutter pub get
+      - name: Generate app icon and launch screen
+        run: |
+          python3 -m pip install --quiet cairosvg
+          mkdir -p assets/brand
+          python3 - <<'PY'
+          import cairosvg
+          cairosvg.svg2png(url='assets/brand/app_icon.svg', write_to='assets/brand/app_icon.png', output_width=1024, output_height=1024)
+          PY
+          dart run flutter_launcher_icons
+          dart run flutter_native_splash:create
       - name: Analyze
         run: flutter analyze
       - name: Test

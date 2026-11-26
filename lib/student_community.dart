@@ -399,12 +399,12 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
   }
   void toast(String s){if(mounted)ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content:Text(s)));}
   Future<void> copyId()async{final v=username.text.trim().replaceFirst(RegExp(r'^@'),'');if(v.isEmpty){toast('لا يوجد معرّف لنسخه.');return;}await Clipboard.setData(ClipboardData(text:'@$v'));toast('تم نسخ المعرّف');}
-  Widget panel(Widget child)=>Card(elevation:0,color:Theme.of(context).colorScheme.surfaceContainerLow,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20)),child:Padding(padding:const EdgeInsets.all(16),child:child));
+  Widget panel(Widget child)=>Card(elevation:0,color:const Color(0xFF112B45),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20),side:BorderSide(color:Colors.white.withValues(alpha:.07))),child:Padding(padding:const EdgeInsets.all(16),child:child));
   @override void dispose(){usernameTimer?.cancel();name.dispose();username.dispose();bio.dispose();age.dispose();super.dispose();}
   @override Widget build(BuildContext context){
-    final c=Theme.of(context).colorScheme;final dark=Theme.of(context).brightness==Brightness.dark;
+    const c=ColorScheme.dark(primary:Color(0xFF56B4F8),surface:Color(0xFF0A1928),onSurface:Colors.white,onSurfaceVariant:Color(0xFFB8C7D8));final dark=true;
     final avatar=selectedAvatar!=null?FileImage(File(selectedAvatar!.path)) as ImageProvider<Object>:avatarUrl!=null?NetworkImage(avatarUrl!) as ImageProvider<Object>:null;
-    return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:const Text('الملف الشخصي')),
+    return Theme(data:Theme.of(context).copyWith(brightness:Brightness.dark,colorScheme:c),child:Directionality(textDirection:TextDirection.rtl,child:Scaffold(backgroundColor:const Color(0xFF071421),appBar:AppBar(backgroundColor:const Color(0xFF071421),foregroundColor:Colors.white,title:const Text('الملف الشخصي'),elevation:0),
       body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(16),children:[
         Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(25),gradient:LinearGradient(colors:dark?const[Color(0xFF142C4B),Color(0xFF285080)]:const[Color(0xFF17427E),Color(0xFF347FE8),Color(0xFF6A7CEB)])),
           child:Column(children:[
@@ -439,7 +439,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
           DropdownButtonFormField<String?>(initialValue:gender,decoration:const InputDecoration(labelText:'الجنس (اختياري)',prefixIcon:Icon(Icons.people_outline),border:OutlineInputBorder(),filled:true),items:const[DropdownMenuItem<String?>(value:null,child:Text('عدم التحديد')),DropdownMenuItem<String?>(value:'male',child:Text('ذكر')),DropdownMenuItem<String?>(value:'female',child:Text('أنثى'))],onChanged:(v)=>setState(()=>gender=v)),
         ])),
         const SizedBox(height:16),FilledButton.icon(onPressed:saving||uploading||checking?null:save,style:FilledButton.styleFrom(minimumSize:const Size.fromHeight(53),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16))),icon:saving?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2,color:Colors.white)):const Icon(Icons.save),label:Text(saving?'جارٍ الحفظ...':'حفظ التغييرات')),
-      ])));
+      ]))));
   }
 }
 Widget _profileHeading(BuildContext c,String text,IconData icon)=>Row(children:[Icon(icon,color:Theme.of(c).colorScheme.primary),const SizedBox(width:8),Text(text,style:Theme.of(c).textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900))]);
@@ -476,43 +476,47 @@ class _StudentSearchScreenState extends State<StudentSearchScreen>{
 }
 class StudentPublicProfileScreen extends StatefulWidget{final String userId;const StudentPublicProfileScreen({super.key,required this.userId});@override State<StudentPublicProfileScreen> createState()=>_StudentPublicProfileScreenState();}
 class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>{
-  Map<String,dynamic>? p;bool loading=true,blocked=false;
+  Map<String,dynamic>? p;bool loading=true,blockedByMe=false,blockedByThem=false,blockBusy=false;
+  bool get blocked=>blockedByMe||blockedByThem;
   @override void initState(){super.initState();load();}
-  Future<void> load()async{try{final r=await _db.rpc('search_student_profiles_v1',params:{'p_query':null,'p_stage':null,'p_user_id':widget.userId,'p_limit':1});final l=r as List;if(mounted)setState(() { p=l.isEmpty?null:Map<String,dynamic>.from(l.first as Map); loading=false; });}catch(_){if(mounted)setState(()=>loading=false);}}
-  Future<void> block()async{
-    final me=_db.auth.currentUser?.id;if(me==null||me==widget.userId)return;
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('حظر هذا الطالب؟'),content:const Text('لن تتمكنوا من مراسلة بعضكما ولن يظهر في نتائج بحثك.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حظر'))]));
-    if(ok!=true)return;try{await _db.from('user_blocks').insert({'blocker_id':me,'blocked_id':widget.userId});if(mounted)setState(()=>blocked=true);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر الحظر: $e')));}
+  Future<void> load()async{try{
+    final r=await _db.rpc('search_student_profiles_v1',params:{'p_query':null,'p_stage':null,'p_user_id':widget.userId,'p_limit':1});
+    final l=r as List;final me=_db.auth.currentUser?.id;var mine=false,theirs=false;
+    if(me!=null&&me!=widget.userId){final rows=await _db.from('user_blocks').select('blocker_id,blocked_id').or('and(blocker_id.eq.$me,blocked_id.eq.${widget.userId}),and(blocker_id.eq.${widget.userId},blocked_id.eq.$me)');mine=(rows as List).any((x)=>x['blocker_id']==me&&x['blocked_id']==widget.userId);theirs=rows.any((x)=>x['blocker_id']==widget.userId&&x['blocked_id']==me);}
+    if(mounted)setState(()=>{p=l.isEmpty?null:Map<String,dynamic>.from(l.first as Map),blockedByMe=mine,blockedByThem=theirs,loading=false});
+  }catch(_){if(mounted)setState(()=>loading=false);}}
+  Future<void> toggleBlock()async{
+    final me=_db.auth.currentUser?.id;if(me==null||me==widget.userId||blockBusy)return;final removing=blockedByMe;
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text(removing?'إلغاء الحظر؟':'حظر هذا الطالب؟'),content:Text(removing?'سيعود خيار المراسلة إذا لم يكن هناك حظر من الطرف الآخر.':'لن تتمكنوا من مراسلة بعضكما ما دام الحظر مفعّلاً.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:Text(removing?'إلغاء الحظر':'حظر'))]));
+    if(ok!=true)return;setState(()=>{blockBusy=true,blockedByMe=!removing});
+    try{if(removing){await _db.from('user_blocks').delete().eq('blocker_id',me).eq('blocked_id',widget.userId);}else{await _db.from('user_blocks').insert({'blocker_id':me,'blocked_id':widget.userId});}if(mounted)ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content:Text(removing?'تم إلغاء الحظر.':'تم حظر الطالب.')));}
+    catch(e){if(mounted){setState(()=>blockedByMe=removing);ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تحديث الحظر: $e')));}}
+    finally{if(mounted)setState(()=>blockBusy=false);}
   }
-  @override Widget build(BuildContext context){
-    final c=Theme.of(context).colorScheme;final av=p?['avatar_url']?.toString();final own=_db.auth.currentUser?.id==widget.userId;
+  @override Widget build(BuildContext context){final av=p?['avatar_url']?.toString();final own=_db.auth.currentUser?.id==widget.userId;
     return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:const Text('ملف الطالب')),body:loading?const Center(child:CircularProgressIndicator()):p==null?const Center(child:Text('الملف غير متاح.')):ListView(padding:const EdgeInsets.all(17),children:[
-      Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(borderRadius:BorderRadius.circular(24),gradient:LinearGradient(colors:Theme.of(context).brightness==Brightness.dark?const[Color(0xFF142C4B),Color(0xFF285080)]:const[Color(0xFF17427E),Color(0xFF347FE8)])),child:Column(children:[
-        CircleAvatar(radius:48,backgroundImage:av!=null?NetworkImage(av):null,child:av==null?const Icon(Icons.person,size:48,color:Colors.white):null),
-        const SizedBox(height:12),Row(mainAxisAlignment:MainAxisAlignment.center,children:[Flexible(child:Text(p!['display_name']?.toString()??'طالب',style:const TextStyle(color:Colors.white,fontSize:21,fontWeight:FontWeight.w900))),if(p!['is_developer']==true)...[const SizedBox(width:6),const _DeveloperBadge(onPrimary:true)]]),
-        const SizedBox(height:6),Text('@${p!['username']??'—'}',style:const TextStyle(color:Colors.white)),
-        const SizedBox(height:12),Wrap(spacing:7,children:[_profileChip(context,Icons.school,p!['stage']?.toString()??'طالب'),_profileChip(context,Icons.workspace_premium,p!['badge']?.toString()??'طالب'),_profileChip(context,Icons.quiz,'النقاط: —')]),
-      ])),
-      const SizedBox(height:13),Card(color:c.surfaceContainerLow,elevation:0,child:Padding(padding:const EdgeInsets.all(17),child:Text((p!['bio']?.toString().trim().isNotEmpty??false)?p!['bio'].toString():'لم يضف نبذة شخصية بعد.'))),
-      if(!own)Row(children:[Expanded(child:FilledButton.icon(onPressed:blocked?null:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>StudentDirectMessageScreen(otherUserId:widget.userId,otherName:p!['display_name']?.toString()??'طالب',otherAvatar:av))),icon:const Icon(Icons.chat),label:const Text('مراسلة'))),const SizedBox(width:8),OutlinedButton.icon(onPressed:blocked?null:block,icon:const Icon(Icons.block),label:const Text('حظر'))]),
+      Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(borderRadius:BorderRadius.circular(24),gradient:const LinearGradient(begin:Alignment.topRight,end:Alignment.bottomLeft,colors:[Color(0xFF071421),Color(0xFF17436D),Color(0xFF0B2339)])),child:Column(children:[CircleAvatar(radius:48,backgroundImage:av!=null?NetworkImage(av):null,child:av==null?const Icon(Icons.person,size:48,color:Colors.white):null),const SizedBox(height:12),Row(mainAxisAlignment:MainAxisAlignment.center,children:[Flexible(child:Text(p!['display_name']?.toString()??'طالب',style:const TextStyle(color:Colors.white,fontSize:21,fontWeight:FontWeight.w900))),if(p!['is_developer']==true)...[const SizedBox(width:6),const _DeveloperBadge(onPrimary:true)]]),const SizedBox(height:6),Text('@${p!['username']??'—'}',style:const TextStyle(color:Colors.white)),const SizedBox(height:12),Wrap(spacing:7,children:[_profileChip(context,Icons.school,p!['stage']?.toString()??'طالب'),_profileChip(context,Icons.workspace_premium,p!['badge']?.toString()??'طالب'),_profileChip(context,Icons.quiz,'النقاط: —')]) ])),
+      const SizedBox(height:13),Card(color:const Color(0xFF112B45),elevation:0,child:Padding(padding:const EdgeInsets.all(17),child:Text((p!['bio']?.toString().trim().isNotEmpty??false)?p!['bio'].toString():'لم يضف نبذة شخصية بعد.',style:const TextStyle(color:Colors.white,height:1.6)))),
+      if(!own)...[if(blockedByThem)const Padding(padding:EdgeInsets.only(bottom:10),child:Text('هذا الطالب فعّل الحظر بينكما، لذلك المراسلة غير متاحة حالياً.',style:TextStyle(color:Color(0xFFFFC56B)))),Row(children:[Expanded(child:FilledButton.icon(onPressed:blocked||blockBusy?null:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>StudentDirectMessageScreen(otherUserId:widget.userId,otherName:p!['display_name']?.toString()??'طالب',otherAvatar:av))),icon:const Icon(Icons.chat_bubble_outline),label:const Text('مراسلة'))),const SizedBox(width:8),OutlinedButton.icon(onPressed:blockBusy?null:toggleBlock,icon:blockBusy?const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)):Icon(blockedByMe?Icons.lock_open_rounded:Icons.block),label:Text(blockedByMe?'إلغاء الحظر':'حظر'))])],
     ])));
   }
 }
-Widget _profileChip(BuildContext context,IconData icon,String label)=>Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:7),decoration:BoxDecoration(color:Colors.white.withValues(alpha:.16),borderRadius:BorderRadius.circular(22)),child:Row(mainAxisSize:MainAxisSize.min,children:[Icon(icon,size:14,color:Colors.white),const SizedBox(width:5),Text(label,style:const TextStyle(color:Colors.white,fontSize:11,fontWeight:FontWeight.w700))]));
-
 class StudentDirectMessageScreen extends StatefulWidget{
   final String otherUserId,otherName;final String? otherAvatar;
   const StudentDirectMessageScreen({super.key,required this.otherUserId,required this.otherName,this.otherAvatar});
   @override State<StudentDirectMessageScreen> createState()=>_StudentDirectMessageScreenState();
 }
 class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>{
-  final input=TextEditingController();bool sending=false;String? get me=>_db.auth.currentUser?.id;
-  Stream<List<Map<String,dynamic>>> stream()=>_db.from('direct_messages').stream(primaryKey:['id']).order('created_at').map((items)=>items.where((r)=>(r['sender_id']==me&&r['receiver_id']==widget.otherUserId)||(r['sender_id']==widget.otherUserId&&r['receiver_id']==me)).toList());
-  Future<void> send()async{final v=input.text.trim();if(v.isEmpty||me==null||sending)return;if(v.length>2000){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الرسالة طويلة جداً.')));return;}setState(()=>sending=true);try{await _db.from('direct_messages').insert({'sender_id':me,'receiver_id':widget.otherUserId,'body':v});input.clear();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إرسال الرسالة: $e')));}finally{if(mounted)setState(()=>sending=false);}}
+  final input=TextEditingController();late final Stream<List<Map<String,dynamic>>> messages;bool sending=false,blocked=false;String? get me=>_db.auth.currentUser?.id;
+  @override void initState(){super.initState();messages=stream();refreshBlockStatus();}
+  Stream<List<Map<String,dynamic>>> stream()=>_db.from('direct_messages').stream(primaryKey:['id']).order('created_at',ascending:false).map((items){final seen=<String>{};return items.where((r)=>((r['sender_id']==me&&r['receiver_id']==widget.otherUserId)||(r['sender_id']==widget.otherUserId&&r['receiver_id']==me))&&seen.add(r['id'].toString())).toList();});
+  Future<bool> refreshBlockStatus()async{final user=me;if(user==null)return true;try{final rows=await _db.from('user_blocks').select('blocker_id,blocked_id').or('and(blocker_id.eq.$user,blocked_id.eq.${widget.otherUserId}),and(blocker_id.eq.${widget.otherUserId},blocked_id.eq.$user)');final value=(rows as List).isNotEmpty;if(mounted)setState(()=>blocked=value);return value;}catch(_){return blocked;}}
+  Future<void> send()async{final v=input.text.trim();final user=me;if(v.isEmpty||user==null||sending)return;if(v.length>2000){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الرسالة طويلة جداً.')));return;}FocusScope.of(context).unfocus();setState(()=>sending=true);try{if(await refreshBlockStatus()){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')));return;}await _db.from('direct_messages').insert({'sender_id':user,'receiver_id':widget.otherUserId,'body':v});input.clear();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إرسال الرسالة: $e')));}finally{if(mounted)setState(()=>sending=false);}}
   @override void dispose(){input.dispose();super.dispose();}
   @override Widget build(BuildContext context){final c=Theme.of(context).colorScheme;return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:Text(widget.otherName)),body:Column(children:[
-    Expanded(child:StreamBuilder<List<Map<String,dynamic>>>(stream:stream(),builder:(ctx,s){if(s.hasError)return Center(child:Text('تعذر تحميل المحادثة: ${s.error}'));if(!s.hasData)return const Center(child:CircularProgressIndicator());final l=s.data!;if(l.isEmpty)return const Center(child:Text('ابدأ المحادثة برسالة ترحيبية 👋'));return ListView.builder(reverse:true,padding:const EdgeInsets.all(14),itemCount:l.length,itemBuilder:(ctx,i){final r=l[l.length-1-i];final mine=r['sender_id']==me;return Align(alignment:mine?Alignment.centerRight:Alignment.centerLeft,child:Container(margin:const EdgeInsets.symmetric(vertical:4),padding:const EdgeInsets.all(12),constraints:const BoxConstraints(maxWidth:300),decoration:BoxDecoration(color:mine?c.primary:c.surfaceContainerHighest,borderRadius:BorderRadius.circular(16)),child:Text(r['body']?.toString()??'',style:TextStyle(color:mine?c.onPrimary:c.onSurface))));});})),
-    SafeArea(top:false,child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[Expanded(child:TextField(controller:input,minLines:1,maxLines:4,textInputAction:TextInputAction.send,onSubmitted:(_)=>send(),decoration:InputDecoration(hintText:'اكتب رسالتك...',filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(24),borderSide:BorderSide.none)))),IconButton.filled(onPressed:sending?null:send,icon:sending?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.send))]))),
+    Expanded(child:StreamBuilder<List<Map<String,dynamic>>>(stream:messages,builder:(ctx,s){if(s.hasError)return Center(child:Text('تعذر تحميل المحادثة: ${s.error}'));if(!s.hasData)return const Center(child:CircularProgressIndicator());final l=s.data!;if(l.isEmpty)return const Center(child:Text('ابدأ المحادثة برسالة ترحيبية 👋'));return ListView.builder(reverse:true,padding:const EdgeInsets.all(14),itemCount:l.length,itemBuilder:(ctx,i){final r=l[l.length-1-i];final mine=r['sender_id']==me;return Align(alignment:mine?Alignment.centerRight:Alignment.centerLeft,child:Container(margin:const EdgeInsets.symmetric(vertical:4),padding:const EdgeInsets.all(12),constraints:const BoxConstraints(maxWidth:300),decoration:BoxDecoration(color:mine?c.primary:c.surfaceContainerHighest,borderRadius:BorderRadius.circular(16)),child:Text(r['body']?.toString()??'',style:TextStyle(color:mine?c.onPrimary:c.onSurface))));});})),
+    if(blocked)const Padding(padding:EdgeInsets.fromLTRB(14,6,14,0),child:Text('المراسلة متوقفة بسبب الحظر بين الحسابين.',style:TextStyle(color:Color(0xFFB87922)))),
+    SafeArea(top:false,child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[Expanded(child:TextField(controller:input,enabled:!blocked,minLines:1,maxLines:4,textInputAction:TextInputAction.send,onSubmitted:(_)=>send(),decoration:InputDecoration(hintText:blocked?'المراسلة غير متاحة بسبب الحظر':'اكتب رسالتك...',filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(24),borderSide:BorderSide.none)))),IconButton.filled(onPressed:sending||blocked?null:send,icon:sending?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.send))]))),
   ])));}
 }
 
