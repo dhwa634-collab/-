@@ -18,7 +18,16 @@ class StudyNotificationService {
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
   bool _permissionGranted = false;
-  void Function(String?)? onNotificationTap;
+  void Function(String?)? _onNotificationTapCallback;
+  String? _initialNotificationPayload;
+  set onNotificationTap(void Function(String?)? callback) {
+    _onNotificationTapCallback = callback;
+    final payload = _initialNotificationPayload;
+    if (callback != null && payload != null) {
+      _initialNotificationPayload = null;
+      callback(payload);
+    }
+  }
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -31,6 +40,10 @@ class StudyNotificationService {
       );
       await _plugin.initialize(settings,
         onDidReceiveNotificationResponse: _onNotificationTap);
+      final launchDetails = await _plugin.getNotificationAppLaunchDetails();
+      if (launchDetails?.didNotificationLaunchApp == true) {
+        _initialNotificationPayload = launchDetails?.notificationResponse?.payload;
+      }
       _initialized = true;
     } catch (error) {
       debugPrint('Study notifications initialization failed: $error');
@@ -38,7 +51,7 @@ class StudyNotificationService {
   }
 
   void _onNotificationTap(NotificationResponse response) {
-    onNotificationTap?.call(response.payload);
+    _onNotificationTapCallback?.call(response.payload);
   }
 
   /// إشعار محلي لحدث وصل عبر Supabase Realtime أثناء بقاء التطبيق قيد التشغيل.
