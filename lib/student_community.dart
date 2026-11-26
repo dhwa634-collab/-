@@ -334,14 +334,14 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
   void validateUsername(String value){
     usernameTimer?.cancel();final v=value.trim().replaceFirst(RegExp(r'^@'),'').toLowerCase();
     final valid=v=='1'?developer:RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(v);
-    if(!valid){setState(()=>{checking=false,available=false,usernameHint=v=='1'?'@1 للمطوّر فقط':'3–20 خانة إنجليزية أو أرقام أو _'});return;}
-    setState(()=>{checking=true,usernameHint='جارٍ التحقق من التوفر...'});
+    if(!valid){setState(() { checking=false; available=false; usernameHint=v=='1'?'@1 للمطوّر فقط':'3–20 خانة إنجليزية أو أرقام أو _'; });return;}
+    setState(() { checking=true; usernameHint='جارٍ التحقق من التوفر...'; });
     usernameTimer=Timer(const Duration(milliseconds:350),()async{
       try{
         final ok=await _db.rpc('is_student_username_available_v1',params:{'p_username':v});
         if(!mounted||username.text.trim().replaceFirst(RegExp(r'^@'),'').toLowerCase()!=v)return;
-        setState(()=>{checking=false,available=ok==true,usernameHint=ok==true?'المعرّف متاح':'المعرّف مستخدم أو غير مسموح'});
-      }catch(_){if(mounted)setState(()=>{checking=false,available=false,usernameHint='تعذر التحقق من المعرّف'});}
+        setState(() { checking=false; available=ok==true; usernameHint=ok==true?'المعرّف متاح':'المعرّف مستخدم أو غير مسموح'; });
+      }catch(_){if(mounted)setState(() { checking=false; available=false; usernameHint='تعذر التحقق من المعرّف'; });}
     });
   }
   Future<void> pickAvatar()async{
@@ -357,7 +357,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
       await _db.storage.from('avatars').uploadBinary(path,bytes,fileOptions:FileOptions(contentType:types[ext],upsert:false));
       final url=_db.storage.from('avatars').getPublicUrl(path);
       await _db.from('profiles').update({'avatar_url':url,'updated_at':DateTime.now().toUtc().toIso8601String()}).eq('user_id',user.id);
-      if(mounted)setState(()=>{avatarUrl=url,selectedAvatar=image});toast('تم تحديث صورة الحساب.');
+      if(mounted)setState(() { avatarUrl=url; selectedAvatar=image; });toast('تم تحديث صورة الحساب.');
     }on StorageException catch(e){toast('تعذر رفع الصورة (HTTP ${e.statusCode??'Storage'}): ${e.message}');}
     catch(e){toast('تعذر تغيير الصورة: $e');}
     finally{if(mounted)setState(()=>uploading=false);}
@@ -392,7 +392,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
         await p.setString('dalilak_student_age_band_v1',a.toString());await p.setString('dalilak_student_stage_label_v1',stage);
         await AcademicStageController.select(AcademicStage.values.firstWhere((x)=>x.label==stage,orElse:()=>AcademicStage.intermediateThird));
       }
-      if(mounted)setState(()=>{available=true,usernameHint='تم حفظ المعرّف'});toast('تم تحديث الملف الشخصي بنجاح.');
+      if(mounted)setState(() { available=true; usernameHint='تم حفظ المعرّف'; });toast('تم تحديث الملف الشخصي بنجاح.');
     }on PostgrestException catch(e){toast('فشل حفظ الملف (رمز ${e.code??'DB'}): ${e.message}');}
     catch(e){toast('تعذر حفظ الملف: $e');}
     finally{if(mounted)setState(()=>saving=false);}
@@ -478,7 +478,7 @@ class StudentPublicProfileScreen extends StatefulWidget{final String userId;cons
 class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>{
   Map<String,dynamic>? p;bool loading=true,blocked=false;
   @override void initState(){super.initState();load();}
-  Future<void> load()async{try{final r=await _db.rpc('search_student_profiles_v1',params:{'p_query':null,'p_stage':null,'p_user_id':widget.userId,'p_limit':1});final l=r as List;if(mounted)setState(()=>{p=l.isEmpty?null:Map<String,dynamic>.from(l.first as Map),loading=false});}catch(_){if(mounted)setState(()=>loading=false);}}
+  Future<void> load()async{try{final r=await _db.rpc('search_student_profiles_v1',params:{'p_query':null,'p_stage':null,'p_user_id':widget.userId,'p_limit':1});final l=r as List;if(mounted)setState(() { p=l.isEmpty?null:Map<String,dynamic>.from(l.first as Map); loading=false; });}catch(_){if(mounted)setState(()=>loading=false);}}
   Future<void> block()async{
     final me=_db.auth.currentUser?.id;if(me==null||me==widget.userId)return;
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('حظر هذا الطالب؟'),content:const Text('لن تتمكنوا من مراسلة بعضكما ولن يظهر في نتائج بحثك.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حظر'))]));
