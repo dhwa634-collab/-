@@ -536,7 +536,20 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
 
       if (user != null) {
         final name = _nameController.text.trim();
-        final avatar = await _uploadAvatar(user);
+        String? avatar;
+        var avatarUploadFailed = false;
+        try {
+          avatar = await _uploadAvatar(user);
+        } catch (error, stackTrace) {
+          // Avatar is optional: a Storage RLS/network failure must not block
+          // saving the student's required profile fields.
+          avatarUploadFailed = true;
+          debugPrint(
+            'Student onboarding avatar upload failed: '
+            '${error.runtimeType}: $error',
+          );
+          debugPrintStack(stackTrace: stackTrace);
+        }
         // profiles.age_band is a constrained category, while profiles.age
         // stores the student's manually entered numeric age.
         final ageBand = age < 13
@@ -566,6 +579,9 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
       await prefs.setBool('dalilak_student_onboarding_done_v1', true);
       await prefs.setBool('dalilak_home_welcome_seen_v1', true);
       if (!mounted) return;
+      if (user != null && avatarUploadFailed) {
+        _message('تم حفظ بياناتك، لكن تعذر رفع الصورة. يمكنك إضافتها لاحقاً.');
+      }
       widget.onComplete();
     } on PostgrestException catch (error, stackTrace) {
       debugPrint(
