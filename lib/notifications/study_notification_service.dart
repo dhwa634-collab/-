@@ -18,6 +18,7 @@ class StudyNotificationService {
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
   bool _permissionGranted = false;
+  void Function(String?)? onNotificationTap;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -37,7 +38,40 @@ class StudyNotificationService {
   }
 
   void _onNotificationTap(NotificationResponse response) {
-    // يفتح Android التطبيق عبر MainActivity؛ لا نحتاج مساراً خاصاً.
+    onNotificationTap?.call(response.payload);
+  }
+
+  /// إشعار محلي لحدث وصل عبر Supabase Realtime أثناء بقاء التطبيق قيد التشغيل.
+  /// هذا لا يُعدّ Push عن بُعد ولا يعمل بعد إنهاء عملية التطبيق.
+  Future<void> showRealtimeNotification({
+    required int id,
+    required String title,
+    required String body,
+    required String payload,
+  }) async {
+    if (!_initialized) await initialize();
+    if (!_initialized) return;
+    try {
+      await _plugin.show(
+        id, title, body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'app_live_updates',
+            'الرسائل والأخبار',
+            channelDescription: 'تنبيهات الرسائل الخاصة والأخبار الجديدة',
+            importance: Importance.high,
+            priority: Priority.high,
+            category: AndroidNotificationCategory.message,
+            playSound: true,
+            enableVibration: true,
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+        payload: payload,
+      );
+    } catch (error) {
+      debugPrint('Realtime local notification failed: $error');
+    }
   }
 
   Future<bool> requestPermission() async {
