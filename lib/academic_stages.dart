@@ -6,7 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 enum AcademicStage {
   primarySixth('السادس الابتدائي'),
   intermediateThird('الثالث المتوسط'),
-  preparatorySixth('السادس الإعدادي');
+  preparatorySixth('السادس الإعدادي'),
+  vocationalThird('الثالث المتوسط المهني'),
+  vocationalSixth('السادس المهني');
 
   final String label;
   const AcademicStage(this.label);
@@ -16,6 +18,25 @@ enum AcademicStage {
         (stage) => stage.name == value,
         orElse: () => AcademicStage.intermediateThird,
       );
+
+  static AcademicStage fromProfileLabel(String? value) {
+    switch (value?.trim()) {
+      case 'السادس الابتدائي':
+        return AcademicStage.primarySixth;
+      case 'الثالث المتوسط':
+        return AcademicStage.intermediateThird;
+      case 'الثالث المتوسط المهني':
+        return AcademicStage.vocationalThird;
+      case 'السادس المهني':
+        return AcademicStage.vocationalSixth;
+      case 'السادس العلمي':
+      case 'السادس الأدبي':
+      case 'السادس الإعدادي':
+        return AcademicStage.preparatorySixth;
+      default:
+        return AcademicStage.intermediateThird;
+    }
+  }
 }
 
 class StageSubjectInfo {
@@ -101,6 +122,13 @@ const List<StageSubjectInfo> sixthPreparatoryLiterarySubjects = [
   StageSubjectInfo('الاقتصاد', Icons.account_balance_rounded, Color(0xFF268477),
     resourceUrl: 'https://iraqedu.net/كتاب-الاقتصاد-للصف-السادس-الادبي/',
     edition: '2025–2026'),
+];
+
+const List<StageSubjectInfo> vocationalCommonSubjects = [
+  StageSubjectInfo('التربية الإسلامية', Icons.mosque_rounded, Color(0xFF16866A)),
+  StageSubjectInfo('اللغة العربية', Icons.menu_book_rounded, Color(0xFFB76E24)),
+  StageSubjectInfo('اللغة الإنكليزية', Icons.translate_rounded, Color(0xFF5267C9)),
+  StageSubjectInfo('الرياضيات', Icons.functions_rounded, Color(0xFF7A52C7)),
 ];
 
 const List<String> sixthPreparatoryBranches = ['العلمي', 'الأدبي'];
