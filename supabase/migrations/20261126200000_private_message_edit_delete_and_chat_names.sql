@@ -47,3 +47,33 @@ as $$
 $$;
 revoke all on function public.get_student_chat_profiles_v1(uuid[]) from public;
 grant execute on function public.get_student_chat_profiles_v1(uuid[]) to authenticated;
+
+
+create or replace function public.notify_direct_message_insert()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public, auth
+as $$
+declare sender_name text;
+begin
+  if exists (select 1 from public.user_blocks b
+    where (b.blocker_id = new.sender_id and b.blocked_id = new.receiver_id)
+       or (b.blocker_id = new.receiver_id and b.blocked_id = new.sender_id)) then
+    return new;
+  end if;
+  select coalesce(
+    nullif(btrim(p.display_name), ''),
+    nullif(btrim(u.raw_user_meta_data ->> 'full_name'), ''),
+    nullif(btrim(u.raw_user_meta_data ->> 'name'), ''),
+    nullif(split_part(coalesce(u.email, ''), '@', 1), ''),
+    'رسالة جديدة'
+  ) into sender_name
+  from auth.users u left join public.profiles p on p.user_id = u.id
+  where u.id = new.sender_id;
+  insert into public.user_notifications(recipient_id, actor_id, type, title, body, reference_id)
+  values (new.receiver_id, new.sender_id, 'direct_message',
+    coalesce(sender_name, 'رسالة جديدة'), left(new.body, 180), new.id);
+  return new;
+end;
+$$;
