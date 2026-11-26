@@ -170,7 +170,7 @@ Future<void> openStudentChat(BuildContext context) async {
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('الدردشة للطلاب المسجلين'),
-      content: const Text('حتى نحافظ على أمان الطلاب ونمنع الرسائل المجهولة، تحتاج تسجّل الدخول بحساب Google قبل دخول الغرفة الجماعية. تقدر تواصل تصفح الكتب والأدوات كضيف.'),
+      content: const Text('حتى نحافظ على أمان الطلاب ونمنع الرسائل المجهولة، تحتاج تسجّل الدخول بحساب Google قبل دخول الغرفة الجماعية.'),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false),
           child: const Text('لاحقاً')),
@@ -912,7 +912,21 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
             ],
           ),
         ),
-        body: Column(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: dark
+                  ? const [Color(0xFF0C1B2D), Color(0xFF132B46), Color(0xFF102238)]
+                  : const [Color(0xFFEAF3FF), Color(0xFFDCEAFF), Color(0xFFF2F7FF)],
+            ),
+          ),
+          child: Stack(children: [
+            const Positioned.fill(child: IgnorePointer(child: CustomPaint(
+              painter: _StudyChatWallpaperPainter(),
+            ))),
+            Column(
           children: [
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
@@ -975,12 +989,32 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                             child: Container(
                               margin: const EdgeInsets.symmetric(vertical: 4),
                               padding: const EdgeInsets.all(12),
-                              constraints: const BoxConstraints(maxWidth: 280),
+                              constraints: BoxConstraints(
+                                maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+                              ),
                               decoration: BoxDecoration(
                                 color: mine
                                     ? colors.primary
-                                    : colors.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(16),
+                                    : colors.surfaceContainerHigh,
+                                border: Border.all(
+                                  color: mine
+                                      ? colors.primary.withValues(alpha: 0.35)
+                                      : colors.outlineVariant.withValues(alpha: 0.48),
+                                  width: 0.7,
+                                ),
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(19),
+                                  topRight: const Radius.circular(19),
+                                  bottomLeft: Radius.circular(mine ? 19 : 6),
+                                  bottomRight: Radius.circular(mine ? 6 : 19),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colors.shadow.withValues(alpha: 0.045),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
@@ -1060,46 +1094,108 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
                 child: Row(
+                  textDirection: TextDirection.rtl,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: input,
-                        focusNode: inputFocus,
-                        enabled: !blocked,
-                        minLines: 1,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => send(),
-                        decoration: InputDecoration(
-                          hintText: blocked
-                              ? 'المراسلة غير متاحة بسبب الحظر'
-                              : 'اكتب رسالتك...',
-                          filled: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
+                    Material(
+                      color: Theme.of(context).colorScheme.primary,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: 'إرسال الرسالة',
+                        onPressed: sending || blocked ? null : send,
+                        icon: sending
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.send_rounded, color: Colors.white),
                       ),
                     ),
-                    IconButton.filled(
-                      onPressed: sending || blocked ? null : send,
-                      icon: sending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.send),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minHeight: 54,
+                          maxHeight: 118,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: dark ? const Color(0xFF1A304A) : Colors.white,
+                          borderRadius: BorderRadius.circular(32),
+                          border: Border.all(
+                            color: colors.outlineVariant.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: input,
+                                focusNode: inputFocus,
+                                enabled: !blocked,
+                                minLines: 1,
+                                maxLines: 4,
+                                maxLength: 2000,
+                                textAlignVertical: TextAlignVertical.center,
+                                textInputAction: TextInputAction.send,
+                                onSubmitted: (_) => send(),
+                                style: TextStyle(
+                                  color: colors.onSurface,
+                                  fontSize: 15,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: blocked
+                                      ? 'المراسلة غير متاحة بسبب الحظر'
+                                      : 'الرسالة',
+                                  hintStyle: TextStyle(
+                                    color: colors.onSurfaceVariant,
+                                    fontSize: 15,
+                                  ),
+                                  counterText: '',
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 10,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'إضافة رمز تعبيري',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: blocked
+                                  ? null
+                                  : () {
+                                      inputFocus.requestFocus();
+                                      SystemChannels.textInput.invokeMethod<void>(
+                                        'TextInput.show',
+                                      );
+                                    },
+                              icon: Icon(
+                                Icons.emoji_emotions_outlined,
+                                color: colors.onSurfaceVariant,
+                                size: 25,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
           ],
-        ),
+        )]),
       ),
     );
   }
@@ -1274,58 +1370,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     } finally {
       if (uploadedPath != null && !messageSaved) {
         try { await _db.storage.from('chat-media').remove([uploadedPath]); } catch (_) {}
-      }
-      if (mounted) setState(() => sending = false);
-    }
-  }
-
-  Future<void> _pickCustomSticker() async {
-    final user = _db.auth.currentUser;
-    if (user == null) { toast('سجّل الدخول أولاً.'); return; }
-    String? uploadedPath;
-    bool messageSaved = false;
-    try {
-      final image = await _imagePicker.pickImage(
-        source: ImageSource.gallery, maxWidth: 512, maxHeight: 512,
-        imageQuality: 78, requestFullMetadata: false,
-      );
-      if (image == null) return;
-      final bytes = await image.readAsBytes();
-      if (bytes.isEmpty || bytes.length > 512 * 1024) {
-        toast('حجم الملصق يجب ألا يتجاوز 512 كيلوبايت.'); return;
-      }
-      final extension = image.name.split('.').last.toLowerCase();
-      const allowed = ['png', 'jpg', 'jpeg', 'webp'];
-      if (!allowed.contains(extension)) {
-        toast('نوع الصورة غير مدعوم. استخدم PNG أو JPG أو WEBP.'); return;
-      }
-      final mime = extension == 'png' ? 'image/png'
-        : extension == 'webp' ? 'image/webp' : 'image/jpeg';
-      uploadedPath = '${user.id}/sticker_${DateTime.now().millisecondsSinceEpoch}.$extension';
-      setState(() => sending = true);
-      await _db.storage.from('chat-stickers').uploadBinary(
-        uploadedPath, bytes, fileOptions: FileOptions(contentType: mime, upsert: false),
-      );
-      await _db.from('chat_messages').insert({
-        'user_id': user.id, 'message_type': 'custom_sticker',
-        'body': null, 'sticker_id': null, 'storage_path': uploadedPath,
-      });
-      messageSaved = true;
-      toast('تم إرسال الملصق.');
-    } on StorageException catch (e) {
-      toast('فشل رفع الملصق (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
-    } on PostgrestException catch (e) {
-      toast('فشل حفظ الملصق في الدردشة (رمز ${e.code ?? 'DB'}): ${e.message}');
-    } on AuthException catch (e) {
-      toast('انتهت جلسة الدخول أثناء إرسال الملصق: ${e.message}');
-    } on SocketException catch (e) {
-      toast('تعذر الاتصال أثناء إرسال الملصق: ${e.message}');
-    } catch (e) {
-      toast('تعذر إرسال الملصق (${e.runtimeType}): ${e.toString()}');
-    }
-    finally {
-      if (uploadedPath != null && !messageSaved) {
-        try { await _db.storage.from('chat-stickers').remove([uploadedPath]); } catch (_) {}
       }
       if (mounted) setState(() => sending = false);
     }
@@ -1838,7 +1882,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       : colors.onSurfaceVariant;
 
                   return Align(
-                    alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
+                    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                     child: GestureDetector(
                       onLongPress: () => _messageActions(row),
                       child: Row(
@@ -2050,61 +2094,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   ),
                   const SizedBox(width: 7),
                   IconButton(
-                    tooltip: _recording ? 'إلغاء التسجيل' : 'إرفاق صورة أو ملصق',
+                    tooltip: _recording ? 'إلغاء التسجيل' : 'إرسال صورة',
                     onPressed: sending ? null : (_recording
                       ? () => _stopVoiceRecording(send: false)
-                      : () {
-                          showModalBottomSheet<void>(
-                            context: context,
-                            builder: (sheetContext) => SafeArea(
-                              child: Wrap(children: [
-                                ListTile(
-                                  leading: const Icon(Icons.image_outlined),
-                                  title: const Text('إرسال صورة'),
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _pickAndSendImage();
-                                  },
-                                ),
-                                ListTile(
-                                  leading: const Icon(Icons.add_photo_alternate_outlined),
-                                  title: const Text('إضافة ملصق من الجهاز'),
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _pickCustomSticker();
-                                  },
-                                ),
-                                ListTile(
-                                  leading: const Icon(Icons.emoji_emotions_outlined),
-                                  title: const Text('ملصقات جاهزة'),
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    showModalBottomSheet<void>(
-                                      context: context,
-                                      builder: (stickerContext) => SafeArea(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(14),
-                                          child: Wrap(
-                                            spacing: 8,
-                                            runSpacing: 8,
-                                            children: stickers.entries.map((entry) => ActionChip(
-                                              label: Text(entry.value, style: const TextStyle(fontSize: 22)),
-                                              onPressed: sending ? null : () {
-                                                Navigator.pop(stickerContext);
-                                                send(sticker: entry.key);
-                                              },
-                                            )).toList(),
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ]),
-                            ),
-                          );
-                        }),
-                    icon: Icon(_recording ? Icons.close_rounded : Icons.attach_file_rounded, size: 25),
+                      : _pickAndSendImage),
+                    icon: Icon(
+                      _recording ? Icons.close_rounded : Icons.image_outlined,
+                      size: 25,
+                    ),
                   ),
                   Expanded(
                     child: Container(
