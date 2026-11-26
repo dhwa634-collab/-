@@ -824,10 +824,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         'body': value,
       });
       input.clear();
-      if (mounted) {
-        inputFocus.requestFocus();
-        SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-      }
+      // Keep the existing focus; do not force the keyboard back if the user
+      // intentionally dismissed it with the device Back button.
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -835,10 +833,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => sending = false);
-        inputFocus.requestFocus();
-      }
+      if (mounted) setState(() => sending = false);
     }
   }
   @override void dispose(){activeDirectMessageUserId.value=null;StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);messageSubscription.cancel();blockSubscription.cancel();_scrollController.dispose();inputFocus.dispose();input.dispose();super.dispose();}
