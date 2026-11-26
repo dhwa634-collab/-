@@ -27,6 +27,7 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
   bool _loading = true;
   bool _signedIn = false;
   bool _needsSetup = false;
+  bool _googleBusy = false;
 
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -195,19 +196,27 @@ class StudentWelcomeScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const StudentGoogleLoginScreen(
-                                  returnToCaller: true,
-                                ),
-                              ),
-                            );
+                          onPressed: _googleBusy ? null : () async {
+                            setState(() => _googleBusy = true);
+                            try {
+                              await signInWithGoogleAccount(context);
+                            } finally {
+                              if (mounted) setState(() => _googleBusy = false);
+                            }
                           },
-                          icon: const Icon(Icons.g_mobiledata_rounded, size: 32),
-                          label: const Text(
-                            'تسجيل الدخول بحساب Google',
-                            style: TextStyle(
+                          icon: _googleBusy
+                              ? const SizedBox(
+                                  width: 25,
+                                  height: 25,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.g_mobiledata_rounded, size: 32),
+                          label: Text(
+                            _googleBusy ? 'جارٍ اختيار حساب Google...' : 'تسجيل الدخول بحساب Google',
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
                             ),
