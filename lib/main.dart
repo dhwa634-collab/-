@@ -831,10 +831,7 @@ class HomeChatRoomEntryCard extends StatelessWidget {
       margin: const EdgeInsets.only(top: 12, bottom: 4),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const StudentCommunityScreen()),
-        ),
+        onTap: () => openStudentChat(context),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
           child: Row(
