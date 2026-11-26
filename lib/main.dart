@@ -312,7 +312,8 @@ class StageContentPlaceholderScreen extends StatelessWidget {
 class StageCatalogScreen extends StatefulWidget {
   final AcademicStage stage;
   final String? initialBranch;
-  const StageCatalogScreen({super.key, required this.stage, this.initialBranch});
+  final String? displayLabel;
+  const StageCatalogScreen({super.key, required this.stage, this.initialBranch, this.displayLabel});
   @override
   State<StageCatalogScreen> createState() => _StageCatalogScreenState();
 }
@@ -352,7 +353,7 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
         key: PageStorageKey<String>('stage_catalog_${widget.stage.name}'),
         padding: const EdgeInsets.all(16),
         children: [
-          Text(widget.stage.label, style: TextStyle(
+          Text(widget.displayLabel ?? widget.stage.label, style: TextStyle(
             fontSize: 24, fontWeight: FontWeight.w900, color: colors.onSurface)),
           const SizedBox(height: 6),
           Text('كتب وموارد وأدوات مخصصة لهذه المرحلة فقط',
@@ -1607,6 +1608,7 @@ class _CatalogState extends State<Catalog> {
               key: ValueKey('catalog_${stage.name}'),
               stage: stage,
               initialBranch: _profileStageLabel?.contains('الأدبي') == true ? 'الأدبي' : 'العلمي',
+              displayLabel: _profileStageLabel,
             );
           }
           final colors = Theme.of(context).colorScheme;
@@ -1620,7 +1622,6 @@ class _CatalogState extends State<Catalog> {
                   padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
                   sliver: SliverToBoxAdapter(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const AcademicStagePicker(),
                       Text('المواد الدراسية', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900, color: colors.onSurface)),
                       const SizedBox(height: 6),
                       Text('اختر المادة لفتح كتابها، أو ابدأ بمراجعة الأسئلة الوزارية', style: TextStyle(color: colors.onSurfaceVariant)),
