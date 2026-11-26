@@ -948,6 +948,7 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
+  Stream<List<Map<String,dynamic>>>? _unreadMessagesStream;
   bool _showWelcome = false;
   late final AnimationController _welcomeController;
   late final Animation<double> _welcomeSize;
@@ -958,6 +959,12 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      _unreadMessagesStream = Supabase.instance.client
+        .from('direct_messages').stream(primaryKey: ['id'])
+        .eq('receiver_id', userId).order('created_at', ascending: false);
+    }
     _welcomeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 720),
@@ -1031,6 +1038,23 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             MaterialPageRoute(builder: (_) => const StudentSearchScreen()),
           ),
           icon: const Icon(Icons.search_rounded),
+        ),
+        StreamBuilder<List<Map<String,dynamic>>>(
+          stream: _unreadMessagesStream,
+          builder: (context, snapshot) {
+            final count = snapshot.data?.where((message) =>
+              message['read_at'] == null).length ?? 0;
+            return IconButton(
+              tooltip: 'المحادثات الخاصة',
+              onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const StudentDirectInboxScreen())),
+              icon: Badge(
+                isLabelVisible: count > 0,
+                label: Text(count > 99 ? '99+' : '$count'),
+                child: const Icon(Icons.mark_unread_chat_alt_rounded),
+              ),
+            );
+          },
         ),
         const _HomeProfileButton(),
         ValueListenableBuilder<bool>(
