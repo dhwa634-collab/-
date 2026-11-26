@@ -519,7 +519,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
                         maxScale: 4,
                         child: AspectRatio(
                           aspectRatio: 1,
-                          child: Image(image: avatar!, fit: BoxFit.contain),
+                          child: Image(image: avatar, fit: BoxFit.contain),
                         ),
                       ),
                       Positioned(
