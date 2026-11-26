@@ -102,11 +102,17 @@ void main() {
     await tester.scrollUntilVisible(find.text('الفرع الدراسي'), 180, scrollable: find.byType(Scrollable).last);
     await tester.pumpAndSettle();
     expect(find.text('الفرع الدراسي'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('مسار الفرع العلمي'), 180, scrollable: find.byType(Scrollable).last);
-    await tester.pumpAndSettle();
-    expect(find.text('مسار الفرع العلمي'), findsOneWidget);
-    expect(find.text('الأحيائي'), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
     expect(find.byType(GridView), findsOneWidget);
+
+    // Verify the supported literary branch without expecting the removed
+    // biological/applied track labels to reappear.
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('الأدبي').last);
+    await tester.pumpAndSettle();
+    expect(find.text('التاريخ'), findsOneWidget);
+    expect(find.text('الأحيائي'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
