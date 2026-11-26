@@ -3874,9 +3874,10 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
 
   Future<void> _signOut() async {
     if (_busy) return;
+    final confirmed = await confirmStudentSignOut(context);
+    if (!confirmed || !mounted) return;
     setState(() => _busy = true);
     try {
-      await signOutStudentSession();
       _showMessage('تم تسجيل الخروج من حسابك بنجاح.');
     } catch (error) {
       _showMessage("تعذر تسجيل الخروج: ${error.toString().replaceFirst('Exception: ', '')}",
