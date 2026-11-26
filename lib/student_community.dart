@@ -628,6 +628,60 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
     ])));
   }
 }
+class StudentPresenceService {
+  StudentPresenceService._();
+  static final SupabaseClient _client = Supabase.instance.client;
+  static final ValueNotifier<Set<String>> onlineUserIds = ValueNotifier<Set<String>>(<String>{});
+  static RealtimeChannel? _channel;
+  static StreamSubscription? _authSubscription;
+  static String? _trackedUserId;
+
+  static Future<void> initialize() async {
+    _authSubscription ??= _client.auth.onAuthStateChange.listen((event) {
+      _startTracking(event.session?.user.id);
+    });
+    await _startTracking(_client.auth.currentUser?.id);
+  }
+
+  static Future<void> _startTracking(String? userId) async {
+    if (_trackedUserId == userId && _channel != null) return;
+    final previous = _channel;
+    _channel = null;
+    _trackedUserId = userId;
+    if (previous != null) await _client.removeChannel(previous);
+    if (userId == null) {
+      onlineUserIds.value = <String>{};
+      return;
+    }
+    final channel = _client.channel('student-presence');
+    _channel = channel;
+    channel.onPresenceSync.listen((_) => _refreshOnlineUsers());
+    channel.onStatusChange.listen((change) async {
+      if (change.status == RealtimeSubscribeStatus.subscribed &&
+          identical(_channel, channel)) {
+        await channel.track({
+          'user_id': userId,
+          'online_at': DateTime.now().toUtc().toIso8601String(),
+        });
+      }
+    });
+    channel.subscribe();
+  }
+
+  static void _refreshOnlineUsers() {
+    final channel = _channel;
+    if (channel == null) return;
+    final users = <String>{};
+    for (final state in channel.presenceState()) {
+      for (final presence in state.presences) {
+        final id = presence.payload['user_id']?.toString();
+        if (id != null && id.isNotEmpty) users.add(id);
+      }
+    }
+    onlineUserIds.value = users;
+  }
+}
+
 class StudentDirectMessageScreen extends StatefulWidget{
   final String otherUserId,otherName;final String? otherAvatar;
   const StudentDirectMessageScreen({super.key,required this.otherUserId,required this.otherName,this.otherAvatar});
@@ -639,7 +693,12 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
   bool sending=false,blocked=false; String? get me=>_db.auth.currentUser?.id;
   late final StreamSubscription<List<Map<String,dynamic>>> messageSubscription; late String _resolvedOtherName;
   final Map<String,String> _participantNames={};
-  @override void initState(){super.initState();_resolvedOtherName=widget.otherName;_loadOtherProfileName();_loadParticipantNames();activeDirectMessageUserId.value=widget.otherUserId;messages=stream();messageSubscription=messages.listen((_) { markIncomingAsRead(); _scrollToLatest(); });blockSubscription=_db.from('user_blocks').stream(primaryKey:['blocker_id','blocked_id']).listen((rows){final user=me;final next=user==null||rows.any((r)=>(r['blocker_id']==user&&r['blocked_id']==widget.otherUserId)||(r['blocker_id']==widget.otherUserId&&r['blocked_id']==user));if(mounted&&blocked!=next)setState(()=>blocked=next);});refreshBlockStatus();markIncomingAsRead();}
+  bool _otherOnline = false;
+  void _presenceChanged() {
+    final next = StudentPresenceService.onlineUserIds.value.contains(widget.otherUserId);
+    if (mounted && next != _otherOnline) setState(() => _otherOnline = next);
+  }
+  @override void initState(){super.initState();_resolvedOtherName=widget.otherName;_otherOnline=StudentPresenceService.onlineUserIds.value.contains(widget.otherUserId);StudentPresenceService.onlineUserIds.addListener(_presenceChanged);_loadOtherProfileName();_loadParticipantNames();activeDirectMessageUserId.value=widget.otherUserId;messages=stream();messageSubscription=messages.listen((_) { markIncomingAsRead(); _scrollToLatest(); });blockSubscription=_db.from('user_blocks').stream(primaryKey:['blocker_id','blocked_id']).listen((rows){final user=me;final next=user==null||rows.any((r)=>(r['blocker_id']==user&&r['blocked_id']==widget.otherUserId)||(r['blocker_id']==widget.otherUserId&&r['blocked_id']==user));if(mounted&&blocked!=next)setState(()=>blocked=next);});refreshBlockStatus();markIncomingAsRead();}
   Future<void> _loadOtherProfileName() async {
     try {
       final rows = await _db.rpc('get_student_public_profile_v1', params: {'p_user_id': widget.otherUserId});
@@ -700,8 +759,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     }
   }
   Future<void> send()async{final v=input.text.trim();final user=me;if(v.isEmpty||user==null||sending)return;if(v.length>2000){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الرسالة طويلة جداً.')));return;}FocusScope.of(context).unfocus();setState(()=>sending=true);try{if(await refreshBlockStatus()){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')));return;}await _db.from('direct_messages').insert({'sender_id':user,'receiver_id':widget.otherUserId,'body':v});input.clear();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إرسال الرسالة: $e')));}finally{if(mounted)setState(()=>sending=false);}}
-  @override void dispose(){activeDirectMessageUserId.value=null;messageSubscription.cancel();blockSubscription.cancel();_scrollController.dispose();input.dispose();super.dispose();}
-  @override Widget build(BuildContext context){final c=Theme.of(context).colorScheme;return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:Text(_resolvedOtherName)),body:Column(children:[
+  @override void dispose(){activeDirectMessageUserId.value=null;StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);messageSubscription.cancel();blockSubscription.cancel();_scrollController.dispose();input.dispose();super.dispose();}
+  @override Widget build(BuildContext context){final c=Theme.of(context).colorScheme;return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:Row(children:[CircleAvatar(radius:19,backgroundImage:widget.otherAvatar!=null&&widget.otherAvatar!.startsWith('http')?NetworkImage(widget.otherAvatar!):null,child:widget.otherAvatar==null||!widget.otherAvatar!.startsWith('http')?const Icon(Icons.person_rounded,size:20):null)),const SizedBox(width:10),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[Text(_resolvedOtherName,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w800)),const SizedBox(height:2),Row(children:[Container(width:7,height:7,decoration:BoxDecoration(color:_otherOnline?const Color(0xFF24B47E):c.outline,borderRadius:BorderRadius.circular(10))),const SizedBox(width:5),Text(_otherOnline?'متصل الآن':'غير متصل',style:TextStyle(fontSize:11,color:_otherOnline?const Color(0xFF24B47E):c.onSurfaceVariant))])]))])),body:Column(children:[
     Expanded(child:StreamBuilder<List<Map<String,dynamic>>>(stream:messages,builder:(ctx,s){
       if(s.hasError)return Center(child:Text('تعذر تحميل المحادثة: ${s.error}'));
       if(!s.hasData)return const Center(child:CircularProgressIndicator());
@@ -716,7 +775,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         final r=l[i]; final mine=r['sender_id']==me;
         final senderName=_participantNames[r['sender_id']?.toString()] ?? (mine?'حسابي':_resolvedOtherName);
         return Align(alignment:mine?Alignment.centerRight:Alignment.centerLeft,
-          child:GestureDetector(onLongPress:mine?()=>_privateMessageActions(r):null,
+          child:TweenAnimationBuilder<double>(key:ValueKey(r['id']),tween:Tween<double>(begin:0,end:1),duration:const Duration(milliseconds:360),curve:Curves.easeOutCubic,builder:(context,value,child)=>Opacity(opacity:value,child:Transform.translate(offset:Offset(0,22*(1-value)),child:child)),child:GestureDetector(onLongPress:mine?()=>_privateMessageActions(r):null,
             child:Container(margin:const EdgeInsets.symmetric(vertical:4),padding:const EdgeInsets.all(12),
               constraints:const BoxConstraints(maxWidth:300),decoration:BoxDecoration(color:mine?c.primary:c.surfaceContainerHighest,borderRadius:BorderRadius.circular(16)),
               child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -727,7 +786,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                   if(r['edited_at']!=null) Padding(padding:const EdgeInsets.only(left:5),child:Text('معدّلة',style:TextStyle(fontSize:9,color:mine?c.onPrimary.withValues(alpha:.7):c.onSurfaceVariant))),
                   if(mine)...[const SizedBox(width:7),Icon(r['read_at']!=null?Icons.done_all_rounded:Icons.done_rounded,size:15,color:r['read_at']!=null?Colors.lightBlueAccent:c.onPrimary.withValues(alpha:.72))],
                 ]),
-              ]))));
+              ])))));
       });
     })),
     if(blocked)const Padding(padding:EdgeInsets.fromLTRB(14,6,14,0),child:Text('المراسلة متوقفة بسبب الحظر بين الحسابين.',style:TextStyle(color:Color(0xFFB87922)))),
@@ -1968,10 +2027,25 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
                   final unread = item['unread'] as int;
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                    leading: CircleAvatar(
-                      radius: 25,
-                      backgroundImage: avatar != null && avatar.startsWith('http') ? NetworkImage(avatar) : null,
-                      child: avatar == null || !avatar.startsWith('http') ? const Icon(Icons.person_rounded) : null,
+                    leading: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => StudentPublicProfileScreen(
+                          userId: userId,
+                          fallbackName: name,
+                          fallbackUsername: username,
+                          fallbackStage: profile['stage']?.toString(),
+                          fallbackAvatar: avatar,
+                          fallbackBadge: profile['badge']?.toString(),
+                          fallbackBio: profile['bio']?.toString(),
+                          fallbackDeveloper: profile['is_developer'] == true,
+                        ),
+                      )),
+                      child: CircleAvatar(
+                        radius: 25,
+                        backgroundImage: avatar != null && avatar.startsWith('http') ? NetworkImage(avatar) : null,
+                        child: avatar == null || !avatar.startsWith('http') ? const Icon(Icons.person_rounded) : null,
+                      ),
                     ),
                     title: Row(children: [
                       Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
