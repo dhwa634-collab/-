@@ -506,11 +506,13 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
       case 'السادس الابتدائي':
         return AcademicStage.primarySixth;
       case 'الثالث المتوسط':
-      case 'الثالث المتوسط المهني':
         return AcademicStage.intermediateThird;
+      case 'الثالث المتوسط المهني':
+        return AcademicStage.vocationalThird;
+      case 'السادس المهني':
+        return AcademicStage.vocationalSixth;
       case 'السادس العلمي':
       case 'السادس الأدبي':
-      case 'السادس المهني':
         return AcademicStage.preparatorySixth;
       default:
         return AcademicStage.intermediateThird;
