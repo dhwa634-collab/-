@@ -786,6 +786,8 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   StreamSubscription<List<Map<String,dynamic>>>? _notificationSubscription;
   final Set<String> _seenNotificationIds = {};
   late final DateTime _notificationStartedAt;
+  OverlayEntry? _liveBannerEntry;
+  Timer? _liveBannerTimer;
   bool _appForeground = true;
 
   @override
@@ -858,31 +860,69 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
       } catch (_) {}
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentMaterialBanner()
-      ..showMaterialBanner(MaterialBanner(
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-        leading: CircleAvatar(
-          backgroundImage: avatar != null && avatar.startsWith('http')
-            ? NetworkImage(avatar) : null,
-          child: avatar == null || !avatar.startsWith('http')
-            ? Icon(type == 'news' ? Icons.campaign_rounded : Icons.person_rounded)
-            : null,
+    SystemSound.play(SystemSoundType.alert);
+    HapticFeedback.lightImpact();
+    _hideLiveBanner();
+    final overlay = Overlay.of(context, rootOverlay: true);
+    _liveBannerEntry = OverlayEntry(builder: (overlayContext) {
+      final top = MediaQuery.of(overlayContext).padding.top + 8;
+      return Positioned(
+        top: top, left: 12, right: 12,
+        child: TweenAnimationBuilder<Offset>(
+          tween: Tween(begin: const Offset(0, -1.2), end: Offset.zero),
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutCubic,
+          builder: (context, offset, child) =>
+            Transform.translate(offset: Offset(0, offset.dy * 110), child: child),
+          child: Material(
+            elevation: 12,
+            color: Theme.of(overlayContext).colorScheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(20),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                _hideLiveBanner();
+                _openNotification(row);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+                child: Row(children: [
+                  CircleAvatar(
+                    radius: 23,
+                    backgroundImage: avatar != null && avatar.startsWith('http')
+                      ? NetworkImage(avatar) : null,
+                    child: avatar == null || !avatar.startsWith('http')
+                      ? Icon(type == 'news' ? Icons.campaign_rounded : Icons.person_rounded)
+                      : null,
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                    if (body.isNotEmpty) Text(body, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Theme.of(overlayContext).colorScheme.onSurfaceVariant)),
+                  ])),
+                  IconButton(
+                    tooltip: 'إغلاق',
+                    onPressed: _hideLiveBanner,
+                    icon: const Icon(Icons.close_rounded, size: 19),
+                  ),
+                ]),
+              ),
+            ),
+          ),
         ),
-        content: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w900)),
-          if (body.isNotEmpty) Text(body, maxLines: 2, overflow: TextOverflow.ellipsis),
-        ]),
-        actions: [
-          TextButton(onPressed: () {
-            ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-            _openNotification(row);
-          }, child: const Text('فتح')),
-          TextButton(onPressed: () => ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
-            child: const Text('إغلاق')),
-        ],
-      ));
+      );
+    });
+    overlay.insert(_liveBannerEntry!);
+    _liveBannerTimer = Timer(const Duration(seconds: 7), _hideLiveBanner);
+  }
+
+  void _hideLiveBanner() {
+    _liveBannerTimer?.cancel();
+    _liveBannerTimer = null;
+    _liveBannerEntry?.remove();
+    _liveBannerEntry = null;
   }
 
   void _handleNotificationTap(String? payload) {
@@ -938,6 +978,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   @override
   void dispose() {
     _notificationSubscription?.cancel();
+    _hideLiveBanner();
     StudyNotificationService.instance.onNotificationTap = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
