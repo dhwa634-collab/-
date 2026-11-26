@@ -537,17 +537,26 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
       if (user != null) {
         final name = _nameController.text.trim();
         final avatar = await _uploadAvatar(user);
+        // profiles.age_band is a constrained category, while profiles.age
+        // stores the student's manually entered numeric age.
+        final ageBand = age < 13
+            ? 'under_13'
+            : age <= 15
+                ? '13_15'
+                : age <= 17
+                    ? '16_17'
+                    : '18_plus';
         await _client.from('profiles').upsert({
           'user_id': user.id,
           'display_name': name,
           'username': _usernameController.text.trim(),
-          'age_band': age.toString(),
+          'age_band': ageBand,
           'age': age,
           'gender': _gender,
           'stage': _stage,
           'avatar_url': avatar,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
-        });
+        }, onConflict: 'user_id');
         await prefs.setString('dalilak_student_display_name_v1', name);
         await prefs.setString(
           'dalilak_student_username_v1',
@@ -558,7 +567,13 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
       await prefs.setBool('dalilak_home_welcome_seen_v1', true);
       if (!mounted) return;
       widget.onComplete();
-    } on PostgrestException catch (error) {
+    } on PostgrestException catch (error, stackTrace) {
+      debugPrint(
+        'Student onboarding PostgREST save error: '
+        'code=${error.code}, message=${error.message}, '
+        'details=${error.details}, hint=${error.hint}',
+      );
+      debugPrintStack(stackTrace: stackTrace);
       if (mounted) {
         if (error.code == '23505') {
           setState(() {
@@ -571,14 +586,24 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
             duration: const Duration(milliseconds: 320),
             curve: Curves.easeOutCubic,
           );
-          _message('هذا الاسم مستخدم من حساب آخر. اختَر اسماً مختلفاً.');
+          _message(
+            'اسم المستخدم مستخدم مسبقاً (رمز قاعدة البيانات: ${error.code}).',
+          );
         } else {
-          _message('تعذر حفظ البيانات: ${error.message}');
+          _message(
+            'خطأ قاعدة البيانات [${error.code ?? 'بدون رمز'}]: '
+            '${error.message} | التفاصيل: ${error.details} | '
+            'التلميح: ${error.hint}',
+          );
         }
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Student onboarding save error: ${error.runtimeType}: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
       if (mounted) {
-        _message('تعذر حفظ البيانات حالياً. تحقق من الاتصال وحاول مجدداً.');
+        _message('فشل حفظ البيانات [${error.runtimeType}]: $error');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
