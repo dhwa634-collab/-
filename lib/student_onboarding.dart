@@ -27,7 +27,6 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
   bool _loading = true;
   bool _signedIn = false;
   bool _needsSetup = false;
-  bool _googleBusy = false;
 
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -114,8 +113,15 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
   }
 }
 
-class StudentWelcomeScreen extends StatelessWidget {
+class StudentWelcomeScreen extends StatefulWidget {
   const StudentWelcomeScreen({super.key});
+
+  @override
+  State<StudentWelcomeScreen> createState() => _StudentWelcomeScreenState();
+}
+
+class _StudentWelcomeScreenState extends State<StudentWelcomeScreen> {
+  bool _googleBusy = false;
 
   @override
   Widget build(BuildContext context) {
