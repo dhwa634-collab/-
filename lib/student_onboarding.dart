@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -154,10 +155,12 @@ class StudentWelcomeScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.school_rounded,
-                          color: Colors.white,
-                          size: 62,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(32),
+                          child: SvgPicture.asset(
+                            'assets/brand/app_icon.svg',
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 28),
