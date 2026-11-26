@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
@@ -297,354 +298,222 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
-  @override
-  State<StudentProfileScreen> createState() => _StudentProfileScreenState();
+  @override State<StudentProfileScreen> createState()=>_StudentProfileScreenState();
 }
-
-class _StudentProfileScreenState extends State<StudentProfileScreen> {
-  final name = TextEditingController();
-  final bio = TextEditingController();
-  String age = '13_15', stage = AcademicStage.intermediateThird.label;
-  String? gender;
-  String? avatarUrl;
-  XFile? selectedAvatar;
-  bool loading = true, saving = false, uploadingAvatar = false;
-
-  @override
-  void initState() {
-    super.initState();
-    loadProfile();
-  }
-
-  Future<void> loadProfile() async {
-    final user = _db.auth.currentUser;
-    if (user == null) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        name.text = prefs.getString('dalilak_guest_display_name_v1') ?? 'طالب';
-        bio.text = prefs.getString('dalilak_guest_bio_v1') ?? '';
-        age = prefs.getString('dalilak_student_age_band_v1') ?? age;
-        gender = prefs.getString('dalilak_student_gender_v1');
-        final savedStage = prefs.getString('dalilak_student_stage_v1');
-        stage = AcademicStage.values
-            .firstWhere((s) => s.name == savedStage,
-                orElse: () => AcademicStage.intermediateThird)
-            .label;
-      } catch (_) {}
-      if (mounted) setState(() => loading = false);
-      return;
-    }
-
-    try {
-      final row = await _db.from('profiles')
-          .select('display_name,age_band,gender,stage,avatar_url,bio')
-          .eq('user_id', user.id)
-          .maybeSingle();
-      if (row != null) {
-        name.text = (row['display_name'] ?? '').toString();
-        bio.text = (row['bio'] ?? '').toString();
-        avatarUrl = row['avatar_url']?.toString()
-            ?? user.userMetadata?['picture']?.toString();
-        age = (row['age_band'] ?? '13_15').toString();
-        stage = (row['stage'] ?? stage).toString();
-        gender = row['gender']?.toString();
-      } else {
-        name.text = (user.userMetadata?['full_name']
-            ?? user.userMetadata?['name'] ?? 'طالب').toString();
-        avatarUrl = user.userMetadata?['picture']?.toString();
-        final prefs = await SharedPreferences.getInstance();
-        age = prefs.getString('dalilak_student_age_band_v1') ?? age;
-        gender = prefs.getString('dalilak_student_gender_v1');
-        final savedStage = prefs.getString('dalilak_student_stage_v1');
-        stage = AcademicStage.values
-            .firstWhere((s) => s.name == savedStage,
-                orElse: () => AcademicStage.intermediateThird)
-            .label;
+class _StudentProfileScreenState extends State<StudentProfileScreen>{
+  final name=TextEditingController(),username=TextEditingController(),bio=TextEditingController(),age=TextEditingController();
+  String stage=AcademicStage.intermediateThird.label,badge='طالب',usernameHint='';
+  String? gender,avatarUrl; XFile? selectedAvatar; Timer? usernameTimer;
+  bool loading=true,saving=false,uploading=false,checking=false,available=false;
+  bool get developer=>_isVerifiedDeveloper(_db.auth.currentUser);
+  @override void initState(){super.initState();load();}
+  Future<void> load()async{
+    final user=_db.auth.currentUser;
+    try{
+      if(user==null){
+        final p=await SharedPreferences.getInstance();
+        name.text=p.getString('dalilak_guest_display_name_v1')??'طالب';
+        bio.text=p.getString('dalilak_guest_bio_v1')??'';
+        age.text=p.getString('dalilak_student_age_band_v1')??'';
+        gender=p.getString('dalilak_student_gender_v1');
+        final s=p.getString('dalilak_student_stage_v1');
+        stage=AcademicStage.values.firstWhere((x)=>x.name==s,orElse:()=>AcademicStage.intermediateThird).label;
+      }else{
+        final r=await _db.from('profiles').select('display_name,username,bio,age,gender,stage,avatar_url,badge').eq('user_id',user.id).maybeSingle();
+        if(r!=null){
+          name.text=(r['display_name']??'').toString();username.text=(r['username']??'').toString();
+          bio.text=(r['bio']??'').toString();age.text=r['age']?.toString()??'';
+          gender=r['gender']?.toString();stage=(r['stage']??stage).toString();
+          avatarUrl=r['avatar_url']?.toString();badge=(r['badge']??'طالب').toString();
+          available=username.text.isNotEmpty;usernameHint=available?'المعرّف الحالي محفوظ':'';
+        }else{name.text=(user.userMetadata?['full_name']??user.userMetadata?['name']??'طالب').toString();avatarUrl=user.userMetadata?['picture']?.toString();}
       }
-    } on PostgrestException catch (e) {
-      toast('تعذر تحميل الملف (رمز ${e.code ?? 'DB'}): ${e.message}');
-    } catch (e) {
-      toast('تعذر تحميل الملف: ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
+    }catch(e){toast('تعذر تحميل الملف: $e');}
+    finally{if(mounted)setState(()=>loading=false);}
   }
-
-  Future<void> pickAvatar() async {
-    final user = _db.auth.currentUser;
-    if (user == null) {
-      toast('سجّل الدخول أولاً حتى تحفظ صورة الحساب.');
-      return;
+  void validateUsername(String value){
+    usernameTimer?.cancel();final v=value.trim().replaceFirst(RegExp(r'^@'),'').toLowerCase();
+    final valid=v=='1'?developer:RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(v);
+    if(!valid){setState(()=>{checking=false,available=false,usernameHint=v=='1'?'@1 للمطوّر فقط':'3–20 خانة إنجليزية أو أرقام أو _'});return;}
+    setState(()=>{checking=true,usernameHint='جارٍ التحقق من التوفر...'});
+    usernameTimer=Timer(const Duration(milliseconds:350),()async{
+      try{
+        final ok=await _db.rpc('is_student_username_available_v1',params:{'p_username':v});
+        if(!mounted||username.text.trim().replaceFirst(RegExp(r'^@'),'').toLowerCase()!=v)return;
+        setState(()=>{checking=false,available=ok==true,usernameHint=ok==true?'المعرّف متاح':'المعرّف مستخدم أو غير مسموح'});
+      }catch(_){if(mounted)setState(()=>{checking=false,available=false,usernameHint='تعذر التحقق من المعرّف'});}
+    });
+  }
+  Future<void> pickAvatar()async{
+    final user=_db.auth.currentUser;if(user==null){toast('سجّل الدخول أولاً.');return;}if(uploading||saving)return;
+    try{
+      final image=await ImagePicker().pickImage(source:ImageSource.gallery,maxWidth:512,maxHeight:512,imageQuality:82,requestFullMetadata:false);
+      if(image==null)return;final ext=image.name.split('.').last.toLowerCase();
+      const types={'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','webp':'image/webp'};
+      if(!types.containsKey(ext)){toast('اختر صورة JPG أو PNG أو WEBP.');return;}
+      final bytes=await image.readAsBytes();if(bytes.isEmpty||bytes.length>2*1024*1024){toast('حجم الصورة يجب ألا يتجاوز 2 ميغابايت.');return;}
+      setState(()=>uploading=true);
+      final path='${user.id}/profile_${DateTime.now().microsecondsSinceEpoch}.$ext';
+      await _db.storage.from('avatars').uploadBinary(path,bytes,fileOptions:FileOptions(contentType:types[ext],upsert:false));
+      final url=_db.storage.from('avatars').getPublicUrl(path);
+      await _db.from('profiles').update({'avatar_url':url,'updated_at':DateTime.now().toUtc().toIso8601String()}).eq('user_id',user.id);
+      if(mounted)setState(()=>{avatarUrl=url,selectedAvatar=image});toast('تم تحديث صورة الحساب.');
+    }on StorageException catch(e){toast('تعذر رفع الصورة (HTTP ${e.statusCode??'Storage'}): ${e.message}');}
+    catch(e){toast('تعذر تغيير الصورة: $e');}
+    finally{if(mounted)setState(()=>uploading=false);}
+  }
+  Future<void> save()async{
+    final user=_db.auth.currentUser;final n=name.text.trim(),b=bio.text.trim();
+    final u=username.text.trim().replaceFirst(RegExp(r'^@'),'').toLowerCase();final a=int.tryParse(age.text.trim());
+    if(n.isEmpty||n.length>40){toast('اكتب اسماً من 1 إلى 40 حرفاً.');return;}
+    if(a==null||a<10||a>80){toast('اكتب عمرك الحقيقي بين 10 و80 سنة.');return;}
+    if(b.length>180){toast('النبذة لا تتجاوز 180 حرفاً.');return;}
+    if(user!=null){
+      if(!(u=='1'?developer:RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(u))){toast('@1 للمطوّر فقط وباقي المعرّفات 3–20 خانة.');return;}
+      setState(()=>checking=true);
+      try{final ok=await _db.rpc('is_student_username_available_v1',params:{'p_username':u});if(ok!=true){toast('هذا المعرّف مستخدم أو غير مسموح.');return;}}
+      catch(e){toast('تعذر التحقق من المعرّف: $e');return;}
+      finally{if(mounted)setState(()=>checking=false);}
     }
-    if (uploadingAvatar || saving) return;
-
-    try {
-      final image = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 512,
-        maxHeight: 512,
-        imageQuality: 82,
-        requestFullMetadata: false,
-      );
-      if (image == null) return;
-
-      final extension = image.name.split('.').last.toLowerCase();
-      const mimeTypes = {
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg',
-        'png': 'image/png',
-        'webp': 'image/webp',
-      };
-      final mime = mimeTypes[extension];
-      if (mime == null) {
-        toast('الصورة لازم تكون JPG أو PNG أو WEBP.');
-        return;
+    setState(()=>saving=true);
+    try{
+      final band=a<13?'under_13':a<=15?'13_15':a<=17?'16_17':'18_plus';
+      if(user==null){
+        final p=await SharedPreferences.getInstance();
+        final s=AcademicStage.values.firstWhere((x)=>x.label==stage,orElse:()=>AcademicStage.intermediateThird);
+        await p.setString('dalilak_guest_display_name_v1',n);await p.setString('dalilak_guest_bio_v1',b);
+        await p.setString('dalilak_student_age_band_v1',a.toString());await p.setString('dalilak_student_stage_v1',s.name);
+        if(gender==null){await p.remove('dalilak_student_gender_v1');}else{await p.setString('dalilak_student_gender_v1',gender!);}
+        await AcademicStageController.select(s);
+      }else{
+        await _db.from('profiles').upsert({'user_id':user.id,'display_name':n,'username':u,'bio':b,'age':a,'age_band':band,'gender':gender,'stage':stage,'avatar_url':avatarUrl??user.userMetadata?['picture']?.toString(),'updated_at':DateTime.now().toUtc().toIso8601String()},onConflict:'user_id');
+        final p=await SharedPreferences.getInstance();
+        await p.setString('dalilak_student_display_name_v1',n);await p.setString('dalilak_student_username_v1',u);
+        await p.setString('dalilak_student_age_band_v1',a.toString());await p.setString('dalilak_student_stage_label_v1',stage);
+        await AcademicStageController.select(AcademicStage.values.firstWhere((x)=>x.label==stage,orElse:()=>AcademicStage.intermediateThird));
       }
-      final bytes = await image.readAsBytes();
-      if (bytes.isEmpty || bytes.length > 2 * 1024 * 1024) {
-        toast('حجم الصورة يجب ألا يتجاوز 2 ميغابايت.');
-        return;
-      }
-
-      setState(() => uploadingAvatar = true);
-      final path = '${user.id}/avatar_${DateTime.now().millisecondsSinceEpoch}.$extension';
-      var uploaded = false;
-      try {
-        await _db.storage.from('avatars').uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(contentType: mime, upsert: false),
-        );
-        uploaded = true;
-        final publicUrl = _db.storage.from('avatars').getPublicUrl(path);
-        final displayName = name.text.trim().isEmpty
-            ? (user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? 'طالب').toString()
-            : name.text.trim();
-        await _db.from('profiles').upsert({
-          'user_id': user.id,
-          'display_name': displayName,
-          'age_band': age,
-          'gender': gender,
-          'stage': stage,
-          'avatar_url': publicUrl,
-          'bio': bio.text.trim(),
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
-        });
-        if (!mounted) return;
-        setState(() {
-          avatarUrl = publicUrl;
-          selectedAvatar = image;
-          name.text = displayName;
-        });
-        toast('تم تحديث صورة الحساب.');
-      } catch (_) {
-        if (uploaded) {
-          try { await _db.storage.from('avatars').remove([path]); } catch (_) {}
-        }
-        rethrow;
-      }
-    } on PostgrestException catch (e) {
-      toast('فشل حفظ الصورة في الملف (رمز ${e.code ?? 'DB'}): ${e.message}');
-    } on StorageException catch (e) {
-      toast('فشل رفع الصورة (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
-    } catch (e) {
-      toast('تعذر تغيير الصورة: ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => uploadingAvatar = false);
-    }
+      if(mounted)setState(()=>{available=true,usernameHint='تم حفظ المعرّف'});toast('تم تحديث الملف الشخصي بنجاح.');
+    }on PostgrestException catch(e){toast('فشل حفظ الملف (رمز ${e.code??'DB'}): ${e.message}');}
+    catch(e){toast('تعذر حفظ الملف: $e');}
+    finally{if(mounted)setState(()=>saving=false);}
   }
-
-  Future<void> saveProfile() async {
-    final user = _db.auth.currentUser;
-    final displayName = name.text.trim();
-    final bioText = bio.text.trim();
-    if (displayName.isEmpty || displayName.length > 40) {
-      toast('اكتب اسماً من 1 إلى 40 حرفاً.');
-      return;
-    }
-    if (bioText.length > 180) {
-      toast('النبذة يجب ألا تتجاوز 180 حرفاً.');
-      return;
-    }
-
-    setState(() => saving = true);
-    try {
-      if (user == null) {
-        final prefs = await SharedPreferences.getInstance();
-        final selected = AcademicStage.values.firstWhere(
-          (s) => s.label == stage,
-          orElse: () => AcademicStage.intermediateThird,
-        );
-        await prefs.setString('dalilak_guest_display_name_v1', displayName);
-        await prefs.setString('dalilak_guest_bio_v1', bioText);
-        await prefs.setString('dalilak_student_age_band_v1', age);
-        if (gender == null) {
-          await prefs.remove('dalilak_student_gender_v1');
-        } else {
-          await prefs.setString('dalilak_student_gender_v1', gender!);
-        }
-        await prefs.setString('dalilak_student_stage_v1', selected.name);
-        await AcademicStageController.select(selected);
-        toast('تم حفظ الملف الشخصي على هذا الجهاز.');
-        return;
-      }
-
-      await _db.from('profiles').upsert({
-        'user_id': user.id,
-        'display_name': displayName,
-        'age_band': age,
-        'gender': gender,
-        'stage': stage,
-        'avatar_url': avatarUrl ?? user.userMetadata?['picture']?.toString(),
-        'bio': bioText,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      });
-      toast('تم حفظ الملف الشخصي والنبذة.');
-    } on PostgrestException catch (e) {
-      toast('فشل حفظ الملف (رمز ${e.code ?? 'DB'}): ${e.message}');
-    } catch (e) {
-      toast('تعذر حفظ الملف: ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => saving = false);
-    }
+  void toast(String s){if(mounted)ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content:Text(s)));}
+  Future<void> copyId()async{final v=username.text.trim().replaceFirst(RegExp(r'^@'),'');if(v.isEmpty){toast('لا يوجد معرّف لنسخه.');return;}await Clipboard.setData(ClipboardData(text:'@$v'));toast('تم نسخ المعرّف');}
+  Widget panel(Widget child)=>Card(elevation:0,color:Theme.of(context).colorScheme.surfaceContainerLow,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20)),child:Padding(padding:const EdgeInsets.all(16),child:child));
+  @override void dispose(){usernameTimer?.cancel();name.dispose();username.dispose();bio.dispose();age.dispose();super.dispose();}
+  @override Widget build(BuildContext context){
+    final c=Theme.of(context).colorScheme;final dark=Theme.of(context).brightness==Brightness.dark;
+    final avatar=selectedAvatar!=null?FileImage(File(selectedAvatar!.path)) as ImageProvider<Object>:avatarUrl!=null?NetworkImage(avatarUrl!) as ImageProvider<Object>:null;
+    return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:const Text('الملف الشخصي')),
+      body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(16),children:[
+        Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(25),gradient:LinearGradient(colors:dark?const[Color(0xFF142C4B),Color(0xFF285080)]:const[Color(0xFF17427E),Color(0xFF347FE8),Color(0xFF6A7CEB)])),
+          child:Column(children:[
+            Stack(alignment:Alignment.bottomLeft,children:[
+              Container(padding:const EdgeInsets.all(4),decoration:BoxDecoration(shape:BoxShape.circle,border:Border.all(color:Colors.white,width:3)),child:CircleAvatar(radius:48,backgroundImage:avatar,child:avatar==null?const Icon(Icons.person,size:48,color:Colors.white):null)),
+              IconButton.filled(onPressed:uploading?null:pickAvatar,style:IconButton.styleFrom(backgroundColor:Colors.white,foregroundColor:c.primary),icon:uploading?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.camera_alt)),
+            ]),
+            const SizedBox(height:12),Row(mainAxisAlignment:MainAxisAlignment.center,children:[
+              Flexible(child:Text(name.text.isEmpty?'الملف الشخصي':name.text,style:const TextStyle(color:Colors.white,fontSize:21,fontWeight:FontWeight.w900))),
+              if(developer)...[const SizedBox(width:6),const _DeveloperBadge(onPrimary:true)],
+            ]),
+            const SizedBox(height:10),Wrap(alignment:WrapAlignment.center,spacing:7,runSpacing:7,children:[
+              if(username.text.isNotEmpty)ActionChip(avatar:const Icon(Icons.copy,size:14),label:Text('@${username.text.trim().replaceFirst(RegExp(r'^@'),'')}'),onPressed:copyId,backgroundColor:Colors.white.withValues(alpha:.18),labelStyle:const TextStyle(color:Colors.white,fontWeight:FontWeight.w800)),
+              _profileChip(context,Icons.school,stage),_profileChip(context,Icons.workspace_premium,badge),_profileChip(context,Icons.quiz,'نقاط البنك: —'),
+            ]),
+          ])),
+        const SizedBox(height:14),
+        panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          _profileHeading(context,'المعلومات الأساسية',Icons.person_outline),const SizedBox(height:12),
+          TextField(controller:name,maxLength:40,decoration:const InputDecoration(labelText:'الاسم الظاهر',prefixIcon:Icon(Icons.badge_outlined),border:OutlineInputBorder(),filled:true)),
+          const SizedBox(height:9),
+          TextField(controller:username,maxLength:20,onChanged:validateUsername,decoration:InputDecoration(labelText:'اسم المستخدم بالإنجليزية',prefixText:'@',hintText:'student_2026',prefixIcon:const Icon(Icons.alternate_email),border:const OutlineInputBorder(),filled:true,helperText:usernameHint.isEmpty?'3–20 خانة؛ @1 للمطوّر فقط':usernameHint,helperStyle:TextStyle(color:checking?c.onSurfaceVariant:available?Colors.green:c.error),suffixIcon:checking?const Padding(padding:EdgeInsets.all(12),child:SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2))):Icon(available?Icons.check_circle:Icons.alternate_email,color:available?Colors.green:null))),
+          const SizedBox(height:9),TextField(controller:bio,maxLength:180,maxLines:3,decoration:const InputDecoration(labelText:'النبذة الشخصية (اختياري)',prefixIcon:Icon(Icons.notes),border:OutlineInputBorder(),filled:true)),
+        ])),
+        const SizedBox(height:12),
+        panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          _profileHeading(context,'المعلومات الدراسية',Icons.school_outlined),const SizedBox(height:12),
+          TextField(controller:age,keyboardType:TextInputType.number,maxLength:2,decoration:const InputDecoration(labelText:'العمر الحقيقي',suffixText:'سنة',prefixIcon:Icon(Icons.cake_outlined),border:OutlineInputBorder(),filled:true)),
+          const SizedBox(height:9),
+          DropdownButtonFormField<String>(initialValue:AcademicStage.values.any((x)=>x.label==stage)?stage:AcademicStage.intermediateThird.label,decoration:const InputDecoration(labelText:'المرحلة الدراسية',prefixIcon:Icon(Icons.menu_book),border:OutlineInputBorder(),filled:true),items:AcademicStage.values.map((x)=>DropdownMenuItem(value:x.label,child:Text(x.label))).toList(),onChanged:(v)=>setState(()=>stage=v??stage)),
+          const SizedBox(height:9),
+          DropdownButtonFormField<String?>(initialValue:gender,decoration:const InputDecoration(labelText:'الجنس (اختياري)',prefixIcon:Icon(Icons.people_outline),border:OutlineInputBorder(),filled:true),items:const[DropdownMenuItem<String?>(value:null,child:Text('عدم التحديد')),DropdownMenuItem<String?>(value:'male',child:Text('ذكر')),DropdownMenuItem<String?>(value:'female',child:Text('أنثى'))],onChanged:(v)=>setState(()=>gender=v)),
+        ])),
+        const SizedBox(height:16),FilledButton.icon(onPressed:saving||uploading||checking?null:save,style:FilledButton.styleFrom(minimumSize:const Size.fromHeight(53),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16))),icon:saving?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2,color:Colors.white)):const Icon(Icons.save),label:Text(saving?'جارٍ الحفظ...':'حفظ التغييرات')),
+      ])));
   }
+}
+Widget _profileHeading(BuildContext c,String text,IconData icon)=>Row(children:[Icon(icon,color:Theme.of(c).colorScheme.primary),const SizedBox(width:8),Text(text,style:Theme.of(c).textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w900))]);
 
-  void toast(String value) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(value)),
-      );
-    }
+class StudentSearchScreen extends StatefulWidget{const StudentSearchScreen({super.key});@override State<StudentSearchScreen> createState()=>_StudentSearchScreenState();}
+class _StudentSearchScreenState extends State<StudentSearchScreen>{
+  final query=TextEditingController();Timer? timer;List<Map<String,dynamic>> rows=[];bool loading=false;String? error;
+  @override void initState(){super.initState();load('');}
+  Future<void> load(String q)async{
+    if(_db.auth.currentUser==null){if(mounted)setState(()=>error='سجّل الدخول حتى تبحث عن الطلاب.');return;}
+    if(mounted)setState(()=>loading=true);
+    try{
+      final r=await _db.rpc('search_student_profiles_v1',params:{'p_query':q.trim().isEmpty?null:q.trim(),'p_stage':AcademicStageController.current.value.label,'p_user_id':null,'p_limit':30});
+      final data=(r as List).map((x)=>Map<String,dynamic>.from(x as Map)).toList();
+      if(mounted)setState((){rows=data;loading=false;error=null;});
+    }catch(e){if(mounted)setState((){loading=false;error='تعذر البحث: $e';});}
   }
-
-  @override
-  void dispose() {
-    name.dispose();
-    bio.dispose();
-    super.dispose();
+  void changed(String q){timer?.cancel();timer=Timer(const Duration(milliseconds:320),()=>load(q));}
+  @override void dispose(){timer?.cancel();query.dispose();super.dispose();}
+  @override Widget build(BuildContext context){
+    final c=Theme.of(context).colorScheme;
+    return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:const Text('البحث عن الطلاب')),body:Column(children:[
+      Padding(padding:const EdgeInsets.all(15),child:TextField(controller:query,onChanged:changed,decoration:InputDecoration(hintText:'ابحث بالاسم أو @username',prefixIcon:const Icon(Icons.search),suffixIcon:query.text.isEmpty?const Icon(Icons.people):IconButton(icon:const Icon(Icons.close),onPressed:(){query.clear();changed('');}),filled:true,fillColor:c.surfaceContainerHighest,border:OutlineInputBorder(borderRadius:BorderRadius.circular(18),borderSide:BorderSide.none)))),
+      if(query.text.isEmpty)const Padding(padding:EdgeInsets.only(bottom:10),child:Text('زملاء من مرحلتك وأحدث المنضمين')),
+      Expanded(child:loading&&rows.isEmpty?const Center(child:CircularProgressIndicator()):error!=null?Center(child:Text(error!)):rows.isEmpty?const Center(child:Text('لا توجد نتائج حالياً.')):ListView.separated(padding:const EdgeInsets.all(13),itemCount:rows.length,separatorBuilder:(_,__)=>const SizedBox(height:8),itemBuilder:(ctx,i){
+        final r=rows[i];final av=r['avatar_url']?.toString();
+        return Card(elevation:0,color:c.surfaceContainerLow,child:ListTile(onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>StudentPublicProfileScreen(userId:r['user_id'].toString()))),
+          leading:CircleAvatar(backgroundImage:av!=null?NetworkImage(av):null,child:av==null?const Icon(Icons.person):null),
+          title:Row(children:[Flexible(child:Text(r['display_name']?.toString()??'طالب',overflow:TextOverflow.ellipsis)),if(r['is_developer']==true)...[const SizedBox(width:5),const _DeveloperBadge(compact:true)]]),
+          subtitle:Text('${r['username']??'—'} • ${r['stage']??'طالب'}'),trailing:const Icon(Icons.chevron_left)));
+      })),
+    ])));
   }
+}
+class StudentPublicProfileScreen extends StatefulWidget{final String userId;const StudentPublicProfileScreen({super.key,required this.userId});@override State<StudentPublicProfileScreen> createState()=>_StudentPublicProfileScreenState();}
+class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>{
+  Map<String,dynamic>? p;bool loading=true,blocked=false;
+  @override void initState(){super.initState();load();}
+  Future<void> load()async{try{final r=await _db.rpc('search_student_profiles_v1',params:{'p_query':null,'p_stage':null,'p_user_id':widget.userId,'p_limit':1});final l=r as List;if(mounted)setState(()=>{p=l.isEmpty?null:Map<String,dynamic>.from(l.first as Map),loading=false});}catch(_){if(mounted)setState(()=>loading=false);}}
+  Future<void> block()async{
+    final me=_db.auth.currentUser?.id;if(me==null||me==widget.userId)return;
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('حظر هذا الطالب؟'),content:const Text('لن تتمكنوا من مراسلة بعضكما ولن يظهر في نتائج بحثك.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حظر'))]));
+    if(ok!=true)return;try{await _db.from('user_blocks').insert({'blocker_id':me,'blocked_id':widget.userId});if(mounted)setState(()=>blocked=true);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر الحظر: $e')));}
+  }
+  @override Widget build(BuildContext context){
+    final c=Theme.of(context).colorScheme;final av=p?['avatar_url']?.toString();final own=_db.auth.currentUser?.id==widget.userId;
+    return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:const Text('ملف الطالب')),body:loading?const Center(child:CircularProgressIndicator()):p==null?const Center(child:Text('الملف غير متاح.')):ListView(padding:const EdgeInsets.all(17),children:[
+      Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(borderRadius:BorderRadius.circular(24),gradient:LinearGradient(colors:Theme.of(context).brightness==Brightness.dark?const[Color(0xFF142C4B),Color(0xFF285080)]:const[Color(0xFF17427E),Color(0xFF347FE8)])),child:Column(children:[
+        CircleAvatar(radius:48,backgroundImage:av!=null?NetworkImage(av):null,child:av==null?const Icon(Icons.person,size:48,color:Colors.white):null),
+        const SizedBox(height:12),Row(mainAxisAlignment:MainAxisAlignment.center,children:[Flexible(child:Text(p!['display_name']?.toString()??'طالب',style:const TextStyle(color:Colors.white,fontSize:21,fontWeight:FontWeight.w900))),if(p!['is_developer']==true)...[const SizedBox(width:6),const _DeveloperBadge(onPrimary:true)]]),
+        const SizedBox(height:6),Text('${p!['username']??'—'}',style:const TextStyle(color:Colors.white)),
+        const SizedBox(height:12),Wrap(spacing:7,children:[_profileChip(context,Icons.school,p!['stage']?.toString()??'طالب'),_profileChip(context,Icons.workspace_premium,p!['badge']?.toString()??'طالب'),_profileChip(context,Icons.quiz,'النقاط: —')]),
+      ])),
+      const SizedBox(height:13),Card(color:c.surfaceContainerLow,elevation:0,child:Padding(padding:const EdgeInsets.all(17),child:Text((p!['bio']?.toString().trim().isNotEmpty??false)?p!['bio'].toString():'لم يضف نبذة شخصية بعد.'))),
+      if(!own)Row(children:[Expanded(child:FilledButton.icon(onPressed:blocked?null:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>StudentDirectMessageScreen(otherUserId:widget.userId,otherName:p!['display_name']?.toString()??'طالب',otherAvatar:av))),icon:const Icon(Icons.chat),label:const Text('مراسلة'))),const SizedBox(width:8),OutlinedButton.icon(onPressed:blocked?null:block,icon:const Icon(Icons.block),label:const Text('حظر'))]),
+    ])));
+  }
+}
+Widget _profileChip(BuildContext context,IconData icon,String label)=>Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:7),decoration:BoxDecoration(color:Colors.white.withValues(alpha:.16),borderRadius:BorderRadius.circular(22)),child:Row(mainAxisSize:MainAxisSize.min,children:[Icon(icon,size:14,color:Colors.white),const SizedBox(width:5),Text(label,style:const TextStyle(color:Colors.white,fontSize:11,fontWeight:FontWeight.w700))]));
 
-  @override
-  Widget build(BuildContext context) => Directionality(
-    textDirection: TextDirection.rtl,
-    child: Scaffold(
-      appBar: AppBar(title: const Text('الملف الشخصي')),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(18),
-              children: [
-                Center(
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      CircleAvatar(
-                        radius: 48,
-                        backgroundImage: selectedAvatar != null
-                            ? FileImage(File(selectedAvatar!.path)) as ImageProvider<Object>
-                            : avatarUrl != null && avatarUrl!.startsWith('http')
-                                ? NetworkImage(avatarUrl!) as ImageProvider<Object>
-                                : null,
-                        child: selectedAvatar == null &&
-                                (avatarUrl == null || !avatarUrl!.startsWith('http'))
-                            ? const Icon(Icons.person, size: 48)
-                            : null,
-                      ),
-                      Material(
-                        color: Theme.of(context).colorScheme.primary,
-                        shape: const CircleBorder(),
-                        child: IconButton(
-                          tooltip: 'تغيير صورة الحساب',
-                          onPressed: uploadingAvatar ? null : pickAvatar,
-                          icon: uploadingAvatar
-                              ? const SizedBox(
-                                  width: 18, height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.camera_alt_rounded,
-                                  color: Colors.white, size: 19),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Flexible(child: Text(
-                    name.text.trim().isEmpty ? 'الملف الشخصي' : name.text.trim(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  )),
-                  if (_isVerifiedDeveloper(_db.auth.currentUser)) ...[
-                    const SizedBox(width: 7),
-                    const _DeveloperBadge(),
-                  ],
-                ]),
-                const SizedBox(height: 18),
-                TextField(
-                  controller: name,
-                  maxLength: 40,
-                  decoration: const InputDecoration(labelText: 'اسم الطالب'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: bio,
-                  maxLength: 180,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'نبذة عنك (اختياري)',
-                    hintText: 'اكتب نبذة دراسية قصيرة عنك',
-                    alignLabelWithHint: true,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: age,
-                  decoration: const InputDecoration(labelText: 'الفئة العمرية'),
-                  items: const [
-                    DropdownMenuItem(value: 'under_13', child: Text('أقل من 13 سنة')),
-                    DropdownMenuItem(value: '13_15', child: Text('13–15 سنة')),
-                    DropdownMenuItem(value: '16_17', child: Text('16–17 سنة')),
-                    DropdownMenuItem(value: '18_plus', child: Text('18 سنة فأكثر')),
-                  ],
-                  onChanged: (v) => setState(() => age = v ?? age),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: stage,
-                  decoration: const InputDecoration(labelText: 'المرحلة الدراسية'),
-                  items: AcademicStage.values
-                      .map((s) => DropdownMenuItem(value: s.label, child: Text(s.label)))
-                      .toList(),
-                  onChanged: (v) => setState(() => stage = v ?? stage),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String?>(
-                  initialValue: gender,
-                  decoration: const InputDecoration(labelText: 'الجنس (اختياري)'),
-                  items: const [
-                    DropdownMenuItem<String?>(value: null, child: Text('عدم التحديد')),
-                    DropdownMenuItem<String?>(value: 'male', child: Text('ذكر')),
-                    DropdownMenuItem<String?>(value: 'female', child: Text('أنثى')),
-                  ],
-                  onChanged: (v) => setState(() => gender = v),
-                ),
-                const SizedBox(height: 20),
-                FilledButton.icon(
-                  onPressed: saving || uploadingAvatar ? null : saveProfile,
-                  icon: saving
-                      ? const SizedBox(width: 18, height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.save_rounded),
-                  label: Text(saving ? 'جارٍ الحفظ...' : 'حفظ البيانات'),
-                ),
-              ],
-            ),
-    ),
-  );
+class StudentDirectMessageScreen extends StatefulWidget{
+  final String otherUserId,otherName;final String? otherAvatar;
+  const StudentDirectMessageScreen({super.key,required this.otherUserId,required this.otherName,this.otherAvatar});
+  @override State<StudentDirectMessageScreen> createState()=>_StudentDirectMessageScreenState();
+}
+class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>{
+  final input=TextEditingController();bool sending=false;String? get me=>_db.auth.currentUser?.id;
+  Stream<List<Map<String,dynamic>>> stream()=>_db.from('direct_messages').stream(primaryKey:['id']).order('created_at').map((items)=>items.where((r)=>(r['sender_id']==me&&r['receiver_id']==widget.otherUserId)||(r['sender_id']==widget.otherUserId&&r['receiver_id']==me)).toList());
+  Future<void> send()async{final v=input.text.trim();if(v.isEmpty||me==null||sending)return;if(v.length>2000){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الرسالة طويلة جداً.')));return;}setState(()=>sending=true);try{await _db.from('direct_messages').insert({'sender_id':me,'receiver_id':widget.otherUserId,'body':v});input.clear();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إرسال الرسالة: $e')));}finally{if(mounted)setState(()=>sending=false);}}
+  @override void dispose(){input.dispose();super.dispose();}
+  @override Widget build(BuildContext context){final c=Theme.of(context).colorScheme;return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppBar(title:Text(widget.otherName)),body:Column(children:[
+    Expanded(child:StreamBuilder<List<Map<String,dynamic>>>(stream:stream(),builder:(ctx,s){if(s.hasError)return Center(child:Text('تعذر تحميل المحادثة: ${s.error}'));if(!s.hasData)return const Center(child:CircularProgressIndicator());final l=s.data!;if(l.isEmpty)return const Center(child:Text('ابدأ المحادثة برسالة ترحيبية 👋'));return ListView.builder(reverse:true,padding:const EdgeInsets.all(14),itemCount:l.length,itemBuilder:(ctx,i){final r=l[l.length-1-i];final mine=r['sender_id']==me;return Align(alignment:mine?Alignment.centerRight:Alignment.centerLeft,child:Container(margin:const EdgeInsets.symmetric(vertical:4),padding:const EdgeInsets.all(12),constraints:const BoxConstraints(maxWidth:300),decoration:BoxDecoration(color:mine?c.primary:c.surfaceContainerHighest,borderRadius:BorderRadius.circular(16)),child:Text(r['body']?.toString()??'',style:TextStyle(color:mine?c.onPrimary:c.onSurface))));});})),
+    SafeArea(top:false,child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[Expanded(child:TextField(controller:input,minLines:1,maxLines:4,textInputAction:TextInputAction.send,onSubmitted:(_)=>send(),decoration:InputDecoration(hintText:'اكتب رسالتك...',filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(24),borderSide:BorderSide.none)))),IconButton.filled(onPressed:sending?null:send,icon:sending?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.send))]))),
+  ])));}
 }
 
 class StudentChatScreen extends StatefulWidget {
