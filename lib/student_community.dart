@@ -1197,7 +1197,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
           ],
         )]),
       ),
-    );
+    ));
   }
 }
 
