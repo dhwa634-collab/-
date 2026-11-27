@@ -730,7 +730,6 @@ class StudyApp extends StatelessWidget {
       ThemeController.eyeCare,
     ]),
     builder: (context, _) {
-      final isDark = ThemeController.isDark.value;
       final palette = ThemeController.paletteColors[
         ThemeController.paletteIndex.value.clamp(0, 3).toInt()];
       final fontScale = ThemeController.fontScale.value;
