@@ -1406,7 +1406,25 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (_dmSelectionMode) Row(mainAxisSize:MainAxisSize.min,children:[Icon(_selectedDmIds.contains(row['id'].toString())?Icons.check_circle:Icons.radio_button_unchecked,color:_selectedDmIds.contains(row['id'].toString())?colors.primary:colors.outline,size:19),const SizedBox(width:5)]),
+                                  if (_dmSelectionMode)
+                                    AnimatedSwitcher(
+                                      duration: const Duration(milliseconds: 190),
+                                      switchInCurve: Curves.easeOutCubic,
+                                      switchOutCurve: Curves.easeInCubic,
+                                      transitionBuilder: (child, animation) => ScaleTransition(
+                                        scale: animation,
+                                        child: FadeTransition(opacity: animation, child: child),
+                                      ),
+                                      child: Icon(
+                                        _selectedDmIds.contains(row['id'].toString())
+                                          ? Icons.check_circle_rounded
+                                          : Icons.radio_button_unchecked_rounded,
+                                        key: ValueKey(_selectedDmIds.contains(row['id'].toString())),
+                                        color: _selectedDmIds.contains(row['id'].toString())
+                                          ? colors.primary : colors.outline,
+                                        size: 19,
+                                      ),
+                                    ),
                                   Text(
                                     senderName,
                                     style: TextStyle(
@@ -2581,7 +2599,28 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          if (_groupSelectionMode) Padding(padding:const EdgeInsets.symmetric(horizontal:5),child:Icon(_selectedGroupMessageIds.contains(row['id'].toString())?Icons.check_circle:Icons.radio_button_unchecked,color:_selectedGroupMessageIds.contains(row['id'].toString())?colors.primary:colors.outline,size:22)),
+                          if (_groupSelectionMode)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 5),
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 190),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder: (child, animation) => ScaleTransition(
+                                  scale: animation,
+                                  child: FadeTransition(opacity: animation, child: child),
+                                ),
+                                child: Icon(
+                                  _selectedGroupMessageIds.contains(row['id'].toString())
+                                    ? Icons.check_circle_rounded
+                                    : Icons.radio_button_unchecked_rounded,
+                                  key: ValueKey(_selectedGroupMessageIds.contains(row['id'].toString())),
+                                  color: _selectedGroupMessageIds.contains(row['id'].toString())
+                                    ? colors.primary : colors.outline,
+                                  size: 22,
+                                ),
+                              ),
+                            ),
                           if (!mine) ...[
                             InkWell(
                               customBorder: const CircleBorder(),
