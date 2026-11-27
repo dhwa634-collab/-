@@ -3481,8 +3481,15 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
 
   @override Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final selected = _selectedConversationId == null ? null :
-      _conversations.where((e) => e['user_id'].toString() == _selectedConversationId).firstOrNull;
+    Map<String, dynamic>? selected;
+    if (_selectedConversationId != null) {
+      for (final item in _conversations) {
+        if (item['user_id'].toString() == _selectedConversationId) {
+          selected = item;
+          break;
+        }
+      }
+    }
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       appBar: AppBar(
         title: Text(_selectedConversationId == null ? 'المحادثات الخاصة' : 'إجراءات المحادثة'),
