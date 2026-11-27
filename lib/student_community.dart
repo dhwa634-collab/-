@@ -839,7 +839,9 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         if (matchedRemoteIds.contains(remoteId) ||
             candidate['sender_id'] != row['sender_id'] ||
             candidate['receiver_id'] != row['receiver_id'] ||
-            candidate['body'] != row['body']) continue;
+            candidate['body'] != row['body']) {
+          continue;
+        }
         final serverTime = DateTime.tryParse(candidate['created_at']?.toString() ?? '');
         if (localTime == null || serverTime == null) continue;
         final delta = serverTime.difference(localTime).inSeconds.abs();
@@ -932,6 +934,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     if (_dmRecording || sending || blocked) return;
     try {
       if (!await _dmRecorder.hasPermission()) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اسمح للتطبيق باستخدام المايكروفون لتسجيل رسالة صوتية.')));
         return;
       }
@@ -1344,13 +1347,10 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Flexible(
-                                        child: Text(
+                                        child: _buildDirectMedia(
                                           row['body']?.toString() ?? '',
-                                          style: TextStyle(
-                                            color: mine
-                                                ? colors.onPrimary
-                                                : colors.onSurface,
-                                          ),
+                                          (row['_render_id'] ?? row['id']).toString(),
+                                          mine ? colors.onPrimary : colors.onSurface,
                                         ),
                                       ),
                                       if (row['edited_at'] != null)
