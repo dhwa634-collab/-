@@ -2610,8 +2610,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         ),
       );
     } catch (error) {
-      if (mounted) messenger.showSnackBar(
-        SnackBar(content: Text('تعذر تحميل أعضاء الغرفة: $error')));
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('تعذر تحميل أعضاء الغرفة: $error')),
+        );
+      }
     }
   }
 
@@ -3447,9 +3450,15 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
     if (!mounted) return;
     setState(() => _selectedConversationId = null);
     await _load();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(muted ? 'تم إلغاء كتم المحادثة.' : 'تم كتم إشعارات هذه المحادثة على هذا الجهاز.'),
-    ));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            muted ? 'تم إلغاء كتم المحادثة.' : 'تم كتم إشعارات هذه المحادثة على هذا الجهاز.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _deleteConversation() async {
