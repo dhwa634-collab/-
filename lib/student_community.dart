@@ -1213,7 +1213,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     _typingIdleTimer?.cancel();
     _typingExpiryTimer?.cancel();
     final typingChannel = _typingChannel;
-    if (typingChannel != null) unawaited(typingChannel.unsubscribe());
+    if (typingChannel != null) unawaited(() async { await typingChannel.unsubscribe(); }());
     super.dispose();
   }
   @override
@@ -2928,7 +2928,7 @@ class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderState
       animation: _controller,
       builder: (context, child) => Row(mainAxisSize: MainAxisSize.min,
         children: List.generate(3, (index) {
-          final phase = ((_controller.value * 3) - index * 0.55).clamp(0.0, 1.0);
+          final phase = ((_controller.value * 3) - index * 0.55).clamp(0.0, 1.0).toDouble();
           return Container(width: 5, height: 5,
             margin: const EdgeInsets.symmetric(horizontal: 2),
             decoration: BoxDecoration(color: color.withValues(alpha: 0.35 + phase * 0.65),
