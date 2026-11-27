@@ -32,27 +32,37 @@ class _DeveloperBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = onPrimary
-        ? Colors.white
-        : Theme.of(context).colorScheme.primary;
+    const blue = Color(0xFF258BFF);
     return Tooltip(
       message: 'حساب المطوّر الرسمي',
       child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 4 : 8,
+          horizontal: compact ? 4 : 9,
           vertical: compact ? 2 : 4,
         ),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: onPrimary ? 0.18 : 0.12),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF39A8FF), Color(0xFF1769E8), Color(0xFF0647B8)],
+          ),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: onPrimary ? 0.55 : 0.28)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.72), width: 0.8),
+          boxShadow: [
+            BoxShadow(
+              color: blue.withValues(alpha: onPrimary ? 0.42 : 0.24),
+              blurRadius: compact ? 5 : 9,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.verified_rounded, size: compact ? 13 : 16, color: color),
+          Icon(Icons.verified_rounded,
+            size: compact ? 14 : 16, color: Colors.white),
           if (!compact) ...[
             const SizedBox(width: 4),
-            Text('المطوّر', style: TextStyle(
-              color: color, fontSize: 11, fontWeight: FontWeight.w800,
+            const Text('المطوّر', style: TextStyle(
+              color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900,
             )),
           ],
         ]),
@@ -1299,8 +1309,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: dark
-                  ? const [Color(0xFF0C1B2D), Color(0xFF132B46), Color(0xFF102238)]
-                  : const [Color(0xFFEAF3FF), Color(0xFFDCEAFF), Color(0xFFF2F7FF)],
+                  ? const [Color(0xFF071326), Color(0xFF0A1A31), Color(0xFF0B203B)]
+                  : const [Color(0xFFF3F7FC), Color(0xFFE8F0FA), Color(0xFFF7F9FD)],
             ),
           ),
           child: Stack(children: [
@@ -2528,8 +2538,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: dark
-                ? const [Color(0xFF0C1B2D), Color(0xFF132B46), Color(0xFF102238)]
-                : const [Color(0xFFEAF3FF), Color(0xFFDCEAFF), Color(0xFFF2F7FF)],
+                ? const [Color(0xFF071326), Color(0xFF0A1A31), Color(0xFF0B203B)]
+                : const [Color(0xFFF3F7FC), Color(0xFFE8F0FA), Color(0xFFF7F9FD)],
           ),
         ),
         child: Stack(children: [
@@ -3055,38 +3065,70 @@ class _StudyChatWallpaperPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final ink = dark ? const Color(0xFF9FC7F2) : const Color(0xFF5279A5);
-    final opacity = dark ? 0.085 : 0.095;
-    final paint = Paint()
-      ..color = ink.withValues(alpha: opacity)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    final symbols = <String>['✎', '▱', '△', '⌁', '▤', '∑', '◌', '⌘'];
-    for (var i = 0; i < 18; i++) {
-      final x = (i % 4) * (size.width / 3.6) + 12;
-      final y = (i ~/ 4) * 145.0 + 32;
-      canvas.save();
-      canvas.translate(x, y);
-      canvas.rotate((i.isEven ? -1 : 1) * 0.16);
-      final tp = TextPainter(
-        text: TextSpan(
-          text: symbols[i % symbols.length],
-          style: TextStyle(
-            fontSize: i.isEven ? 31 : 25,
-            color: ink.withValues(alpha: opacity),
-            fontWeight: FontWeight.w500,
+    final ink = dark ? const Color(0xFF8FA9D0) : const Color(0xFF55749B);
+    final opacity = dark ? 0.19 : 0.14;
+    final icons = <IconData>[
+      Icons.menu_book_outlined,
+      Icons.science_outlined,
+      Icons.school_outlined,
+      Icons.edit_outlined,
+      Icons.lightbulb_outline_rounded,
+      Icons.calculate_outlined,
+      Icons.auto_stories_outlined,
+      Icons.straighten_outlined,
+      Icons.biotech_outlined,
+      Icons.book_outlined,
+      Icons.functions_rounded,
+      Icons.draw_outlined,
+    ];
+    final cellWidth = size.width / 2.35;
+    final cellHeight = size.height / 4.15;
+    final iconStyle = TextStyle(
+      fontFamily: 'MaterialIcons',
+      color: ink.withValues(alpha: opacity),
+      fontSize: (size.width * 0.105).clamp(30.0, 54.0),
+    );
+    final decorationStyle = TextStyle(
+      color: ink.withValues(alpha: opacity * 0.92),
+      fontSize: 25,
+      fontWeight: FontWeight.w300,
+    );
+
+    // Staggered school-themed doodles based on the supplied reference image.
+    for (var row = 0; row < 5; row++) {
+      for (var col = 0; col < 3; col++) {
+        final index = (row * 3 + col) % icons.length;
+        final x = col * cellWidth + (row.isOdd ? cellWidth * 0.28 : 8);
+        final y = row * cellHeight + 12;
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(((row + col).isEven ? -1 : 1) * 0.13);
+        final iconPainter = TextPainter(
+          text: TextSpan(
+            text: String.fromCharCode(icons[index].codePoint),
+            style: iconStyle,
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset.zero);
-      canvas.drawCircle(const Offset(8, 8), 2.2, paint);
-      canvas.restore();
+          textDirection: TextDirection.ltr,
+        )..layout();
+        iconPainter.paint(canvas, Offset.zero);
+        canvas.restore();
+
+        final ornament = ['☆', '+', '÷', '×', '·', '⌁'][(row * 2 + col) % 6];
+        final ornamentPainter = TextPainter(
+          text: TextSpan(text: ornament, style: decorationStyle),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        ornamentPainter.paint(
+          canvas,
+          Offset(x + cellWidth * 0.62, y + cellHeight * 0.53),
+        );
+      }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _StudyChatWallpaperPainter oldDelegate) => oldDelegate.dark != dark;
+  bool shouldRepaint(covariant _StudyChatWallpaperPainter oldDelegate) =>
+      oldDelegate.dark != dark;
 }
 
 /// Current private conversation, used to suppress duplicate live banners while it is open.
