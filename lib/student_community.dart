@@ -813,16 +813,35 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       for (final row in remote) row['id'].toString(): row,
     };
     final matchedLocalIds = <String>{};
+    final matchedRemoteIds = <String>{};
     for (final row in _optimisticMessages) {
       final id = row['id'].toString();
       if (merged.containsKey(id)) continue;
       final localTime = DateTime.tryParse(row['created_at']?.toString() ?? '');
-      final match = remote.any((candidate) {
-        if (candidate['sender_id'] != row['sender_id'] || candidate['receiver_id'] != row['receiver_id'] || candidate['body'] != row['body']) return false;
+      Map<String, dynamic>? match;
+      var bestDelta = 31;
+      for (final candidate in remote) {
+        final remoteId = candidate['id'].toString();
+        if (matchedRemoteIds.contains(remoteId) ||
+            candidate['sender_id'] != row['sender_id'] ||
+            candidate['receiver_id'] != row['receiver_id'] ||
+            candidate['body'] != row['body']) continue;
         final serverTime = DateTime.tryParse(candidate['created_at']?.toString() ?? '');
-        return localTime != null && serverTime != null && serverTime.difference(localTime).inSeconds.abs() <= 30;
-      });
-      if (match) { matchedLocalIds.add(id); } else { merged[id] = row; }
+        if (localTime == null || serverTime == null) continue;
+        final delta = serverTime.difference(localTime).inSeconds.abs();
+        if (delta <= 30 && delta < bestDelta) {
+          bestDelta = delta;
+          match = candidate;
+        }
+      }
+      if (match != null) {
+        final remoteId = match['id'].toString();
+        matchedLocalIds.add(id);
+        matchedRemoteIds.add(remoteId);
+        merged[remoteId] = {...match, '_render_id': id};
+      } else {
+        merged[id] = row;
+      }
     }
     final result = merged.values.toList()
       ..sort((a, b) => (a['created_at'] ?? '').toString()
@@ -1079,7 +1098,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                             ? Alignment.centerLeft
                             : Alignment.centerRight,
                         child: TweenAnimationBuilder<double>(
-                          key: ValueKey(row['id']),
+                          key: ValueKey(row['_render_id'] ?? row['id']),
                           tween: Tween<double>(begin: 0, end: 1),
                           duration: const Duration(milliseconds: 360),
                           curve: Curves.easeOutCubic,
@@ -1438,6 +1457,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   String _profileCacheKey = '';
   Future<Map<String, Map<String, dynamic>>>? _profilesFuture;
   bool sending = false;
+  final Set<String> _deletingGroupMessageIds = {};
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -1876,8 +1896,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       if (ok == true) {
         final userId = _db.auth.currentUser?.id;
         if (userId == null) { toast('انتهت جلسة تسجيل الدخول.'); return; }
-        try { await _db.from('chat_messages').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', row['id']).eq('user_id', userId); }
-        catch (e) { toast('تعذر حذف الرسالة: $e'); }
+        final id = row['id'].toString();
+        if (mounted) setState(() => _deletingGroupMessageIds.add(id));
+        await Future<void>.delayed(const Duration(milliseconds: 360));
+        try { await _db.from('chat_messages').delete().eq('id', id).eq('user_id', userId); }
+        catch (e) {
+          if (mounted) setState(() => _deletingGroupMessageIds.remove(id));
+          toast('تعذر حذف الرسالة: $e');
+        }
       }
     }
     if (action == 'report') await report(row);
