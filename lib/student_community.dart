@@ -1423,22 +1423,25 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (_dmSelectionMode)
-                                    AnimatedSwitcher(
-                                      duration: const Duration(milliseconds: 190),
-                                      switchInCurve: Curves.easeOutCubic,
-                                      switchOutCurve: Curves.easeInCubic,
-                                      transitionBuilder: (child, animation) => ScaleTransition(
-                                        scale: animation,
-                                        child: FadeTransition(opacity: animation, child: child),
-                                      ),
-                                      child: Icon(
-                                        _selectedDmIds.contains(row['id'].toString())
-                                          ? Icons.check_circle_rounded
-                                          : Icons.radio_button_unchecked_rounded,
-                                        key: ValueKey(_selectedDmIds.contains(row['id'].toString())),
-                                        color: _selectedDmIds.contains(row['id'].toString())
-                                          ? colors.primary : colors.outline,
-                                        size: 19,
+                                    Transform.translate(
+                                      offset: const Offset(-25, 22),
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 190),
+                                        switchInCurve: Curves.easeOutCubic,
+                                        switchOutCurve: Curves.easeInCubic,
+                                        transitionBuilder: (child, animation) => ScaleTransition(
+                                          scale: animation,
+                                          child: FadeTransition(opacity: animation, child: child),
+                                        ),
+                                        child: Icon(
+                                          _selectedDmIds.contains(row['id'].toString())
+                                            ? Icons.check_circle_rounded
+                                            : Icons.radio_button_unchecked_rounded,
+                                          key: ValueKey(_selectedDmIds.contains(row['id'].toString())),
+                                          color: _selectedDmIds.contains(row['id'].toString())
+                                            ? colors.primary : colors.outline,
+                                          size: 21,
+                                        ),
                                       ),
                                     ),
                                   Container(
@@ -2752,6 +2755,15 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       appBar: AppBar(backgroundColor: dark ? const Color(0xFF142B46) : colors.surface, foregroundColor: dark ? Colors.white : colors.onSurface, elevation: 0,
         leading: _groupSelectionMode ? IconButton(onPressed:()=>setState(()=>_selectedGroupMessageIds.clear()),icon:const Icon(Icons.close_rounded)) : null,
         title: _groupSelectionMode ? Text('تم تحديد ${_selectedGroupMessageIds.length} رسالة') : Row(children: [
+          const Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('غرفة الدردشة', style: TextStyle(fontWeight: FontWeight.w800)),
+              Text('محادثة جماعية للطلاب', style: TextStyle(fontSize: 11)),
+            ],
+          )),
+          const SizedBox(width: 9),
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: _showGroupMembers,
@@ -2763,11 +2775,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 9),
-          const Expanded(child: Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
-            Text('غرفة الدردشة',style:TextStyle(fontWeight:FontWeight.w800)),
-            Text('محادثة جماعية للطلاب',style:TextStyle(fontSize:11)),
-          ])),
         ]),
         actions: _groupSelectionMode ? [_selectionToolbar(_selectedGroupMessageIds.length,onClear:()=>setState(()=>_selectedGroupMessageIds.clear()),onDelete:_deleteSelectedGroupMessages,onCopy:_copySelectedGroupMessages,onEdit:_editSelectedGroupMessage,canEdit:_selectedGroupMessages.length==1&&_selectedGroupMessages.first['user_id']==_db.auth.currentUser?.id&&_selectedGroupMessages.first['message_type']=='text',colors:colors)] : null,
       ),
@@ -2906,7 +2913,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          if (_groupSelectionMode)
+                          if (_groupSelectionMode && mine)
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 5),
                               child: AnimatedSwitcher(
