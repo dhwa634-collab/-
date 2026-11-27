@@ -726,6 +726,14 @@ class StudentDirectMessageScreen extends StatefulWidget{
   @override State<StudentDirectMessageScreen> createState()=>_StudentDirectMessageScreenState();
 }
 class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>{
+  final Set<String> _selectedDmIds = {};
+  final Map<String,Map<String,dynamic>> _selectedDmRows = {};
+  final Map<String,List<Map<String,dynamic>>> _dmReactions = {};
+  late final StreamSubscription<List<Map<String,dynamic>>> _dmReactionSubscription;
+  bool get _dmSelectionMode => _selectedDmIds.isNotEmpty;
+  Widget _dmSelectionToolbar(ColorScheme colors) => Row(mainAxisSize:MainAxisSize.min,children:[IconButton(tooltip:'إلغاء التحديد',onPressed:()=>setState(()=>_selectedDmIds.clear()),icon:const Icon(Icons.close_rounded)),Text(_selectedDmIds.length.toString(),style:const TextStyle(fontWeight:FontWeight.w900)),IconButton(tooltip:'نسخ',onPressed:_copySelectedDm,icon:const Icon(Icons.copy_rounded)),IconButton(tooltip:'تعديل',onPressed:_canEditSelectedDm?_editSelectedDm:null,icon:const Icon(Icons.edit_rounded)),IconButton(tooltip:'حذف',onPressed:_deleteSelectedDm,icon:Icon(Icons.delete_outline_rounded,color:colors.error))]);
+  bool get _canEditSelectedDm => _selectedDmIds.length==1 && _selectedDmRows[_selectedDmIds.first]?['sender_id']==me && !((_selectedDmRows[_selectedDmIds.first]?['body']?.toString()??'').startsWith('[['));
+
   final input=TextEditingController();
   final FocusNode inputFocus = FocusNode();
   final ImagePicker _dmImagePicker = ImagePicker();
@@ -746,7 +754,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     final next = StudentPresenceService.onlineUserIds.value.contains(widget.otherUserId);
     if (mounted && next != _otherOnline) setState(() => _otherOnline = next);
   }
-  @override void initState(){super.initState();_resolvedOtherName=widget.otherName;_otherOnline=StudentPresenceService.onlineUserIds.value.contains(widget.otherUserId);StudentPresenceService.onlineUserIds.addListener(_presenceChanged);_loadOtherProfileName();_loadParticipantNames();activeDirectMessageUserId.value=widget.otherUserId;messages=stream();messageSubscription=messages.listen((_) { markIncomingAsRead(); _scrollToLatest(); });blockSubscription=_db.from('user_blocks').stream(primaryKey:['blocker_id','blocked_id']).listen((rows){final user=me;final next=user==null||rows.any((r)=>(r['blocker_id']==user&&r['blocked_id']==widget.otherUserId)||(r['blocker_id']==widget.otherUserId&&r['blocked_id']==user));if(mounted&&blocked!=next)setState(()=>blocked=next);});refreshBlockStatus();markIncomingAsRead();}
+  @override void initState(){super.initState();_resolvedOtherName=widget.otherName;_otherOnline=StudentPresenceService.onlineUserIds.value.contains(widget.otherUserId);StudentPresenceService.onlineUserIds.addListener(_presenceChanged);_loadOtherProfileName();_loadParticipantNames();activeDirectMessageUserId.value=widget.otherUserId;messages=stream();messageSubscription=messages.listen((_) { markIncomingAsRead(); _scrollToLatest(); });_dmReactionSubscription=_db.from('direct_message_reactions').stream(primaryKey:['id']).listen((rows){if(!mounted)return;final grouped=<String,List<Map<String,dynamic>>>{};for(final r in rows){final id=r['direct_message_id']?.toString();if(id!=null)grouped.putIfAbsent(id,()=>[]).add(r);}setState(()=>_dmReactions..clear()..addAll(grouped));});blockSubscription=_db.from('user_blocks').stream(primaryKey:['blocker_id','blocked_id']).listen((rows){final user=me;final next=user==null||rows.any((r)=>(r['blocker_id']==user&&r['blocked_id']==widget.otherUserId)||(r['blocker_id']==widget.otherUserId&&r['blocked_id']==user));if(mounted&&blocked!=next)setState(()=>blocked=next);});refreshBlockStatus();markIncomingAsRead();}
   Future<void> _loadOtherProfileName() async {
     try {
       final rows = await _db.rpc('get_student_public_profile_v1', params: {'p_user_id': widget.otherUserId});
@@ -779,6 +787,12 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
   Stream<List<Map<String,dynamic>>> stream()=>_db.from('direct_messages').stream(primaryKey:['id']).order('created_at',ascending:true).map((items){final seen=<String>{};return items.where((r)=>((r['sender_id']==me&&r['receiver_id']==widget.otherUserId)||(r['sender_id']==widget.otherUserId&&r['receiver_id']==me))&&seen.add(r['id'].toString())).toList();});
   Future<bool> refreshBlockStatus()async{final user=me;if(user==null)return true;try{final rows=await _db.from('user_blocks').select('blocker_id,blocked_id').or('and(blocker_id.eq.$user,blocked_id.eq.${widget.otherUserId}),and(blocker_id.eq.${widget.otherUserId},blocked_id.eq.$user)');final value=(rows as List).isNotEmpty;if(mounted)setState(()=>blocked=value);return value;}catch(_){return blocked;}}
   Future<void> markIncomingAsRead()async{final user=me;if(user==null)return;try{await _db.rpc('mark_direct_messages_read',params:{'p_sender_id':widget.otherUserId});}catch(error){debugPrint('Mark private messages read failed: $error');}}
+  void _toggleDmSelection(Map<String,dynamic> row){final id=row['id']?.toString();if(id==null||id.startsWith('local-'))return;setState(()=>_selectedDmIds.contains(id)?(_selectedDmIds.remove(id),_selectedDmRows.remove(id)):(_selectedDmIds.add(id),_selectedDmRows[id]=Map<String,dynamic>.from(row)));}
+  Future<void> _copySelectedDm() async {final text=_selectedDmIds.map((id)=>(_selectedDmRows[id]?['body']??'').toString()).where((v)=>v.trim().isNotEmpty&&!v.startsWith('[[')).join('\n');if(text.isEmpty)return;await Clipboard.setData(ClipboardData(text:text));if(mounted){setState(()=>_selectedDmIds.clear());_selectedDmRows.clear();ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم نسخ الرسائل المحددة.')));}}
+  Future<void> _deleteSelectedDm() async {final ids=_selectedDmIds.where((id)=>_selectedDmRows[id]?['sender_id']==me).toList();if(ids.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('يمكنك حذف رسائلك أنت فقط.')));return;}final ok=await showDialog<bool>(context:context,builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('حذف الرسائل المحددة؟'),content:Text('سيتم حذف '+ids.length.toString()+' رسالة.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف'))])));if(ok!=true)return;setState(()=>_deletingMessageIds.addAll(ids));await Future<void>.delayed(const Duration(milliseconds:360));try{await _db.from('direct_messages').delete().inFilter('id',ids).eq('sender_id',me!);if(!mounted)return;setState(()=>_selectedDmIds.clear());_selectedDmRows.clear();ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حذف الرسائل المحددة.')));}catch(e){if(mounted){setState(()=>_deletingMessageIds.removeAll(ids));ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حذف الرسائل: $e')));}}}
+  Future<void> _editSelectedDm() async {if(!_canEditSelectedDm)return;final row=_selectedDmRows[_selectedDmIds.first]!;final ctl=TextEditingController(text:row['body']?.toString()??'');final value=await showDialog<String>(context:context,builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('تعديل الرسالة'),content:TextField(controller:ctl,autofocus:true,maxLines:5,maxLength:2000),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,ctl.text.trim()),child:const Text('حفظ'))])));ctl.dispose();if(value==null||value.isEmpty||value==row['body'])return;try{await _db.from('direct_messages').update({'body':value,'edited_at':DateTime.now().toUtc().toIso8601String()}).eq('id',row['id']).eq('sender_id',me!);if(mounted){setState(()=>_selectedDmIds.clear());_selectedDmRows.clear();}}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تعديل الرسالة: $e')));}}
+  Future<void> _showDmReactionPicker(Map<String,dynamic> row) async {final id=row['id']?.toString(),user=me;if(id==null||user==null||id.startsWith('local-'))return;final emoji=await showModalBottomSheet<String>(context:context,builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:SafeArea(child:Padding(padding:const EdgeInsets.all(18),child:Wrap(alignment:WrapAlignment.center,spacing:12,children:['❤️','👍','😂','😮','😢','🔥','👏','🥰'].map((e)=>InkWell(onTap:()=>Navigator.pop(ctx,e),child:Padding(padding:const EdgeInsets.all(8),child:Text(e,style:const TextStyle(fontSize:30))))).toList())))));if(emoji==null||!mounted)return;try{final old=await _db.from('direct_message_reactions').select('id,emoji').eq('direct_message_id',id).eq('user_id',user).maybeSingle();if(old?['emoji']==emoji){await _db.from('direct_message_reactions').delete().eq('id',old!['id']).eq('user_id',user);}else{await _db.from('direct_message_reactions').upsert({'direct_message_id':id,'user_id':user,'emoji':emoji},onConflict:'direct_message_id,user_id');}}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تسجيل التفاعل: $e')));}}
+  Widget _buildDmReactions(String id,ColorScheme colors){final list=_dmReactions[id]??const [];if(list.isEmpty)return const SizedBox.shrink();final counts=<String,int>{};final mine=<String>{};for(final r in list){final e=r['emoji']?.toString()??'';if(e.isEmpty)continue;counts[e]=(counts[e]??0)+1;if(r['user_id']==me)mine.add(e);}return Padding(padding:const EdgeInsets.only(top:5),child:Wrap(spacing:5,children:counts.entries.map((e)=>InkWell(onTap:()async{final user=me;if(user==null)return;try{final old=await _db.from('direct_message_reactions').select('id,emoji').eq('direct_message_id',id).eq('user_id',user).maybeSingle();if(old?['emoji']==e.key){await _db.from('direct_message_reactions').delete().eq('id',old!['id']).eq('user_id',user);}else{await _db.from('direct_message_reactions').upsert({'direct_message_id':id,'user_id':user,'emoji':e.key},onConflict:'direct_message_id,user_id');}}catch(err){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تحديث التفاعل: $err')));}},child:Container(padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),decoration:BoxDecoration(color:mine.contains(e.key)?colors.primaryContainer:colors.surfaceContainerHighest,borderRadius:BorderRadius.circular(15)),child:Text(e.key+' '+e.value.toString(),style:TextStyle(color:colors.onSurface,fontSize:12))))).toList()));}
   Future<void> _privateMessageActions(Map<String,dynamic> row) async {
     if (row['sender_id'] != me) return;
     final action = await showModalBottomSheet<String>(context: context, builder: (ctx) =>
@@ -1129,6 +1143,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);
     messageSubscription.cancel();
     blockSubscription.cancel();
+    _dmReactionSubscription.cancel();
     _scrollController.dispose();
     _dmRecordTimer?.cancel();
     unawaited(_dmRecorder.dispose());
@@ -1151,7 +1166,9 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         appBar: AppBar(
           backgroundColor: dark ? const Color(0xFF142B46) : colors.surface,
           foregroundColor: dark ? Colors.white : colors.onSurface,
-          title: Row(
+          leading: _dmSelectionMode ? IconButton(onPressed:()=>setState(()=>_selectedDmIds.clear()),icon:const Icon(Icons.close_rounded)) : null,
+          actions: _dmSelectionMode ? [_dmSelectionToolbar(colors)] : null,
+          title: _dmSelectionMode ? Text('تم تحديد '+_selectedDmIds.length.toString()+' رسالة') : Row(
             children: [
               InkWell(
                 customBorder: const CircleBorder(),
@@ -1294,9 +1311,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                             ),
                           ),
                           child: GestureDetector(
-                            onLongPress: mine
-                                ? () => _privateMessageActions(row)
-                                : null,
+                            onTap: () => _dmSelectionMode ? _toggleDmSelection(row) : _showDmReactionPicker(row),
+                            onLongPress: () => _toggleDmSelection(row),
                             child: Container(
                               margin: const EdgeInsets.symmetric(vertical: 4),
                               padding: const EdgeInsets.all(12),
@@ -1331,6 +1347,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  if (_dmSelectionMode) Row(mainAxisSize:MainAxisSize.min,children:[Icon(_selectedDmIds.contains(row['id'].toString())?Icons.check_circle:Icons.radio_button_unchecked,color:_selectedDmIds.contains(row['id'].toString())?colors.primary:colors.outline,size:19),const SizedBox(width:5)]),
                                   Text(
                                     senderName,
                                     style: TextStyle(
@@ -1380,6 +1397,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                       ],
                                     ],
                                   ),
+                                  _buildDmReactions(row['id'].toString(),colors),
                                 ],
                               ),
                             ),
