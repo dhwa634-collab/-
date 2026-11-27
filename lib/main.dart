@@ -821,6 +821,8 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   OverlayEntry? _liveBannerEntry;
   Timer? _liveBannerTimer;
   bool _appForeground = true;
+  bool _offline = false;
+  Timer? _connectivityTimer;
   DateTime? _lastBackPressedAt;
 
   @override
@@ -831,6 +833,27 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     StudyNotificationService.instance.onNotificationTap = _handleNotificationTap;
     StudyNotificationService.instance.onAppResumed();
     _listenToUserNotifications();
+    _checkConnectivity();
+    _connectivityTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _checkConnectivity(),
+    );
+  }
+
+  Future<void> _checkConnectivity() async {
+    try {
+      final uri = Uri.parse('${SupabaseConfig.projectUrl}/auth/v1/health');
+      final response = await http.get(uri, headers: {
+        'apikey': SupabaseConfig.publishableKey,
+        'Accept': 'application/json',
+      }).timeout(const Duration(seconds: 4));
+      final connected = response.statusCode < 500;
+      if (mounted && _offline == connected) {
+        setState(() => _offline = !connected);
+      }
+    } catch (_) {
+      if (mounted && !_offline) setState(() => _offline = true);
+    }
   }
 
   void _listenToUserNotifications() {
@@ -1033,6 +1056,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   @override
   void dispose() {
     _notificationSubscription?.cancel();
+    _connectivityTimer?.cancel();
     _hideLiveBanner();
     StudyNotificationService.instance.onNotificationTap = null;
     WidgetsBinding.instance.removeObserver(this);
@@ -1058,27 +1082,65 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
       },
       child:Scaffold(
       body: SafeArea(
-        child: Stack(
-          fit: StackFit.expand,
+        child: Column(
           children: [
-            for (var index = 0; index < pages.length; index++)
-              Offstage(
-                offstage: tab != index,
-                child: TickerMode(
-                  enabled: tab == index,
-                  child: AnimatedOpacity(
-                    opacity: tab == index ? 1 : 0,
-                    duration: const Duration(milliseconds: 230),
-                    curve: Curves.easeOutCubic,
-                    child: AnimatedSlide(
-                      offset: tab == index ? Offset.zero : const Offset(0.018, 0),
-                      duration: const Duration(milliseconds: 230),
-                      curve: Curves.easeOutCubic,
-                      child: pages[index],
-                    ),
+            if (_offline)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(12, 8, 12, 5),
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: .88),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.error.withValues(alpha: .22),
                   ),
                 ),
+                child: Row(
+                  children: [
+                    Icon(Icons.cloud_off_rounded,
+                      size: 18, color: Theme.of(context).colorScheme.error),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('ليس متصل بالإنترنت — يمكنك استخدام الميزات المحفوظة على جهازك.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ))),
+                    IconButton(
+                      tooltip: 'إعادة المحاولة',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _checkConnectivity,
+                      icon: const Icon(Icons.refresh_rounded, size: 19),
+                    ),
+                  ],
+                ),
               ),
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  for (var index = 0; index < pages.length; index++)
+                    Offstage(
+                      offstage: tab != index,
+                      child: TickerMode(
+                        enabled: tab == index,
+                        child: AnimatedOpacity(
+                          opacity: tab == index ? 1 : 0,
+                          duration: const Duration(milliseconds: 230),
+                          curve: Curves.easeOutCubic,
+                          child: AnimatedSlide(
+                            offset: tab == index ? Offset.zero : const Offset(0.018, 0),
+                            duration: const Duration(milliseconds: 230),
+                            curve: Curves.easeOutCubic,
+                            child: pages[index],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
