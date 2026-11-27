@@ -168,7 +168,7 @@ class ThemeController {
     Color(0xFF302719),
   ];
 
-  static final ValueNotifier<bool> isDark = ValueNotifier<bool>(false);
+  static final ValueNotifier<bool> isDark = ValueNotifier<bool>(true);
   static final ValueNotifier<int> paletteIndex = ValueNotifier<int>(0);
   static final ValueNotifier<double> fontScale = ValueNotifier<double>(1.0);
   static final ValueNotifier<int> bookCardStyle = ValueNotifier<int>(0);
@@ -190,7 +190,8 @@ class ThemeController {
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    isDark.value = prefs.getBool(_key) ?? false;
+    isDark.value = true;
+    await prefs.setBool(_key, true);
     paletteIndex.value = (prefs.getInt(_paletteKey) ?? 0).clamp(0, 3).toInt();
     final savedScale = prefs.getDouble(_fontKey) ?? 1.0;
     fontScale.value = [0.95, 1.0, 1.08].contains(savedScale) ? savedScale : 1.0;
@@ -202,9 +203,9 @@ class ThemeController {
   }
 
   static Future<void> toggle(bool value) async {
-    isDark.value = value;
+    isDark.value = true;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_key, value);
+    await prefs.setBool(_key, true);
   }
 
   static Future<void> setPalette(int value) async {
@@ -244,7 +245,7 @@ class ThemeController {
   }
 
   static Future<void> restoreDefaults() async {
-    isDark.value = false;
+    isDark.value = true;
     paletteIndex.value = 0;
     fontScale.value = 1.0;
     bookCardStyle.value = 0;
@@ -252,7 +253,7 @@ class ThemeController {
     motionEnabled.value = true;
     eyeCare.value = false;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_key, false);
+    await prefs.setBool(_key, true);
     await prefs.setInt(_paletteKey, 0);
     await prefs.setDouble(_fontKey, 1.0);
     await prefs.setInt(_bookStyleKey, 0);
@@ -741,7 +742,7 @@ class StudyApp extends StatelessWidget {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'دليلك للنجاح',
-        themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+        themeMode: ThemeMode.dark,
         theme: ThemeData(
           useMaterial3: true,
           brightness: Brightness.light,
@@ -860,6 +861,14 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   Future<void> _showLiveNotification(Map<String,dynamic> row) async {
     final type = row['type']?.toString() ?? '';
     final actorId = row['actor_id']?.toString();
+    if (type == 'direct_message' && actorId != null &&
+        await StudentDirectInboxPreferences.isMuted(actorId)) {
+      try {
+        await Supabase.instance.client.rpc('mark_user_notification_read',
+          params: {'p_notification_id': row['id']});
+      } catch (_) {}
+      return;
+    }
     if (type == 'direct_message' && actorId != null &&
         activeDirectMessageUserId.value == actorId) {
       try {
@@ -1325,13 +1334,6 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
           },
         ),
         const _HomeProfileButton(),
-        ValueListenableBuilder<bool>(
-          valueListenable: ThemeController.isDark,
-          builder: (context, isDark, _) => IconButton(
-            tooltip: isDark ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي',
-            onPressed: () => ThemeController.toggle(!isDark),
-            icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded)),
-        ),
       ]),
       const HomeChatRoomEntryCard(),
       if (_showWelcome)
@@ -2520,7 +2522,7 @@ class PersonalizationScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text('تتغير ألوان الواجهة مع بقاء ألوان النصوص متوافقة مع الوضع النهاري والليلي.',
+                    Text('يمكنك تخصيص اللون الرئيسي مع بقاء الواجهة بالوضع الليلي المريح للعين.',
                       style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
                   ],
                 ),
