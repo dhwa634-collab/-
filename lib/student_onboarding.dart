@@ -95,7 +95,8 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
       }
       if (!mounted) return;
       setState(() {
-        _needsSetup = !complete;
+        _needsSetup = !complete &&
+            !(profile == null && (cachedForUser || legacyLocalProfile));
         _loading = false;
       });
     } catch (_) {
