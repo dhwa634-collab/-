@@ -2470,6 +2470,143 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
     finally { if (mounted) setState(() => sending = false); }
   }
+  Future<void> _showGroupMembers() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final raw = await _db.from('chat_messages')
+        .select('user_id')
+        .isFilter('deleted_at', null)
+        .isFilter('hidden_at', null)
+        .order('created_at', ascending: false)
+        .limit(500);
+      final ids = (raw as List).whereType<Map>()
+        .map((row) => row['user_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty).toSet();
+
+      Map<String, dynamic>? developer;
+      try {
+        final found = await _db.rpc('search_student_profiles_v1', params: {
+          'p_query': '1', 'p_stage': null, 'p_user_id': null, 'p_limit': 50,
+        });
+        for (final row in (found as List).whereType<Map>()) {
+          final profile = Map<String, dynamic>.from(row);
+          if (profile['is_developer'] == true || profile['username']?.toString() == '1') {
+            developer = profile;
+            final id = profile['user_id']?.toString();
+            if (id != null && id.isNotEmpty) ids.add(id);
+            break;
+          }
+        }
+      } catch (_) {}
+
+      final profiles = <String, Map<String, dynamic>>{};
+      if (ids.isNotEmpty) {
+        final result = await _db.rpc('get_student_chat_profiles_v1',
+          params: {'p_user_ids': ids.toList()});
+        for (final row in (result as List).whereType<Map>()) {
+          final profile = Map<String, dynamic>.from(row);
+          profiles[profile['user_id'].toString()] = profile;
+        }
+      }
+      final online = StudentPresenceService.onlineUserIds.value;
+      final participants = profiles.values.toList();
+      final devId = developer?['user_id']?.toString();
+      participants.removeWhere((p) => p['user_id']?.toString() == devId);
+      participants.sort((a, b) {
+        final aOnline = online.contains(a['user_id']?.toString());
+        final bOnline = online.contains(b['user_id']?.toString());
+        return (bOnline ? 1 : 0).compareTo(aOnline ? 1 : 0);
+      });
+      if (!mounted) return;
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (sheetContext) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: SafeArea(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(sheetContext).height * 0.72,
+              child: Column(children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+                  child: Row(children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(9),
+                      child: SvgPicture.asset('assets/brand/app_icon.svg', width: 34, height: 34),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(child: Text('أعضاء غرفة الدردشة',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900))),
+                    Text('${participants.length + 1}', style: TextStyle(
+                      color: Theme.of(sheetContext).colorScheme.primary,
+                      fontWeight: FontWeight.w900)),
+                  ]),
+                ),
+                const Divider(height: 1),
+                Expanded(child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  children: [
+                    ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: Color(0xFF123F80),
+                        child: Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFD36B)),
+                      ),
+                      title: const Row(children: [
+                        Text('المطوّر الرسمي', style: TextStyle(fontWeight: FontWeight.w900)),
+                        SizedBox(width: 6),
+                        _DeveloperBadge(compact: true),
+                      ]),
+                      subtitle: const Text('dhwa44430@gmail.com'),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Container(width: 7, height: 7, decoration: BoxDecoration(
+                          color: devId != null && online.contains(devId)
+                            ? const Color(0xFF29C58A) : Colors.grey,
+                          shape: BoxShape.circle)),
+                        const SizedBox(width: 5),
+                        Text(devId != null && online.contains(devId) ? 'متصل' : 'غير متصل',
+                          style: const TextStyle(fontSize: 11)),
+                      ]),
+                    ),
+                    const Divider(indent: 16, endIndent: 16),
+                    for (final profile in participants)
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: (profile['avatar_url']?.toString().startsWith('http') ?? false)
+                            ? NetworkImage(profile['avatar_url'].toString()) : null,
+                          child: !(profile['avatar_url']?.toString().startsWith('http') ?? false)
+                            ? const Icon(Icons.person_rounded) : null,
+                        ),
+                        title: Text(profile['display_name']?.toString().trim().isNotEmpty == true
+                          ? profile['display_name'].toString() : 'طالب',
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                        subtitle: Text('@${profile['username'] ?? '—'}'),
+                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Container(width: 7, height: 7, decoration: BoxDecoration(
+                            color: online.contains(profile['user_id']?.toString())
+                              ? const Color(0xFF29C58A) : Colors.grey,
+                            shape: BoxShape.circle)),
+                          const SizedBox(width: 5),
+                          Text(online.contains(profile['user_id']?.toString())
+                            ? 'متصل' : 'غير متصل', style: const TextStyle(fontSize: 11)),
+                        ]),
+                      ),
+                  ],
+                )),
+              ]),
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) messenger.showSnackBar(
+        SnackBar(content: Text('تعذر تحميل أعضاء الغرفة: $error')));
+    }
+  }
+
   Future<Map<String, Map<String, dynamic>>> getProfiles(List<Map<String, dynamic>> rows) async {
     final ids = rows.map((r) => r['user_id'].toString()).toSet().toList();
     if (ids.isEmpty) return {};
@@ -2529,7 +2666,24 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       backgroundColor: dark ? const Color(0xFF0C1B2D) : colors.surface,
       appBar: AppBar(backgroundColor: dark ? const Color(0xFF142B46) : colors.surface, foregroundColor: dark ? Colors.white : colors.onSurface, elevation: 0,
         leading: _groupSelectionMode ? IconButton(onPressed:()=>setState(()=>_selectedGroupMessageIds.clear()),icon:const Icon(Icons.close_rounded)) : null,
-        title: _groupSelectionMode ? Text('تم تحديد ${_selectedGroupMessageIds.length} رسالة') : const Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[Text('غرفة الدردشة',style:TextStyle(fontWeight:FontWeight.w800)),Text('محادثة جماعية للطلاب',style:TextStyle(fontSize:11))]),
+        title: _groupSelectionMode ? Text('تم تحديد ${_selectedGroupMessageIds.length} رسالة') : Row(children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: _showGroupMembers,
+            child: Padding(
+              padding: const EdgeInsets.all(3),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SvgPicture.asset('assets/brand/app_icon.svg', width: 36, height: 36),
+              ),
+            ),
+          ),
+          const SizedBox(width: 9),
+          const Expanded(child: Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
+            Text('غرفة الدردشة',style:TextStyle(fontWeight:FontWeight.w800)),
+            Text('محادثة جماعية للطلاب',style:TextStyle(fontSize:11)),
+          ])),
+        ]),
         actions: _groupSelectionMode ? [_selectionToolbar(_selectedGroupMessageIds.length,onClear:()=>setState(()=>_selectedGroupMessageIds.clear()),onDelete:_deleteSelectedGroupMessages,onCopy:_copySelectedGroupMessages,onEdit:_editSelectedGroupMessage,canEdit:_selectedGroupMessages.length==1&&_selectedGroupMessages.first['user_id']==_db.auth.currentUser?.id&&_selectedGroupMessages.first['message_type']=='text',colors:colors)] : null,
       ),
       body: Container(
@@ -3023,35 +3177,25 @@ class _ChatRetentionNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final accent = dark ? const Color(0xFFFFC66D) : const Color(0xFF8A5100);
+    const accent = Color(0xFFFFC66D);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 7, 14, 2),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: accent.withValues(alpha: dark ? 0.11 : 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: accent.withValues(alpha: 0.30)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-          child: Row(
-            textDirection: TextDirection.rtl,
-            children: [
-              Icon(Icons.auto_delete_outlined, size: 17, color: accent),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  'مدة الاحتفاظ: يومان (48 ساعة). بعد تفعيل الجدولة في Supabase تُحذف الرسائل تلقائياً.',
-                  style: TextStyle(
-                    color: colors.onSurface,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.09),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: accent.withValues(alpha: 0.22)),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.schedule_rounded, size: 13, color: accent),
+              SizedBox(width: 5),
+              Text('سوف يتم حذف الدردشة في غضون يومين',
+                style: TextStyle(color: Color(0xFFFFD18A), fontSize: 10, fontWeight: FontWeight.w600)),
+            ]),
           ),
         ),
       ),
@@ -3131,6 +3275,49 @@ class _StudyChatWallpaperPainter extends CustomPainter {
       oldDelegate.dark != dark;
 }
 
+class StudentDirectInboxPreferences {
+  static String _key(String userId, String kind) =>
+      'student_dm_${kind}_v1_$userId';
+
+  static Future<Set<String>> _read(String userId, String kind) async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_key(userId, kind)) ?? const <String>[]).toSet();
+  }
+
+  static Future<void> _write(String userId, String kind, Set<String> values) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_key(userId, kind), values.toList());
+  }
+
+  static Future<bool> isMuted(String? otherUserId) async {
+    final me = _db.auth.currentUser?.id;
+    if (me == null || otherUserId == null || otherUserId.isEmpty) return false;
+    return (await _read(me, 'muted')).contains(otherUserId);
+  }
+
+  static Future<void> setMuted(String userId, String otherId, bool value) async {
+    final values = await _read(userId, 'muted');
+    value ? values.add(otherId) : values.remove(otherId);
+    await _write(userId, 'muted', values);
+  }
+
+  static Future<void> setPinned(String userId, String otherId, bool value) async {
+    final values = await _read(userId, 'pinned');
+    value ? values.add(otherId) : values.remove(otherId);
+    await _write(userId, 'pinned', values);
+  }
+
+  static Future<void> hideConversation(String userId, String otherId) async {
+    final values = await _read(userId, 'hidden');
+    values.add(otherId);
+    await _write(userId, 'hidden', values);
+  }
+
+  static Future<Set<String>> pinned(String userId) => _read(userId, 'pinned');
+  static Future<Set<String>> muted(String userId) => _read(userId, 'muted');
+  static Future<Set<String>> hidden(String userId) => _read(userId, 'hidden');
+}
+
 /// Current private conversation, used to suppress duplicate live banners while it is open.
 final ValueNotifier<String?> activeDirectMessageUserId = ValueNotifier<String?>(null);
 
@@ -3145,6 +3332,7 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
   bool _loading = true;
   String? _error;
   RealtimeChannel? _channel;
+  String? _selectedConversationId;
   String? get _me => _client.auth.currentUser?.id;
 
   @override void initState() {
@@ -3189,22 +3377,32 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
           profiles[profile['user_id'].toString()] = profile;
         }
       }
+      final hidden = await StudentDirectInboxPreferences.hidden(me);
+      final pinned = await StudentDirectInboxPreferences.pinned(me);
+      final muted = await StudentDirectInboxPreferences.muted(me);
       final grouped = <String,Map<String,dynamic>>{};
       for (final row in messages) {
         final other = (row['sender_id'] == me ? row['receiver_id'] : row['sender_id']).toString();
+        if (hidden.contains(other)) continue;
         final item = grouped.putIfAbsent(other, () => {
           'user_id': other,
           'last': row,
           'unread': 0,
           'profile': profiles[other] ?? <String,dynamic>{},
+          'pinned': pinned.contains(other),
+          'muted': muted.contains(other),
         });
         if (row['receiver_id'] == me && row['read_at'] == null) {
           item['unread'] = (item['unread'] as int) + 1;
         }
       }
       final result = grouped.values.toList()
-        ..sort((a,b) => (b['last']['created_at'] as String)
-          .compareTo(a['last']['created_at'] as String));
+        ..sort((a,b) {
+          final pinOrder = (b['pinned'] == true ? 1 : 0).compareTo(a['pinned'] == true ? 1 : 0);
+          if (pinOrder != 0) return pinOrder;
+          return (b['last']['created_at'] as String)
+            .compareTo(a['last']['created_at'] as String);
+        });
       if (mounted) setState(() { _conversations = result; _loading = false; _error = null; });
     } catch (error) {
       if (mounted) setState(() { _loading = false; _error = 'تعذر تحميل صندوق الوارد: $error'; });
@@ -3221,6 +3419,61 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
     return '${date.day}/${date.month}';
   }
 
+  Future<void> _togglePin() async {
+    final me = _me, other = _selectedConversationId;
+    if (me == null || other == null) return;
+    final item = _conversations.firstWhere((e) => e['user_id'].toString() == other);
+    final pinned = item['pinned'] == true;
+    await StudentDirectInboxPreferences.setPinned(me, other, !pinned);
+    if (!mounted) return;
+    setState(() => _selectedConversationId = null);
+    await _load();
+  }
+
+  Future<void> _toggleMute() async {
+    final me = _me, other = _selectedConversationId;
+    if (me == null || other == null) return;
+    final item = _conversations.firstWhere((e) => e['user_id'].toString() == other);
+    final muted = item['muted'] == true;
+    await StudentDirectInboxPreferences.setMuted(me, other, !muted);
+    if (!mounted) return;
+    setState(() => _selectedConversationId = null);
+    await _load();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(muted ? 'تم إلغاء كتم المحادثة.' : 'تم كتم إشعارات هذه المحادثة على هذا الجهاز.'),
+    ));
+  }
+
+  Future<void> _deleteConversation() async {
+    final me = _me, other = _selectedConversationId;
+    if (me == null || other == null) return;
+    final item = _conversations.firstWhere((e) => e['user_id'].toString() == other);
+    final profile = item['profile'] as Map<String,dynamic>;
+    final name = profile['display_name']?.toString().trim().isNotEmpty == true
+      ? profile['display_name'].toString() : 'هذا المستخدم';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.delete_sweep_outlined),
+        title: const Text('حذف المحادثة؟'),
+        content: Text('سيتم إخفاء محادثة $name من قائمتك فقط. لن تُحذف رسائل الطرف الآخر أو حسابه.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف المحادثة'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await StudentDirectInboxPreferences.hideConversation(me, other);
+    if (!mounted) return;
+    setState(() => _selectedConversationId = null);
+    await _load();
+  }
+
   @override void dispose() {
     if (_channel != null) _client.removeChannel(_channel!);
     super.dispose();
@@ -3228,8 +3481,34 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
 
   @override Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final selected = _selectedConversationId == null ? null :
+      _conversations.where((e) => e['user_id'].toString() == _selectedConversationId).firstOrNull;
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
-      appBar: AppBar(title: const Text('المحادثات الخاصة')),
+      appBar: AppBar(
+        title: Text(_selectedConversationId == null ? 'المحادثات الخاصة' : 'إجراءات المحادثة'),
+        leading: _selectedConversationId == null ? null : IconButton(
+          tooltip: 'إلغاء التحديد',
+          onPressed: () => setState(() => _selectedConversationId = null),
+          icon: const Icon(Icons.close_rounded),
+        ),
+        actions: selected == null ? null : [
+          IconButton(
+            tooltip: selected['pinned'] == true ? 'إلغاء التثبيت' : 'تثبيت بالأعلى',
+            onPressed: _togglePin,
+            icon: Icon(selected['pinned'] == true ? Icons.push_pin_rounded : Icons.push_pin_outlined),
+          ),
+          IconButton(
+            tooltip: selected['muted'] == true ? 'إلغاء الكتم' : 'كتم الإشعارات',
+            onPressed: _toggleMute,
+            icon: Icon(selected['muted'] == true ? Icons.notifications_active_outlined : Icons.notifications_off_outlined),
+          ),
+          IconButton(
+            tooltip: 'حذف المحادثة',
+            onPressed: _deleteConversation,
+            icon: Icon(Icons.delete_outline_rounded, color: colors.error),
+          ),
+        ],
+      ),
       body: _loading
         ? const Center(child: CircularProgressIndicator())
         : _error != null
@@ -3263,7 +3542,10 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
                   final name = displayName.isNotEmpty ? displayName : (usernameValue.isNotEmpty ? '@$usernameValue' : 'مستخدم');
                   final username = (profile['username'] ?? '').toString();
                   final unread = item['unread'] as int;
+                  final isSelected = _selectedConversationId == userId;
                   return ListTile(
+                    selected: isSelected,
+                    selectedTileColor: colors.primary.withValues(alpha: 0.10),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
                     leading: GestureDetector(
                       behavior: HitTestBehavior.opaque,
@@ -3288,6 +3570,14 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
                     title: Row(children: [
                       Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w800))),
+                      if (item['pinned'] == true) const Padding(
+                        padding: EdgeInsets.only(left: 5),
+                        child: Icon(Icons.push_pin_rounded, size: 14, color: Color(0xFF5EA7FF)),
+                      ),
+                      if (item['muted'] == true) const Padding(
+                        padding: EdgeInsets.only(left: 5),
+                        child: Icon(Icons.notifications_off_outlined, size: 14),
+                      ),
                       Text(_time(last['created_at']), style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant)),
                     ]),
                     subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -3300,11 +3590,18 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
                       child: Text(unread > 99 ? '99+' : '$unread',
                         style: TextStyle(color: colors.onPrimary, fontSize: 10, fontWeight: FontWeight.w900)),
                     ) : const Icon(Icons.chevron_left_rounded),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => StudentDirectMessageScreen(
-                        otherUserId: userId, otherName: name, otherAvatar: avatar,
-                      ),
-                    )).then((_) => _load()),
+                    onLongPress: () => setState(() => _selectedConversationId = userId),
+                    onTap: () {
+                      if (_selectedConversationId != null) {
+                        setState(() => _selectedConversationId = userId);
+                        return;
+                      }
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => StudentDirectMessageScreen(
+                          otherUserId: userId, otherName: name, otherAvatar: avatar,
+                        ),
+                      )).then((_) => _load());
+                    },
                   );
                 },
               )),
