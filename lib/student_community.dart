@@ -2508,6 +2508,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           profiles[profile['user_id'].toString()] = profile;
         }
       }
+      if (developer == null) {
+        for (final profile in profiles.values) {
+          if (profile['is_developer'] == true) {
+            developer = profile;
+            break;
+          }
+        }
+      }
       final online = StudentPresenceService.onlineUserIds.value;
       final participants = profiles.values.toList();
       final devId = developer?['user_id']?.toString();
