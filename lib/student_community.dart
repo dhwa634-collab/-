@@ -766,9 +766,11 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       if (!mounted || payload['user_id']?.toString() != widget.otherUserId) return;
       final typing = payload['typing'] == true;
       _typingExpiryTimer?.cancel();
-      if (typing) _typingExpiryTimer = Timer(const Duration(milliseconds: 2200), () {
-        if (mounted) setState(() => _otherTyping = false);
-      });
+      if (typing) {
+        _typingExpiryTimer = Timer(const Duration(milliseconds: 2200), () {
+          if (mounted) setState(() => _otherTyping = false);
+        });
+      }
       if (_otherTyping != typing) setState(() => _otherTyping = typing);
     }).subscribe();
   }
@@ -778,11 +780,15 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     _typingIdleTimer?.cancel();
     unawaited(channel.sendBroadcastMessage(event: 'typing',
       payload: {'user_id': user, 'typing': value.trim().isNotEmpty}));
-    if (value.trim().isNotEmpty) _typingIdleTimer = Timer(const Duration(milliseconds: 1400), () {
-      final current = _typingChannel;
-      if (current != null) unawaited(current.sendBroadcastMessage(event: 'typing',
-        payload: {'user_id': user, 'typing': false}));
-    });
+    if (value.trim().isNotEmpty) {
+      _typingIdleTimer = Timer(const Duration(milliseconds: 1400), () {
+        final current = _typingChannel;
+        if (current != null) {
+          unawaited(current.sendBroadcastMessage(event: 'typing',
+            payload: {'user_id': user, 'typing': false}));
+        }
+      });
+    }
   }
   void _beginDmEdit(Map<String, dynamic> row) {
     final id = row['id']?.toString();
