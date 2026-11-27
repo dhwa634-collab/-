@@ -1657,6 +1657,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<Map<String, Map<String, dynamic>>>? _profilesFuture;
   bool sending = false;
   final Set<String> _deletingGroupMessageIds = {};
+  final Map<String, List<Map<String, dynamic>>> _groupMessageReactions = {};
+  StreamSubscription<List<Map<String, dynamic>>>? _groupReactionsSubscription;
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -1680,6 +1682,24 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     super.initState();
     messages = _messageStream();
     _loadBlockedUsers();
+    _groupReactionsSubscription = _db
+        .from('chat_message_reactions')
+        .stream(primaryKey: ['id'])
+        .listen((rows) {
+      if (!mounted) return;
+      final grouped = <String, List<Map<String, dynamic>>>{};
+      for (final reaction in rows) {
+        final messageId = reaction['message_id']?.toString();
+        if (messageId == null) continue;
+        grouped.putIfAbsent(messageId, () => <Map<String, dynamic>>[])
+            .add(reaction);
+      }
+      setState(() {
+        _groupMessageReactions
+          ..clear()
+          ..addAll(grouped);
+      });
+    });
     _positionSub = _audioPlayer.onPositionChanged.listen((value) {
       if (mounted) setState(() => _audioPosition = value);
     });
@@ -2070,6 +2090,84 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     } catch (_) { toast('تعذر حظر المستخدم حالياً.'); }
   }
 
+  static const List<String> _messageReactionEmojis = ['❤️', '👍', '😂', '😮', '😢', '🔥', '👏', '🥰'];
+
+  Future<void> _showMessageReactionPicker(Map<String, dynamic> row) async {
+    final messageId = row['id']?.toString();
+    final userId = _db.auth.currentUser?.id;
+    if (messageId == null || userId == null || messageId.startsWith('local-')) return;
+    final emoji = await showModalBottomSheet<String>(
+      context: context, backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Directionality(textDirection: TextDirection.rtl,
+        child: SafeArea(child: Container(
+          margin: const EdgeInsets.all(10), padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+          decoration: BoxDecoration(color: Theme.of(sheetContext).colorScheme.surface, borderRadius: BorderRadius.circular(22)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('تفاعل مع الرسالة', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            const SizedBox(height: 14),
+            Wrap(alignment: WrapAlignment.center, spacing: 12, runSpacing: 12,
+              children: _messageReactionEmojis.map((value) => InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => Navigator.pop(sheetContext, value),
+                child: Padding(padding: const EdgeInsets.all(7), child: Text(value, style: const TextStyle(fontSize: 30))),
+              )).toList(),
+            ),
+          ]),
+        )),
+      ),
+    );
+    if (emoji == null || !mounted) return;
+    try {
+      final existing = await _db.from('chat_message_reactions').select('id')
+          .eq('message_id', messageId).eq('user_id', userId).eq('emoji', emoji).maybeSingle();
+      if (existing != null) {
+        await _db.from('chat_message_reactions').delete().eq('id', existing['id']).eq('user_id', userId);
+      } else {
+        await _db.from('chat_message_reactions').insert({'message_id': messageId, 'user_id': userId, 'emoji': emoji});
+      }
+    } catch (error) { if (mounted) toast('تعذر تسجيل التفاعل: $error'); }
+  }
+
+  Widget _buildGroupMessageReactions(String messageId, ColorScheme colors) {
+    final reactions = _groupMessageReactions[messageId] ?? const [];
+    if (reactions.isEmpty) return const SizedBox.shrink();
+    final currentUserId = _db.auth.currentUser?.id;
+    final counts = <String, int>{};
+    final mine = <String>{};
+    for (final reaction in reactions) {
+      final emoji = reaction['emoji']?.toString() ?? '';
+      if (emoji.isEmpty) continue;
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+      if (reaction['user_id']?.toString() == currentUserId) mine.add(emoji);
+    }
+    return Padding(padding: const EdgeInsets.only(top: 5), child: Wrap(spacing: 5, runSpacing: 4,
+      children: counts.entries.map((entry) => InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () async {
+          final userId = _db.auth.currentUser?.id;
+          if (userId == null) return;
+          try {
+            final existing = await _db.from('chat_message_reactions').select('id')
+                .eq('message_id', messageId).eq('user_id', userId).eq('emoji', entry.key).maybeSingle();
+            if (existing != null) {
+              await _db.from('chat_message_reactions').delete().eq('id', existing['id']).eq('user_id', userId);
+            } else {
+              await _db.from('chat_message_reactions').insert({'message_id': messageId, 'user_id': userId, 'emoji': entry.key});
+            }
+          } catch (error) { if (mounted) toast('تعذر تحديث التفاعل: $error'); }
+        },
+        child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: mine.contains(entry.key) ? colors.primaryContainer : colors.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: mine.contains(entry.key) ? colors.primary : colors.outlineVariant),
+          ),
+          child: Text('${entry.key} ${entry.value}', style: TextStyle(fontSize: 12, color: colors.onSurface)),
+        ),
+      )).toList(),
+    ));
+  }
+
   Future<void> _messageActions(Map<String, dynamic> row) async {
     final mine = row['user_id'] == _db.auth.currentUser?.id;
     final action = await showModalBottomSheet<String>(context: context,
@@ -2219,6 +2317,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   @override
   void dispose() {
     _recordTimer?.cancel();
+    _groupReactionsSubscription?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();
     _completeSub?.cancel();
@@ -2362,6 +2461,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         child: Align(
                     alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                     child: GestureDetector(
+                      onTap: () => _showMessageReactionPicker(row),
                       onLongPress: () => _messageActions(row),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -2508,6 +2608,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                       ],
                                   ],
                                 ),
+                                _buildGroupMessageReactions(row['id'].toString(), colors),
                               ],
                             ),
                           ),
