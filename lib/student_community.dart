@@ -2957,7 +2957,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
               if (_editingGroupMessageId != null)
