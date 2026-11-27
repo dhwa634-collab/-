@@ -2892,6 +2892,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         if (mine) {
                           _toggleGroupSelection(row);
                         } else {
+                          if (_groupSelectionMode) {
+                            setState(() {
+                              _selectedGroupMessageIds.clear();
+                              _selectedGroupRows.clear();
+                            });
+                          }
                           _messageActions(row);
                         }
                       },
