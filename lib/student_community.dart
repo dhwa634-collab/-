@@ -2332,7 +2332,19 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   bool get _groupSelectionMode => _selectedGroupMessageIds.isNotEmpty;
   List<Map<String,dynamic>> get _selectedGroupMessages => _selectedGroupMessageIds.map((id)=>_selectedGroupRows[id]).whereType<Map<String,dynamic>>().toList();
-  void _toggleGroupSelection(Map<String,dynamic> row) { final id=row['id']?.toString(); if(id==null)return; setState(() { if(_selectedGroupMessageIds.remove(id)){_selectedGroupRows.remove(id);}else{_selectedGroupMessageIds.add(id);_selectedGroupRows[id]=Map<String,dynamic>.from(row);} }); }
+  void _toggleGroupSelection(Map<String,dynamic> row) {
+    final id = row['id']?.toString();
+    final currentUserId = _db.auth.currentUser?.id;
+    if (id == null || currentUserId == null || row['user_id'] != currentUserId) return;
+    setState(() {
+      if (_selectedGroupMessageIds.remove(id)) {
+        _selectedGroupRows.remove(id);
+      } else {
+        _selectedGroupMessageIds.add(id);
+        _selectedGroupRows[id] = Map<String,dynamic>.from(row);
+      }
+    });
+  }
   Future<void> _copySelectedGroupMessages() async { final values=_selectedGroupMessages.map((r)=>(r['body']??'').toString()).where((v)=>v.trim().isNotEmpty).toList(); if(values.isEmpty){toast('لا توجد نصوص قابلة للنسخ.');return;} await Clipboard.setData(ClipboardData(text:values.join('\n'))); if(!mounted)return; toast('تم نسخ ${values.length} رسالة.'); setState(()=>_selectedGroupMessageIds.clear()); _selectedGroupRows.clear(); }
   Future<void> _deleteSelectedGroupMessages() async { final user=_db.auth.currentUser?.id; if(user==null)return; final ids=_selectedGroupMessages.where((r)=>r['user_id']==user).map((r)=>r['id'].toString()).toList(); if(ids.isEmpty){setState(()=>_selectedGroupMessageIds.clear());_selectedGroupRows.clear();return;} final ok=await showDialog<bool>(context:context,builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('حذف الرسائل المحددة؟'),content:Text('سيتم حذف ${ids.length} رسالة تملكها.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف'))]))); if(ok!=true)return; setState(()=>_deletingGroupMessageIds.addAll(ids)); await Future<void>.delayed(const Duration(milliseconds:360)); try { await _db.from('chat_messages').delete().inFilter('id',ids).eq('user_id',user); if(!mounted)return; setState(()=>_selectedGroupMessageIds.clear()); _selectedGroupRows.clear(); toast('تم حذف الرسائل المحددة.'); } catch(e){if(mounted){setState(()=>_deletingGroupMessageIds.removeAll(ids));toast('تعذر حذف الرسائل: $e');}} }
   Future<void> _editSelectedGroupMessage() async { final rows=_selectedGroupMessages; final user=_db.auth.currentUser?.id; if(rows.length!=1||rows.first['user_id']!=user||rows.first['message_type']!='text')return; await _editGroupMessage(rows.first); if(mounted){setState(()=>_selectedGroupMessageIds.clear());_selectedGroupRows.clear();} }
@@ -2343,12 +2355,22 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (mine && row['message_type'] == 'text' && (row['body']?.toString().isNotEmpty ?? false))
             ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () => Navigator.pop(ctx, 'edit')),
+          if (mine && (row['body']?.toString().trim().isNotEmpty ?? false))
+            ListTile(leading: const Icon(Icons.copy_rounded), title: const Text('نسخ الرسالة'), onTap: () => Navigator.pop(ctx, 'copy')),
           if (mine) ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('حذف الرسالة'), onTap: () => Navigator.pop(ctx, 'delete')),
-          ListTile(leading: const Icon(Icons.flag_outlined), title: const Text('الإبلاغ عن الرسالة'), onTap: () => Navigator.pop(ctx, 'report')),
+          if (!mine) ListTile(leading: const Icon(Icons.flag_outlined), title: const Text('الإبلاغ عن الرسالة'), onTap: () => Navigator.pop(ctx, 'report')),
           if (!mine) ListTile(leading: const Icon(Icons.person_off_outlined), title: const Text('الإبلاغ عن المستخدم'), onTap: () => Navigator.pop(ctx, 'report_user')),
           if (!mine) ListTile(leading: const Icon(Icons.block_outlined), title: const Text('حظر المستخدم'), onTap: () => Navigator.pop(ctx, 'block')),
         ]))));
     if (!mounted) return;
+    if (action == 'copy') {
+      final body = row['body']?.toString() ?? '';
+      if (body.trim().isNotEmpty) {
+        await Clipboard.setData(ClipboardData(text: body));
+        if (mounted) toast('تم نسخ الرسالة.');
+      }
+      return;
+    }
     if (action == 'edit') {
       await _editGroupMessage(row);
       return;
@@ -2558,27 +2580,79 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 Expanded(child: ListView(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   children: [
-                    ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Color(0xFF123F80),
-                        child: Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFD36B)),
-                      ),
-                      title: const Row(children: [
-                        Text('المطوّر الرسمي', style: TextStyle(fontWeight: FontWeight.w900)),
-                        SizedBox(width: 6),
-                        _DeveloperBadge(compact: true),
-                      ]),
-                      subtitle: const Text('dhwa44430@gmail.com'),
-                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Container(width: 7, height: 7, decoration: BoxDecoration(
-                          color: devId != null && online.contains(devId)
-                            ? const Color(0xFF29C58A) : Colors.grey,
-                          shape: BoxShape.circle)),
-                        const SizedBox(width: 5),
-                        Text(devId != null && online.contains(devId) ? 'متصل' : 'غير متصل',
-                          style: const TextStyle(fontSize: 11)),
-                      ]),
-                    ),
+                    Builder(builder: (context) {
+                      final developerProfile = devId == null
+                        ? developer
+                        : (profiles[devId] ?? developer);
+                      final avatarUrl = developerProfile?['avatar_url']?.toString();
+                      final isOnline = devId != null && online.contains(devId);
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topRight,
+                            end: Alignment.bottomLeft,
+                            colors: [Color(0xFF172F55), Color(0xFF101D34), Color(0xFF17243B)],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0xFF398EFF).withValues(alpha: 0.48)),
+                          boxShadow: [
+                            BoxShadow(color: const Color(0xFF247DDF).withValues(alpha: 0.12),
+                              blurRadius: 16, offset: const Offset(0, 5)),
+                          ],
+                        ),
+                        child: Row(children: [
+                          Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0xFF55A5FF), width: 1.8),
+                            ),
+                            child: CircleAvatar(
+                              radius: 25,
+                              backgroundColor: const Color(0xFF123F80),
+                              backgroundImage: avatarUrl != null && avatarUrl.startsWith('http')
+                                ? NetworkImage(avatarUrl) : null,
+                              child: avatarUrl == null || !avatarUrl.startsWith('http')
+                                ? const Icon(Icons.person_rounded, color: Colors.white, size: 27)
+                                : null,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('المدير', style: TextStyle(
+                                color: Color(0xFF82BCFF), fontSize: 11,
+                                fontWeight: FontWeight.w800, letterSpacing: 0.7)),
+                              SizedBox(height: 3),
+                              Row(children: [
+                                Text('ذوالفقار', style: TextStyle(
+                                  color: Colors.white, fontSize: 18,
+                                  fontWeight: FontWeight.w900, letterSpacing: 0.15)),
+                                SizedBox(width: 6),
+                                _DeveloperBadge(compact: true),
+                              ]),
+                              SizedBox(height: 3),
+                              Text('مطور التطبيق', style: TextStyle(
+                                color: Color(0xFFB9CBE3), fontSize: 11,
+                                fontWeight: FontWeight.w600)),
+                            ],
+                          )),
+                          const SizedBox(width: 8),
+                          Column(mainAxisSize: MainAxisSize.min, children: [
+                            Container(width: 8, height: 8, decoration: BoxDecoration(
+                              color: isOnline ? const Color(0xFF29C58A) : Colors.grey,
+                              shape: BoxShape.circle)),
+                            const SizedBox(height: 5),
+                            Text(isOnline ? 'متصل' : 'غير متصل',
+                              style: const TextStyle(color: Color(0xFFCBD8E8), fontSize: 10)),
+                          ]),
+                        ]),
+                      );
+                    }),
                     const Divider(indent: 16, endIndent: 16),
                     for (final profile in participants)
                       ListTile(
@@ -2807,8 +2881,20 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         child: Align(
                     alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                     child: GestureDetector(
-                      onTap: () => _groupSelectionMode ? _toggleGroupSelection(row) : _showMessageReactionPicker(row),
-                      onLongPress: () => _toggleGroupSelection(row),
+                      onTap: () {
+                        if (_groupSelectionMode) {
+                          if (mine) _toggleGroupSelection(row);
+                        } else {
+                          _showMessageReactionPicker(row);
+                        }
+                      },
+                      onLongPress: () {
+                        if (mine) {
+                          _toggleGroupSelection(row);
+                        } else {
+                          _messageActions(row);
+                        }
+                      },
                       onDoubleTap: () => _messageActions(row),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
