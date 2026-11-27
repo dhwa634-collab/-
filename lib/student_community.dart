@@ -1121,7 +1121,19 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       if (mounted) setState(() => sending = false);
     }
   }
-  @override void dispose(){activeDirectMessageUserId.value=null;StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);messageSubscription.cancel();blockSubscription.cancel();_scrollController.dispose();inputFocus.dispose();input.dispose();super.dispose();}
+  @override void dispose(){
+    activeDirectMessageUserId.value = null;
+    StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);
+    messageSubscription.cancel();
+    blockSubscription.cancel();
+    _scrollController.dispose();
+    _dmRecordTimer?.cancel();
+    unawaited(_dmRecorder.dispose());
+    unawaited(_dmAudioPlayer.dispose());
+    inputFocus.dispose();
+    input.dispose();
+    super.dispose();
+  }
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
