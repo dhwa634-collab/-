@@ -2919,7 +2919,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: Stack(
                         children: [
-                          const Positioned.fill(
+                          Positioned.fill(
                             child: IgnorePointer(
                               child: CustomPaint(painter: _StudyChatWallpaperPainter(dark: dark)),
                             ),
