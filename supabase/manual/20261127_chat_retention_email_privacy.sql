@@ -149,18 +149,37 @@ begin
 end
 $schedule$;
 
+-- Run the purge through a private, non-API-exposed schema function.
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+grant usage on schema private to postgres;
+
+create or replace function private.purge_chat_messages_older_than_48_hours()
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $purge$
+begin
+  delete from public.direct_messages
+  where created_at <= now() - interval '48 hours';
+
+  delete from public.chat_messages
+  where created_at <= now() - interval '48 hours';
+end;
+$purge$;
+
+revoke all on function private.purge_chat_messages_older_than_48_hours()
+  from public, anon, authenticated;
+grant execute on function private.purge_chat_messages_older_than_48_hours()
+  to postgres;
+
 -- Runs every minute; messages are removed at the first run after age >= 48h.
 -- FK constraints cascade-delete reactions and reports, and SET NULLs replies.
 select cron.schedule(
   'delete-chat-messages-after-48-hours',
   '* * * * *',
-  $job$
-    delete from public.direct_messages
-    where created_at <= now() - interval '48 hours';
-
-    delete from public.chat_messages
-    where created_at <= now() - interval '48 hours';
-  $job$
+  'select private.purge_chat_messages_older_than_48_hours();'
 );
 
 -- Verification after running:
