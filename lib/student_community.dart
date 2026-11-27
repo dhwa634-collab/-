@@ -1304,7 +1304,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
             ),
           ),
           child: Stack(children: [
-            const Positioned.fill(child: IgnorePointer(child: CustomPaint(
+            Positioned.fill(child: IgnorePointer(child: CustomPaint(
               painter: _StudyChatWallpaperPainter(dark: dark),
             ))),
             Column(
@@ -1599,7 +1599,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                         clipBehavior: Clip.antiAlias,
                         child: Stack(
                           children: [
-                            const Positioned.fill(
+                            Positioned.fill(
                               child: IgnorePointer(
                                 child: CustomPaint(painter: _StudyChatWallpaperPainter(dark: dark)),
                               ),
@@ -2533,7 +2533,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           ),
         ),
         child: Stack(children: [
-          const Positioned.fill(child: IgnorePointer(child: CustomPaint(
+          Positioned.fill(child: IgnorePointer(child: CustomPaint(
             painter: _StudyChatWallpaperPainter(dark: dark),
           ))),
           Column(children: [
@@ -2591,8 +2591,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       currentUser?.userMetadata ?? const <String, dynamic>{};
                   final name = (profile?['display_name'] ??
                     (mine ? (currentUserMetadata['full_name'] ??
-                      currentUserMetadata['name'] ??
-                      null) : null) ??
+                      currentUserMetadata['name']) : null) ??
                     'طالب').toString();
                   final type = row['message_type']?.toString() ?? 'text';
                   final sticker = type == 'builtin_sticker' || type == 'custom_sticker';
