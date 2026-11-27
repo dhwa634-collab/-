@@ -3086,7 +3086,7 @@ class _StudyChatWallpaperPainter extends CustomPainter {
     final iconStyle = TextStyle(
       fontFamily: 'MaterialIcons',
       color: ink.withValues(alpha: opacity),
-      fontSize: (size.width * 0.105).clamp(30.0, 54.0),
+      fontSize: (size.width * 0.105).clamp(30.0, 54.0).toDouble(),
     );
     final decorationStyle = TextStyle(
       color: ink.withValues(alpha: opacity * 0.92),
