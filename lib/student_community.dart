@@ -3034,7 +3034,7 @@ class _ChatRetentionNotice extends StatelessWidget {
               const SizedBox(width: 7),
               Expanded(
                 child: Text(
-                  'تنبيه: سوف يتم حذف الرسائل تلقائياً بعد يومين (48 ساعة).',
+                  'مدة الاحتفاظ: يومان (48 ساعة). بعد تفعيل الجدولة في Supabase تُحذف الرسائل تلقائياً.',
                   style: TextStyle(
                     color: colors.onSurface,
                     fontSize: 11,
