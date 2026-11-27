@@ -1650,6 +1650,8 @@ class StudentChatScreen extends StatefulWidget {
   State<StudentChatScreen> createState() => _StudentChatScreenState();
 }
 class _StudentChatScreenState extends State<StudentChatScreen> {
+  static const List<String> _selectionEmojis = ['❤️','👍','😂','😮','😢','🔥','👏','🥰'];
+  Widget _selectionToolbar(int count, {required VoidCallback onClear, required VoidCallback onDelete, required VoidCallback onCopy, required VoidCallback onEdit, required bool canEdit, required ColorScheme colors}) => Row(mainAxisSize: MainAxisSize.min, children: [IconButton(tooltip:'إلغاء التحديد',onPressed:onClear,icon:const Icon(Icons.close_rounded)),Text(count.toString(),style:const TextStyle(fontWeight:FontWeight.w900)),IconButton(tooltip:'نسخ',onPressed:onCopy,icon:const Icon(Icons.copy_rounded)),IconButton(tooltip:'تعديل',onPressed:canEdit?onEdit:null,icon:const Icon(Icons.edit_rounded)),IconButton(tooltip:'حذف',onPressed:onDelete,icon:Icon(Icons.delete_outline_rounded,color:colors.error))]);
   final input = TextEditingController();
   final scroll = ScrollController();
   late Stream<List<Map<String, dynamic>>> messages;
@@ -1657,6 +1659,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<Map<String, Map<String, dynamic>>>? _profilesFuture;
   bool sending = false;
   final Set<String> _deletingGroupMessageIds = {};
+  final Set<String> _selectedGroupMessageIds = {};
+  final Map<String, Map<String,dynamic>> _selectedGroupRows = {};
   final Map<String, List<Map<String, dynamic>>> _groupMessageReactions = {};
   StreamSubscription<List<Map<String, dynamic>>>? _groupReactionsSubscription;
   final ImagePicker _imagePicker = ImagePicker();
@@ -2118,13 +2122,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     );
     if (emoji == null || !mounted) return;
     try {
-      final existing = await _db.from('chat_message_reactions').select('id')
-          .eq('message_id', messageId).eq('user_id', userId).eq('emoji', emoji).maybeSingle();
-      if (existing != null) {
-        await _db.from('chat_message_reactions').delete().eq('id', existing['id']).eq('user_id', userId);
-      } else {
-        await _db.from('chat_message_reactions').insert({'message_id': messageId, 'user_id': userId, 'emoji': emoji});
-      }
+      final existing = await _db.from('chat_message_reactions').select('id,emoji').eq('message_id', messageId).eq('user_id', userId).maybeSingle();
+      if (existing?['emoji'] == emoji) { await _db.from('chat_message_reactions').delete().eq('id', existing!['id']).eq('user_id', userId); }
+      else { await _db.from('chat_message_reactions').upsert({'message_id': messageId, 'user_id': userId, 'emoji': emoji}, onConflict:'message_id,user_id'); }
     } catch (error) { if (mounted) toast('تعذر تسجيل التفاعل: $error'); }
   }
 
@@ -2147,13 +2147,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           final userId = _db.auth.currentUser?.id;
           if (userId == null) return;
           try {
-            final existing = await _db.from('chat_message_reactions').select('id')
-                .eq('message_id', messageId).eq('user_id', userId).eq('emoji', entry.key).maybeSingle();
-            if (existing != null) {
-              await _db.from('chat_message_reactions').delete().eq('id', existing['id']).eq('user_id', userId);
-            } else {
-              await _db.from('chat_message_reactions').insert({'message_id': messageId, 'user_id': userId, 'emoji': entry.key});
-            }
+            final existing = await _db.from('chat_message_reactions').select('id,emoji').eq('message_id', messageId).eq('user_id', userId).maybeSingle();
+            if (existing?['emoji'] == entry.key) { await _db.from('chat_message_reactions').delete().eq('id', existing!['id']).eq('user_id', userId); }
+            else { await _db.from('chat_message_reactions').upsert({'message_id': messageId, 'user_id': userId, 'emoji': entry.key}, onConflict:'message_id,user_id'); }
           } catch (error) { if (mounted) toast('تعذر تحديث التفاعل: $error'); }
         },
         child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -2168,6 +2164,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     ));
   }
 
+  bool get _groupSelectionMode => _selectedGroupMessageIds.isNotEmpty;
+  List<Map<String,dynamic>> get _selectedGroupMessages => _selectedGroupMessageIds.map((id)=>_selectedGroupRows[id]).whereType<Map<String,dynamic>>().toList();
+  void _toggleGroupSelection(Map<String,dynamic> row) { final id=row['id']?.toString(); if(id==null)return; setState(() { if(_selectedGroupMessageIds.remove(id)){_selectedGroupRows.remove(id);}else{_selectedGroupMessageIds.add(id);_selectedGroupRows[id]=Map<String,dynamic>.from(row);} }); }
+  Future<void> _copySelectedGroupMessages() async { final values=_selectedGroupMessages.map((r)=>(r['body']??'').toString()).where((v)=>v.trim().isNotEmpty).toList(); if(values.isEmpty){toast('لا توجد نصوص قابلة للنسخ.');return;} await Clipboard.setData(ClipboardData(text:values.join('\n'))); if(!mounted)return; toast('تم نسخ '+values.length.toString()+' رسالة.'); setState(()=>_selectedGroupMessageIds.clear()); _selectedGroupRows.clear(); }
+  Future<void> _deleteSelectedGroupMessages() async { final user=_db.auth.currentUser?.id; if(user==null)return; final ids=_selectedGroupMessages.where((r)=>r['user_id']==user).map((r)=>r['id'].toString()).toList(); if(ids.isEmpty){toast('يمكنك حذف رسائلك أنت فقط.');return;} final ok=await showDialog<bool>(context:context,builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('حذف الرسائل المحددة؟'),content:Text('سيتم حذف '+ids.length.toString()+' رسالة تملكها.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف'))]))); if(ok!=true)return; setState(()=>_deletingGroupMessageIds.addAll(ids)); await Future<void>.delayed(const Duration(milliseconds:360)); try { await _db.from('chat_messages').delete().inFilter('id',ids).eq('user_id',user); if(!mounted)return; setState(()=>_selectedGroupMessageIds.clear()); _selectedGroupRows.clear(); toast('تم حذف الرسائل المحددة.'); } catch(e){if(mounted){setState(()=>_deletingGroupMessageIds.removeAll(ids));toast('تعذر حذف الرسائل: '+e.toString());}} }
+  Future<void> _editSelectedGroupMessage() async { final rows=_selectedGroupMessages; final user=_db.auth.currentUser?.id; if(rows.length!=1||rows.first['user_id']!=user||rows.first['message_type']!='text')return; await _editGroupMessage(rows.first); if(mounted){setState(()=>_selectedGroupMessageIds.clear());_selectedGroupRows.clear();} }
   Future<void> _messageActions(Map<String, dynamic> row) async {
     final mine = row['user_id'] == _db.auth.currentUser?.id;
     final action = await showModalBottomSheet<String>(context: context,
@@ -2335,21 +2337,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     return Directionality(textDirection: TextDirection.rtl,
     child: Scaffold(
       backgroundColor: dark ? const Color(0xFF0C1B2D) : colors.surface,
-      appBar: AppBar(
-        backgroundColor: dark ? const Color(0xFF142B46) : colors.surface,
-        foregroundColor: dark ? Colors.white : colors.onSurface,
-        elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('غرفة الدردشة',
-              style: TextStyle(fontWeight: FontWeight.w800)),
-            Text('محادثة جماعية للطلاب',
-              style: TextStyle(fontSize: 11,
-                color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          ],
-        ),
+      appBar: AppBar(backgroundColor: dark ? const Color(0xFF142B46) : colors.surface, foregroundColor: dark ? Colors.white : colors.onSurface, elevation: 0,
+        leading: _groupSelectionMode ? IconButton(onPressed:()=>setState(()=>_selectedGroupMessageIds.clear()),icon:const Icon(Icons.close_rounded)) : null,
+        title: _groupSelectionMode ? Text('تم تحديد '+_selectedGroupMessageIds.length.toString()+' رسالة') : const Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[Text('غرفة الدردشة',style:TextStyle(fontWeight:FontWeight.w800)),Text('محادثة جماعية للطلاب',style:TextStyle(fontSize:11))]),
+        actions: _groupSelectionMode ? [_selectionToolbar(_selectedGroupMessageIds.length,onClear:()=>setState(()=>_selectedGroupMessageIds.clear()),onDelete:_deleteSelectedGroupMessages,onCopy:_copySelectedGroupMessages,onEdit:_editSelectedGroupMessage,canEdit:_selectedGroupMessages.length==1&&_selectedGroupMessages.first['user_id']==_db.auth.currentUser?.id&&_selectedGroupMessages.first['message_type']=='text',colors:colors)] : null,
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -2461,12 +2452,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         child: Align(
                     alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                     child: GestureDetector(
-                      onTap: () => _showMessageReactionPicker(row),
-                      onLongPress: () => _messageActions(row),
+                      onTap: () => _groupSelectionMode ? _toggleGroupSelection(row) : _showMessageReactionPicker(row),
+                      onLongPress: () => _toggleGroupSelection(row),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
+                          if (_groupSelectionMode) Padding(padding:const EdgeInsets.symmetric(horizontal:5),child:Icon(_selectedGroupMessageIds.contains(row['id'].toString())?Icons.check_circle:Icons.radio_button_unchecked,color:_selectedGroupMessageIds.contains(row['id'].toString())?colors.primary:colors.outline,size:22)),
                           if (!mine) ...[
                             InkWell(
                               customBorder: const CircleBorder(),
