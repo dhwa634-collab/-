@@ -812,13 +812,19 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     }
   }
   final List<Map<String, dynamic>> _optimisticMessages = [];
+  final Map<String, String> _stableMessageRenderIds = {};
   final Set<String> _deletingMessageIds = {};
 
   List<Map<String, dynamic>> _mergeOptimisticMessages(
     List<Map<String, dynamic>> remote,
   ) {
     final merged = <String, Map<String, dynamic>>{
-      for (final row in remote) row['id'].toString(): row,
+      for (final row in remote)
+        row['id'].toString(): {
+          ...row,
+          if (_stableMessageRenderIds.containsKey(row['id'].toString()))
+            '_render_id': _stableMessageRenderIds[row['id'].toString()],
+        },
     };
     final matchedLocalIds = <String>{};
     final matchedRemoteIds = <String>{};
@@ -846,6 +852,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         final remoteId = match['id'].toString();
         matchedLocalIds.add(id);
         matchedRemoteIds.add(remoteId);
+        _stableMessageRenderIds[remoteId] = id;
         merged[remoteId] = {...match, '_render_id': id};
       } else {
         merged[id] = row;
@@ -1087,8 +1094,10 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       }).select().single();
       final index = _optimisticMessages.indexWhere((row) => row['id'] == localId);
       if (index != -1) {
+        _stableMessageRenderIds[inserted['id'].toString()] = localId;
         _optimisticMessages[index] = Map<String, dynamic>.from(inserted)
-          ..['_local_status'] = 'sent';
+          ..['_local_status'] = 'sent'
+          ..['_render_id'] = localId;
       }
       if (mounted) {
         setState(() {});
