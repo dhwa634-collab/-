@@ -1431,17 +1431,31 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                         size: 19,
                                       ),
                                     ),
-                                  Text(
-                                    senderName,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                    decoration: BoxDecoration(
                                       color: mine
-                                          ? colors.onPrimary.withValues(alpha: .85)
-                                          : colors.primary,
+                                          ? colors.onPrimary.withValues(alpha: 0.13)
+                                          : colors.primary.withValues(alpha: 0.10),
+                                      borderRadius: BorderRadius.circular(9),
+                                      border: Border.all(
+                                        color: mine
+                                            ? colors.onPrimary.withValues(alpha: 0.22)
+                                            : colors.primary.withValues(alpha: 0.20),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      senderName,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        height: 1.1,
+                                        letterSpacing: 0.15,
+                                        fontWeight: FontWeight.w900,
+                                        color: mine ? colors.onPrimary : colors.primary,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(height: 3),
+                                  const SizedBox(height: 7),
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -1569,10 +1583,27 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                           color: dark ? const Color(0xFF1A304A) : Colors.white,
                           borderRadius: BorderRadius.circular(32),
                           border: Border.all(
-                            color: colors.outlineVariant.withValues(alpha: 0.45),
+                            color: dark ? const Color(0xFF080E18) : const Color(0xFF26384D),
+                            width: 1.35,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (dark ? Colors.black : const Color(0xFF26384D))
+                                  .withValues(alpha: dark ? 0.28 : 0.12),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
-                        child: Row(
+                        clipBehavior: Clip.antiAlias,
+                        child: Stack(
+                          children: [
+                            const Positioned.fill(
+                              child: IgnorePointer(
+                                child: CustomPaint(painter: _StudyChatWallpaperPainter()),
+                              ),
+                            ),
+                            Row(
                           children: [
                             Expanded(
                               child: TextField(
@@ -1617,6 +1648,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                 color: colors.onSurfaceVariant,
                                 size: 25,
                               ),
+                            ),
+                          ],
                             ),
                           ],
                         ),
@@ -2679,24 +2712,41 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Row(mainAxisSize: MainAxisSize.min, children: [
-                                  Text(
-                                    name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      height: 1.15,
-                                      fontWeight: FontWeight.w800,
-                                      color: bubbleNameColor,
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: mine
+                                        ? colors.onPrimary.withValues(alpha: 0.13)
+                                        : colors.primary.withValues(alpha: 0.10),
+                                    borderRadius: BorderRadius.circular(9),
+                                    border: Border.all(
+                                      color: mine
+                                          ? colors.onPrimary.withValues(alpha: 0.22)
+                                          : colors.primary.withValues(alpha: 0.20),
                                     ),
                                   ),
-                                  if (isDeveloper) ...[
-                                    const SizedBox(width: 5),
-                                    _DeveloperBadge(compact: true, onPrimary: mine),
-                                  ],
-                                ]),
-                                const SizedBox(height: 3),
+                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                    Flexible(
+                                      child: Text(
+                                        name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          height: 1.15,
+                                          letterSpacing: 0.15,
+                                          fontWeight: FontWeight.w900,
+                                          color: bubbleNameColor,
+                                        ),
+                                      ),
+                                    ),
+                                    if (isDeveloper) ...[
+                                      const SizedBox(width: 5),
+                                      _DeveloperBadge(compact: true, onPrimary: mine),
+                                    ],
+                                  ]),
+                                ),
+                                const SizedBox(height: 7),
                                 if (type == 'image' || type == 'custom_sticker')
                                   _buildChatMedia(
                                     type == 'image' ? 'chat-media' : 'chat-stickers',
@@ -2853,10 +2903,27 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         color: dark ? const Color(0xFF1A304A) : Colors.white,
                         borderRadius: BorderRadius.circular(32),
                         border: Border.all(
-                          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
+                          color: dark ? const Color(0xFF080E18) : const Color(0xFF26384D),
+                          width: 1.35,
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (dark ? Colors.black : const Color(0xFF26384D))
+                                .withValues(alpha: dark ? 0.28 : 0.12),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
-                      child: Row(
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        children: [
+                          const Positioned.fill(
+                            child: IgnorePointer(
+                              child: CustomPaint(painter: _StudyChatWallpaperPainter()),
+                            ),
+                          ),
+                          Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
@@ -2884,7 +2951,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             onPressed: _openGroupEmojiPicker,
                             icon: Icon(Icons.emoji_emotions_outlined, color: colors.onSurfaceVariant, size: 25),
                           ),
-                        ],
+                          ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
