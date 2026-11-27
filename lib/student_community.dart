@@ -824,7 +824,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       final own = await _db.from('profiles').select('display_name').eq('user_id', user.id).maybeSingle();
       final meta = user.userMetadata ?? const <String,dynamic>{};
       final value = own?['display_name']?.toString().trim() ?? '';
-      _participantNames[user.id] = value.isNotEmpty ? value : (meta['full_name'] ?? meta['name'] ?? user.email?.split('@').first ?? 'حسابي').toString();
+      _participantNames[user.id] = value.isNotEmpty ? value : (meta['full_name'] ?? meta['name'] ?? 'حسابي').toString();
       if (mounted) setState(() {});
     } catch (error) { debugPrint('Load own private chat name failed: $error'); }
   }
@@ -1305,7 +1305,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
           ),
           child: Stack(children: [
             const Positioned.fill(child: IgnorePointer(child: CustomPaint(
-              painter: _StudyChatWallpaperPainter(),
+              painter: _StudyChatWallpaperPainter(dark: dark),
             ))),
             Column(
           children: [
@@ -1537,7 +1537,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                     icon: Icon(Icons.close_rounded, color: colors.error, size: 19)),
                 ]),
               ),
-            SafeArea(
+            const _ChatRetentionNotice(),
+          SafeArea(
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
@@ -1600,7 +1601,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                           children: [
                             const Positioned.fill(
                               child: IgnorePointer(
-                                child: CustomPaint(painter: _StudyChatWallpaperPainter()),
+                                child: CustomPaint(painter: _StudyChatWallpaperPainter(dark: dark)),
                               ),
                             ),
                             Row(
@@ -2533,9 +2534,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         ),
         child: Stack(children: [
           const Positioned.fill(child: IgnorePointer(child: CustomPaint(
-            painter: _StudyChatWallpaperPainter(),
+            painter: _StudyChatWallpaperPainter(dark: dark),
           ))),
           Column(children: [
+        const _ChatRetentionNotice(),
         Expanded(child: StreamBuilder<List<Map<String, dynamic>>>(stream: messages,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
@@ -2590,7 +2592,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final name = (profile?['display_name'] ??
                     (mine ? (currentUserMetadata['full_name'] ??
                       currentUserMetadata['name'] ??
-                      currentUser?.email?.split('@').first) : null) ??
+                      null) : null) ??
                     'طالب').toString();
                   final type = row['message_type']?.toString() ?? 'text';
                   final sticker = type == 'builtin_sticker' || type == 'custom_sticker';
@@ -2920,7 +2922,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         children: [
                           const Positioned.fill(
                             child: IgnorePointer(
-                              child: CustomPaint(painter: _StudyChatWallpaperPainter()),
+                              child: CustomPaint(painter: _StudyChatWallpaperPainter(dark: dark)),
                             ),
                           ),
                           Row(
@@ -3007,16 +3009,60 @@ class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderState
   }
 }
 
+class _ChatRetentionNotice extends StatelessWidget {
+  const _ChatRetentionNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final accent = dark ? const Color(0xFFFFC66D) : const Color(0xFF8A5100);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 7, 14, 2),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: dark ? 0.11 : 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: accent.withValues(alpha: 0.30)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+          child: Row(
+            textDirection: TextDirection.rtl,
+            children: [
+              Icon(Icons.auto_delete_outlined, size: 17, color: accent),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  'تنبيه: سوف يتم حذف الرسائل تلقائياً بعد يومين (48 ساعة).',
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _StudyChatWallpaperPainter extends CustomPainter {
-  const _StudyChatWallpaperPainter();
+  final bool dark;
+  const _StudyChatWallpaperPainter({required this.dark});
 
   @override
   void paint(Canvas canvas, Size size) {
+    final ink = dark ? const Color(0xFF9FC7F2) : const Color(0xFF5279A5);
+    final opacity = dark ? 0.085 : 0.095;
     final paint = Paint()
-      ..color = const Color(0xFF477DBB).withValues(alpha: 0.075)
+      ..color = ink.withValues(alpha: opacity)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.7;
-    final symbols = <String>['✎', '▱', '△', '⌁', '▤'];
+      ..strokeWidth = 1.5;
+    final symbols = <String>['✎', '▱', '△', '⌁', '▤', '∑', '◌', '⌘'];
     for (var i = 0; i < 18; i++) {
       final x = (i % 4) * (size.width / 3.6) + 12;
       final y = (i ~/ 4) * 145.0 + 32;
@@ -3028,7 +3074,7 @@ class _StudyChatWallpaperPainter extends CustomPainter {
           text: symbols[i % symbols.length],
           style: TextStyle(
             fontSize: i.isEven ? 31 : 25,
-            color: const Color(0xFF477DBB).withValues(alpha: 0.075),
+            color: ink.withValues(alpha: opacity),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -3041,7 +3087,7 @@ class _StudyChatWallpaperPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _StudyChatWallpaperPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _StudyChatWallpaperPainter oldDelegate) => oldDelegate.dark != dark;
 }
 
 /// Current private conversation, used to suppress duplicate live banners while it is open.
