@@ -7,7 +7,7 @@ begin;
 -- Public profile rows contain public profile fields only; the live schema was
 -- inspected and has no email column. Keep profile row access owner-only.
 alter table public.profiles enable row level security;
-revoke all on table public.profiles from anon;
+revoke all on table public.profiles from public, anon;
 grant select, insert, update on table public.profiles to authenticated;
 
 -- Keep the existing profiles_select_self / profiles_insert_self /
