@@ -1049,7 +1049,31 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
         ));
       },
       child:Scaffold(
-      body:SafeArea(child:IndexedStack(index:tab,children:pages)),
+      body: SafeArea(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            for (var index = 0; index < pages.length; index++)
+              Offstage(
+                offstage: tab != index,
+                child: TickerMode(
+                  enabled: tab == index,
+                  child: AnimatedOpacity(
+                    opacity: tab == index ? 1 : 0,
+                    duration: const Duration(milliseconds: 230),
+                    curve: Curves.easeOutCubic,
+                    child: AnimatedSlide(
+                      offset: tab == index ? Offset.zero : const Offset(0.018, 0),
+                      duration: const Duration(milliseconds: 230),
+                      curve: Curves.easeOutCubic,
+                      child: pages[index],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
       bottomNavigationBar:NavigationBar(
         selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),
         backgroundColor:Theme.of(context).colorScheme.surface,
