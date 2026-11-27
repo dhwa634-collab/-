@@ -1093,7 +1093,18 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                               row['sender_id']?.toString()] ??
                           (mine ? 'حسابي' : _resolvedOtherName);
 
-                      return Align(
+                      return AnimatedOpacity(
+                        opacity: _deletingMessageIds.contains(row['id'].toString()) ? 0 : 1,
+                        duration: const Duration(milliseconds: 360),
+                        child: AnimatedSlide(
+                          offset: _deletingMessageIds.contains(row['id'].toString())
+                            ? const Offset(0.32, 0) : Offset.zero,
+                          duration: const Duration(milliseconds: 360),
+                          curve: Curves.easeInCubic,
+                          child: AnimatedScale(
+                            scale: _deletingMessageIds.contains(row['id'].toString()) ? 0.82 : 1,
+                            duration: const Duration(milliseconds: 360),
+                            child: Align(
                         alignment: mine
                             ? Alignment.centerLeft
                             : Alignment.centerRight,
@@ -1201,6 +1212,9 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                   ),
                                 ],
                               ),
+                            ),
+                          ),
+                        ),
                             ),
                           ),
                         ),
@@ -2149,7 +2163,18 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       ? colors.onPrimary.withValues(alpha: 0.78)
                       : colors.onSurfaceVariant;
 
-                  return Align(
+                  return AnimatedOpacity(
+                    opacity: _deletingGroupMessageIds.contains(row['id'].toString()) ? 0 : 1,
+                    duration: const Duration(milliseconds: 360),
+                    child: AnimatedSlide(
+                      offset: _deletingGroupMessageIds.contains(row['id'].toString())
+                        ? const Offset(0.32, 0) : Offset.zero,
+                      duration: const Duration(milliseconds: 360),
+                      curve: Curves.easeInCubic,
+                      child: AnimatedScale(
+                        scale: _deletingGroupMessageIds.contains(row['id'].toString()) ? 0.82 : 1,
+                        duration: const Duration(milliseconds: 360),
+                        child: Align(
                     alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                     child: GestureDetector(
                       onLongPress: () => _messageActions(row),
@@ -2322,6 +2347,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             ),
                           ],
                         ],
+                      ),
+                    ),
+                        ),
                       ),
                     ),
                   );
