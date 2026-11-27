@@ -1397,16 +1397,31 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                 child: Row(
                   textDirection: TextDirection.rtl,
                   children: [
-                    Material(
-                      color: Theme.of(context).colorScheme.primary,
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        tooltip: 'إرسال الرسالة',
-                        onPressed: sending || blocked ? null : send,
-                        icon: const Icon(Icons.send_rounded, color: Colors.white),
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: input,
+                      builder: (context, value, _) => Material(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: _dmRecording ? 'إيقاف وإرسال التسجيل' :
+                            (value.text.trim().isEmpty ? 'تسجيل رسالة صوتية' : 'إرسال الرسالة'),
+                          onPressed: sending || blocked ? null : (_dmRecording
+                            ? () => _stopDirectVoiceRecording(send: true)
+                            : (value.text.trim().isEmpty ? _startDirectVoiceRecording : send)),
+                          icon: Icon(_dmRecording ? Icons.stop_rounded :
+                            (value.text.trim().isEmpty ? Icons.mic_rounded : Icons.send_rounded),
+                            color: Colors.white),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 7),
+                    const SizedBox(width: 3),
+                    IconButton(
+                      tooltip: _dmRecording ? 'إلغاء التسجيل' : 'إرسال صورة',
+                      onPressed: sending || blocked ? null : (_dmRecording
+                        ? () => _stopDirectVoiceRecording(send: false) : _pickAndSendDirectImage),
+                      icon: Icon(_dmRecording ? Icons.close_rounded : Icons.image_outlined, size: 24),
+                    ),
+                    const SizedBox(width: 4),
                     Expanded(
                       child: Container(
                         constraints: const BoxConstraints(
