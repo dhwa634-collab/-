@@ -58,6 +58,14 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
       });
     }
 
+    final prefs = await SharedPreferences.getInstance();
+    final cachedForUser = prefs.getBool('dalilak_student_offline_ready_${user.id}') == true;
+    final legacyLocalProfile = prefs.getBool('dalilak_student_onboarding_done_v1') == true &&
+        (prefs.getString('dalilak_student_display_name_v1') ?? '').trim().isNotEmpty &&
+        (prefs.getString('dalilak_student_username_v1') ?? '').trim().isNotEmpty &&
+        (prefs.getString('dalilak_student_stage_label_v1') ?? '').trim().isNotEmpty &&
+        (prefs.getString('dalilak_student_age_band_v1') ?? '').trim().isNotEmpty;
+
     try {
       final profile = await _client
           .from('profiles')
@@ -76,6 +84,15 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
           age != null &&
           age >= 10 &&
           age <= 80;
+      if (complete) {
+        await prefs.setBool('dalilak_student_offline_ready_${user.id}', true);
+        await prefs.setString('dalilak_student_display_name_v1', displayName);
+        await prefs.setString('dalilak_student_username_v1', username);
+        await prefs.setString('dalilak_student_stage_label_v1', stage);
+        if (rawAge != null) {
+          await prefs.setString('dalilak_student_age_band_v1', rawAge.toString());
+        }
+      }
       if (!mounted) return;
       setState(() {
         _needsSetup = !complete;
@@ -84,7 +101,7 @@ class _StudentOnboardingGateState extends State<StudentOnboardingGate> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _needsSetup = true;
+        _needsSetup = !(cachedForUser || legacyLocalProfile);
         _loading = false;
       });
     }
@@ -585,6 +602,7 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
         _usernameController.text.trim(),
       );
       await prefs.setBool('dalilak_student_onboarding_done_v1', true);
+      await prefs.setBool('dalilak_student_offline_ready_${user.id}', true);
       await prefs.setBool('dalilak_home_welcome_seen_v1', true);
       if (!mounted) return;
       if (avatarUploadFailed) {
