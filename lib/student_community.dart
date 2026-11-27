@@ -728,6 +728,14 @@ class StudentDirectMessageScreen extends StatefulWidget{
 class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>{
   final input=TextEditingController();
   final FocusNode inputFocus = FocusNode();
+  final ImagePicker _dmImagePicker = ImagePicker();
+  final AudioRecorder _dmRecorder = AudioRecorder();
+  final AudioPlayer _dmAudioPlayer = AudioPlayer();
+  bool _dmRecording = false;
+  DateTime? _dmRecordingStarted;
+  Timer? _dmRecordTimer;
+  int _dmRecordSeconds = 0;
+  String? _dmPlayingMessageId;
   final ScrollController _scrollController=ScrollController();
   late final Stream<List<Map<String,dynamic>>> messages; late final StreamSubscription<List<Map<String,dynamic>>> blockSubscription;
   bool sending=false,blocked=false; String? get me=>_db.auth.currentUser?.id;
@@ -879,6 +887,3753 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       selection: TextSelection.collapsed(offset: start + emoji.length),
     );
     inputFocus.requestFocus();
+  }
+
+  Future<void> _pickAndSendDirectImage() async {
+    final user = _db.auth.currentUser;
+    if (user == null || blocked || sending || _dmRecording) return;
+    String? uploadedPath;
+    var saved = false;
+    try {
+      final image = await _dmImagePicker.pickImage(source: ImageSource.gallery,
+        maxWidth: 4096, maxHeight: 4096, imageQuality: 100, requestFullMetadata: false);
+      if (image == null) return;
+      final length = await File(image.path).length();
+      if (length == 0 || length > 25 * 1024 * 1024) throw Exception('حجم الصورة الأصلية يجب ألا يتجاوز 25 ميغابايت.');
+      final bytes = await FlutterImageCompress.compressWithFile(image.path,
+        minWidth: 1600, minHeight: 1600, quality: 82,
+        format: CompressFormat.jpeg, autoCorrectionAngle: true);
+      if (bytes == null || bytes.isEmpty || bytes.lengthInBytes > 5 * 1024 * 1024) throw Exception('تعذر تجهيز الصورة أو تجاوزت 5 ميغابايت.');
+      if (mounted) setState(() => sending = true);
+      uploadedPath = '${user.id}/dm_image_${DateTime.now().microsecondsSinceEpoch}.jpg';
+      await _db.storage.from('chat-media').uploadBinary(uploadedPath, bytes,
+        fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: false));
+      await _db.from('direct_messages').insert({'sender_id': user.id,
+        'receiver_id': widget.otherUserId, 'body': '[[DM_IMAGE:$uploadedPath]]'});
+      saved = true;
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال الصورة: $error')));
+    } finally {
+      if (uploadedPath != null && !saved) {
+        try { await _db.storage.from('chat-media').remove([uploadedPath]); } catch (_) {}
+      }
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  Future<void> _startDirectVoiceRecording() async {
+    if (_dmRecording || sending || blocked) return;
+    try {
+      if (!await _dmRecorder.hasPermission()) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اسمح للتطبيق باستخدام المايكروفون لتسجيل رسالة صوتية.')));
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/dalilak_dm_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _dmRecorder.start(const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 44100), path: path);
+      if (!mounted) return;
+      setState(() { _dmRecording = true; _dmRecordingStarted = DateTime.now(); _dmRecordSeconds = 0; });
+      _dmRecordTimer?.cancel();
+      _dmRecordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted || _dmRecordingStarted == null) return;
+        setState(() => _dmRecordSeconds = DateTime.now().difference(_dmRecordingStarted!).inSeconds);
+        if (_dmRecordSeconds >= 120) unawaited(_stopDirectVoiceRecording(send: true));
+      });
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر بدء التسجيل: $error')));
+    }
+  }
+
+  Future<void> _stopDirectVoiceRecording({required bool send}) async {
+    _dmRecordTimer?.cancel();
+    final seconds = _dmRecordSeconds;
+    String? path;
+    try { path = await _dmRecorder.stop(); } catch (_) {}
+    if (mounted) setState(() { _dmRecording = false; _dmRecordingStarted = null; });
+    if (path == null) return;
+    if (!send) { try { await File(path).delete(); } catch (_) {} return; }
+    final user = _db.auth.currentUser;
+    if (user == null || seconds < 1 || seconds > 120 || blocked) {
+      try { await File(path).delete(); } catch (_) {}
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('التسجيل يجب أن يكون بين ثانية واحدة ودقيقتين.')));
+      return;
+    }
+    String? uploadedPath;
+    var saved = false;
+    if (mounted) setState(() => sending = true);
+    try {
+      final bytes = await File(path).readAsBytes();
+      if (bytes.isEmpty || bytes.length > 3 * 1024 * 1024) throw Exception('حجم التسجيل أكبر من الحد المسموح.');
+      uploadedPath = '${user.id}/dm_voice_${DateTime.now().microsecondsSinceEpoch}.m4a';
+      await _db.storage.from('chat-voice').uploadBinary(uploadedPath, bytes,
+        fileOptions: const FileOptions(contentType: 'audio/mp4', upsert: false));
+      await _db.from('direct_messages').insert({'sender_id': user.id,
+        'receiver_id': widget.otherUserId, 'body': '[[DM_VOICE:$uploadedPath]]'});
+      saved = true;
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال التسجيل: $error')));
+    } finally {
+      if (uploadedPath != null && !saved) {
+        try { await _db.storage.from('chat-voice').remove([uploadedPath]); } catch (_) {}
+      }
+      try { await File(path).delete(); } catch (_) {}
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  Future<void> _playDirectVoice(String id, String path) async {
+    if (_dmPlayingMessageId == id) {
+      await _dmAudioPlayer.pause();
+      if (mounted) setState(() => _dmPlayingMessageId = null);
+      return;
+    }
+    try {
+      final url = await _db.storage.from('chat-voice').createSignedUrl(path, 86400);
+      await _dmAudioPlayer.stop();
+      await _dmAudioPlayer.play(UrlSource(url));
+      if (mounted) setState(() => _dmPlayingMessageId = id);
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تشغيل التسجيل: $error')));
+    }
+  }
+
+  Widget _buildDirectMedia(String body, String id, Color foreground) {
+    final image = RegExp(r'^\\[\\[DM_IMAGE:(.+)\\]\\]
+    final value = input.text.trim();
+    final user = me;
+    if (value.isEmpty || user == null || sending) return;
+    if (value.length > 2000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الرسالة طويلة جداً.')),
+      );
+      return;
+    }
+    if (blocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')),
+      );
+      return;
+    }
+
+    final localId = 'local-${DateTime.now().microsecondsSinceEpoch}';
+    final optimistic = <String, dynamic>{
+      'id': localId,
+      'sender_id': user,
+      'receiver_id': widget.otherUserId,
+      'body': value,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'read_at': null,
+      'edited_at': null,
+      '_local_status': 'sending',
+    };
+    input.clear();
+    setState(() {
+      sending = true;
+      _optimisticMessages.add(optimistic);
+    });
+    _scrollToLatest();
+
+    try {
+      if (await refreshBlockStatus()) {
+        _optimisticMessages.removeWhere((row) => row['id'] == localId);
+        if (mounted) {
+          setState(() {});
+          input.value = TextEditingValue(
+            text: value,
+            selection: TextSelection.collapsed(offset: value.length),
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')),
+          );
+        }
+        return;
+      }
+      final inserted = await _db.from('direct_messages').insert({
+        'sender_id': user,
+        'receiver_id': widget.otherUserId,
+        'body': value,
+      }).select().single();
+      final index = _optimisticMessages.indexWhere((row) => row['id'] == localId);
+      if (index != -1) {
+        _optimisticMessages[index] = Map<String, dynamic>.from(inserted)
+          ..['_local_status'] = 'sent';
+      }
+      if (mounted) {
+        setState(() {});
+        _scrollToLatest();
+      }
+    } catch (error) {
+      _optimisticMessages.removeWhere((row) => row['id'] == localId);
+      if (mounted) {
+        setState(() {});
+        if (input.text.isEmpty) {
+          input.value = TextEditingValue(
+            text: value,
+            selection: TextSelection.collapsed(offset: value.length),
+          );
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر إرسال الرسالة: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+  @override void dispose(){
+    activeDirectMessageUserId.value=null;
+    StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);
+    messageSubscription.cancel();
+    blockSubscription.cancel();
+    _scrollController.dispose();
+    _dmRecordTimer?.cancel();
+    _dmRecorder.dispose();
+    _dmAudioPlayer.dispose();
+    inputFocus.dispose();
+    input.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final avatar = widget.otherAvatar;
+    final hasAvatar = avatar != null && avatar.startsWith('http');
+
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: dark ? const Color(0xFF0C1B2D) : colors.surface,
+        appBar: AppBar(
+          backgroundColor: dark ? const Color(0xFF142B46) : colors.surface,
+          foregroundColor: dark ? Colors.white : colors.onSurface,
+          title: Row(
+            children: [
+              InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StudentPublicProfileScreen(
+                      userId: widget.otherUserId,
+                      fallbackName: _resolvedOtherName,
+                      fallbackAvatar: avatar,
+                    ),
+                  ),
+                ),
+                child: CircleAvatar(
+                  radius: 19,
+                  backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+                  child: hasAvatar ? null : const Icon(Icons.person_rounded, size: 20),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _resolvedOtherName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: _otherOnline ? const Color(0xFF24B47E) : colors.outline,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _otherOnline ? 'متصل الآن' : 'غير متصل',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _otherOnline
+                                ? const Color(0xFF24B47E)
+                                : colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: dark
+                  ? const [Color(0xFF0C1B2D), Color(0xFF132B46), Color(0xFF102238)]
+                  : const [Color(0xFFEAF3FF), Color(0xFFDCEAFF), Color(0xFFF2F7FF)],
+            ),
+          ),
+          child: Stack(children: [
+            const Positioned.fill(child: IgnorePointer(child: CustomPaint(
+              painter: _StudyChatWallpaperPainter(),
+            ))),
+            Column(
+          children: [
+            Expanded(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: messages,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('تعذر تحميل المحادثة: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final items = _mergeOptimisticMessages(snapshot.data!);
+                  if (items.isEmpty) {
+                    return const Center(child: Text('ابدأ المحادثة برسالة ترحيبية 👋'));
+                  }
+
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (_scrollController.hasClients &&
+                        _scrollController.position.maxScrollExtent -
+                                _scrollController.offset <
+                            180) {
+                      _scrollController.jumpTo(
+                        _scrollController.position.maxScrollExtent,
+                      );
+                    }
+                  });
+
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(14),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final row = items[index];
+                      final mine = row['sender_id'] == me;
+                      final senderName = _participantNames[
+                              row['sender_id']?.toString()] ??
+                          (mine ? 'حسابي' : _resolvedOtherName);
+
+                      return AnimatedOpacity(
+                        opacity: _deletingMessageIds.contains(row['id'].toString()) ? 0 : 1,
+                        duration: const Duration(milliseconds: 360),
+                        child: AnimatedSlide(
+                          offset: _deletingMessageIds.contains(row['id'].toString())
+                            ? const Offset(0.32, 0) : Offset.zero,
+                          duration: const Duration(milliseconds: 360),
+                          curve: Curves.easeInCubic,
+                          child: AnimatedScale(
+                            scale: _deletingMessageIds.contains(row['id'].toString()) ? 0.82 : 1,
+                            duration: const Duration(milliseconds: 360),
+                            child: Align(
+                        alignment: mine
+                            ? Alignment.centerLeft
+                            : Alignment.centerRight,
+                        child: TweenAnimationBuilder<double>(
+                          key: ValueKey(row['_render_id'] ?? row['id']),
+                          tween: Tween<double>(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 360),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, child) => Opacity(
+                            opacity: value,
+                            child: Transform.translate(
+                              offset: Offset(0, 22 * (1 - value)),
+                              child: child,
+                            ),
+                          ),
+                          child: GestureDetector(
+                            onLongPress: mine
+                                ? () => _privateMessageActions(row)
+                                : null,
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              padding: const EdgeInsets.all(12),
+                              constraints: BoxConstraints(
+                                maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+                              ),
+                              decoration: BoxDecoration(
+                                color: mine
+                                    ? colors.primary
+                                    : colors.surfaceContainerHigh,
+                                border: Border.all(
+                                  color: mine
+                                      ? colors.primary.withValues(alpha: 0.35)
+                                      : colors.outlineVariant.withValues(alpha: 0.48),
+                                  width: 0.7,
+                                ),
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(19),
+                                  topRight: const Radius.circular(19),
+                                  bottomLeft: Radius.circular(mine ? 19 : 6),
+                                  bottomRight: Radius.circular(mine ? 6 : 19),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colors.shadow.withValues(alpha: 0.045),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    senderName,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: mine
+                                          ? colors.onPrimary.withValues(alpha: .85)
+                                          : colors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Flexible(
+                                        child: _buildDirectMedia(
+                                          row['body']?.toString() ?? '',
+                                          row['id'].toString(),
+                                          mine ? colors.onPrimary : colors.onSurface,
+                                        ),
+                                      ),
+                                      if (row['edited_at'] != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(left: 5),
+                                          child: Text(
+                                            'معدّلة',
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              color: mine
+                                                  ? colors.onPrimary.withValues(alpha: .7)
+                                                  : colors.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
+                                      if (mine) ...[
+                                        const SizedBox(width: 7),
+                                        Icon(
+                                          row['read_at'] != null
+                                              ? Icons.done_all_rounded
+                                              : Icons.done_rounded,
+                                          size: 15,
+                                          color: row['read_at'] != null
+                                              ? Colors.lightBlueAccent
+                                              : colors.onPrimary.withValues(alpha: .72),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            if (blocked)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(14, 6, 14, 0),
+                child: Text(
+                  'المراسلة متوقفة بسبب الحظر بين الحسابين.',
+                  style: TextStyle(color: Color(0xFFB87922)),
+                ),
+              ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+                child: Row(
+                  textDirection: TextDirection.rtl,
+                  children: [
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: input,
+                      builder: (context, value, _) => Material(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: _dmRecording ? 'إيقاف وإرسال التسجيل' :
+                            (value.text.trim().isEmpty ? 'تسجيل رسالة صوتية' : 'إرسال الرسالة'),
+                          onPressed: sending || blocked ? null : (_dmRecording
+                            ? () => _stopDirectVoiceRecording(send: true)
+                            : (value.text.trim().isEmpty ? _startDirectVoiceRecording : send)),
+                          icon: Icon(_dmRecording ? Icons.stop_rounded :
+                            (value.text.trim().isEmpty ? Icons.mic_rounded : Icons.send_rounded), color: Colors.white),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    IconButton(
+                      tooltip: _dmRecording ? 'إلغاء التسجيل' : 'إرسال صورة',
+                      onPressed: sending || blocked ? null : (_dmRecording
+                        ? () => _stopDirectVoiceRecording(send: false) : _pickAndSendDirectImage),
+                      icon: Icon(_dmRecording ? Icons.close_rounded : Icons.image_outlined, size: 24),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minHeight: 54,
+                          maxHeight: 118,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: dark ? const Color(0xFF1A304A) : Colors.white,
+                          borderRadius: BorderRadius.circular(32),
+                          border: Border.all(
+                            color: colors.outlineVariant.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: input,
+                                focusNode: inputFocus,
+                                enabled: !blocked,
+                                minLines: 1,
+                                maxLines: 4,
+                                maxLength: 2000,
+                                textAlignVertical: TextAlignVertical.center,
+                                textInputAction: TextInputAction.send,
+                                onSubmitted: (_) => send(),
+                                style: TextStyle(
+                                  color: colors.onSurface,
+                                  fontSize: 15,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: blocked
+                                      ? 'المراسلة غير متاحة بسبب الحظر'
+                                      : 'الرسالة',
+                                  hintStyle: TextStyle(
+                                    color: colors.onSurfaceVariant,
+                                    fontSize: 15,
+                                  ),
+                                  counterText: '',
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 10,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'إضافة رمز تعبيري',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: blocked ? null : _openEmojiPicker,
+                              icon: Icon(
+                                Icons.emoji_emotions_outlined,
+                                color: colors.onSurfaceVariant,
+                                size: 25,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        )]),
+      ),
+    ));
+  }
+}
+
+
+class _PrivateEmojiPicker extends StatefulWidget {
+  final bool dark;
+  const _PrivateEmojiPicker({required this.dark});
+
+  @override
+  State<_PrivateEmojiPicker> createState() => _PrivateEmojiPickerState();
+}
+
+class _PrivateEmojiPickerState extends State<_PrivateEmojiPicker> {
+  static const Map<String, List<String>> _categories = {
+    'الوجوه': [
+      '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃',
+      '😉','😍','🥰','😘','😗','😙','😚','😋','😛','😜','🤪','😎',
+      '🤓','🧐','🤔','🤫','🤭','😐','😑','😶','😏','😒','🙄','😬',
+      '😴','🥱','😷','🤒','🤕','🤧','🥵','🥶','😵','🤯','🥳','😭',
+      '😢','😤','😡','🤬','😱','😨','😰','😥','🤗','🤩','🥺','🫡',
+    ],
+    'القلوب': [
+      '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','🩷','🩵','🩶',
+      '💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','♥️','💌',
+      '👍','👎','👏','🙌','🤝','🙏','💪','🫶','👊','✊','🤞','✌️',
+    ],
+    'الإشارات': [
+      '👋','🤚','🖐️','✋','🖖','👌','🤌','🤏','✍️','💅','🤳','💃',
+      '🕺','☝️','👇','👆','👉','👈','🫵','🫰','🤟','🤘','🤙','🖕',
+      '✅','❌','⭕','🚫','⚠️','❗','❓','💯','🔥','✨','⭐','🌟',
+    ],
+    'الدراسة': [
+      '📚','📖','📕','📗','📘','📙','📓','📝','✏️','🖊️','📐','📏',
+      '🎓','🏫','🧑‍🎓','👨‍🏫','👩‍🏫','🧠','💡','🔬','🧪','🧮','📊','📈',
+      '🏆','🥇','🎯','⏰','📅','🔔','💻','⌨️','🖥️','🌍','☀️','🌈',
+    ],
+  };
+
+  int _selected = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final entries = _categories.entries.toList();
+    final background = widget.dark
+        ? const Color(0xFF142B46)
+        : colors.surface;
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 350,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .18),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.onSurfaceVariant.withValues(alpha: .35),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'الإيموجيات',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  Text(
+                    '${_categories.values.fold<int>(0, (sum, list) => sum + list.length)} رمز',
+                    style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 42,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                itemCount: entries.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 7),
+                itemBuilder: (context, index) => ChoiceChip(
+                  label: Text(entries[index].key),
+                  selected: _selected == index,
+                  onSelected: (_) => setState(() => _selected = index),
+                ),
+              ),
+            ),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                child: GridView.builder(
+                  key: ValueKey(_selected),
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 8,
+                    mainAxisSpacing: 3,
+                    crossAxisSpacing: 3,
+                  ),
+                  itemCount: entries[_selected].value.length,
+                  itemBuilder: (context, index) {
+                    final emoji = entries[_selected].value[index];
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => Navigator.pop(context, emoji),
+                      child: Center(
+                        child: Text(emoji, style: const TextStyle(fontSize: 25)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class StudentChatScreen extends StatefulWidget {
+  const StudentChatScreen({super.key});
+  @override
+  State<StudentChatScreen> createState() => _StudentChatScreenState();
+}
+class _StudentChatScreenState extends State<StudentChatScreen> {
+  final input = TextEditingController();
+  final scroll = ScrollController();
+  late Stream<List<Map<String, dynamic>>> messages;
+  String _profileCacheKey = '';
+  Future<Map<String, Map<String, dynamic>>>? _profilesFuture;
+  bool sending = false;
+  final Set<String> _deletingGroupMessageIds = {};
+  final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _recorder = AudioRecorder();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  final FocusNode inputFocus = FocusNode();
+  final Set<String> _blockedUserIds = {};
+  bool _recording = false;
+  DateTime? _recordStartedAt;
+  Timer? _recordTimer;
+  int _recordSeconds = 0;
+  int _lastMessageCount = 0;
+  String? _playingMessageId;
+  Duration _audioPosition = Duration.zero;
+  Duration _audioDuration = Duration.zero;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration>? _durationSub;
+  StreamSubscription<void>? _completeSub;
+  static const stickers = {'book': '📚', 'great': '👏', 'success': '🌟',
+    'focus': '🎯', 'thanks': '💙', 'motivation': '💪'};
+  @override
+  void initState() {
+    super.initState();
+    messages = _messageStream();
+    _loadBlockedUsers();
+    _positionSub = _audioPlayer.onPositionChanged.listen((value) {
+      if (mounted) setState(() => _audioPosition = value);
+    });
+    _durationSub = _audioPlayer.onDurationChanged.listen((value) {
+      if (mounted) setState(() => _audioDuration = value);
+    });
+    _completeSub = _audioPlayer.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _playingMessageId = null);
+    });
+  }
+  Stream<List<Map<String, dynamic>>> _messageStream() =>
+      _db.from('chat_messages').stream(primaryKey: ['id']).order('created_at', ascending: true);
+
+  void _retryMessages() {
+    setState(() => messages = _messageStream());
+  }
+
+  bool unsafe(String value) {
+    final normalized = value.toLowerCase()
+      .replaceAll('أ', 'ا').replaceAll('إ', 'ا').replaceAll('آ', 'ا')
+      .replaceAll('ى', 'ي').replaceAll('ـ', '')
+      .replaceAll(RegExp(r'[\u064B-\u065F\u0670\u200B-\u200F]'), '');
+    final compact = normalized.replaceAll(RegExp(r'[\s().-]'), '');
+    final phone = RegExp(r'(?:\+?964|00964|0)7[0-9٠-٩]{9}');
+    final email = RegExp(r'[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}');
+    final link = RegExp(
+      r'(https?://|www\.|t\.me/|wa\.me/|(?:[a-z0-9-]+\.)+(?:com|net|org|io|me|info|site|xyz|ly|co|app)(?:/|$))',
+      caseSensitive: false,
+    );
+    final shortInsult = RegExp(r'(^|[\s،,.!?؛:()])كس($|[\s،,.!?؛:()])');
+    const blockedWords = [
+      'قحبة', 'شرموطة', 'متخلف', 'منيوك', 'خول', 'طيز',
+      'زاني', 'عرص', 'يلعن', 'fuck', 'shit', 'bitch',
+    ];
+    return phone.hasMatch(compact) || email.hasMatch(normalized) ||
+      link.hasMatch(normalized) || shortInsult.hasMatch(normalized) ||
+      blockedWords.any(normalized.contains);
+  }
+
+  void _openChatProfile(String userId, Map<String,dynamic>? profile, String name, String? avatar) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => StudentPublicProfileScreen(
+      userId: userId,
+      fallbackName: name,
+      fallbackUsername: profile?['username']?.toString(),
+      fallbackStage: profile?['stage']?.toString(),
+      fallbackAvatar: avatar,
+      fallbackBadge: profile?['badge']?.toString(),
+      fallbackBio: profile?['bio']?.toString(),
+      fallbackDeveloper: profile?['is_developer'] == true,
+    )));
+  }
+
+  Future<void> _loadBlockedUsers() async {
+    final user = _db.auth.currentUser;
+    if (user == null) return;
+    try {
+      final rows = await _db.from('user_blocks').select('blocked_id')
+        .eq('blocker_id', user.id);
+      if (!mounted) return;
+      setState(() => _blockedUserIds.addAll(
+        (rows as List).map((row) => row['blocked_id'].toString())));
+    } catch (_) {}
+  }
+
+  Future<void> _pickAndSendImage() async {
+    final user = _db.auth.currentUser;
+    if (user == null) { toast('سجّل الدخول أولاً.'); return; }
+    if (sending || _recording) return;
+    String? uploadedPath;
+    bool messageSaved = false;
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 4096,
+        maxHeight: 4096,
+        imageQuality: 100,
+        requestFullMetadata: false,
+      );
+      if (image == null) return;
+      final sourceLength = await File(image.path).length();
+      if (sourceLength == 0 || sourceLength > 25 * 1024 * 1024) {
+        toast('حجم الصورة الأصلية يجب ألا يتجاوز 25 ميغابايت.');
+        return;
+      }
+      final compressedBytes = await FlutterImageCompress.compressWithFile(
+        image.path,
+        minWidth: 1600,
+        minHeight: 1600,
+        quality: 82,
+        format: CompressFormat.jpeg,
+        autoCorrectionAngle: true,
+      );
+      if (compressedBytes == null || compressedBytes.isEmpty) {
+        toast('تعذر تجهيز الصورة قبل الإرسال.');
+        return;
+      }
+      if (compressedBytes.lengthInBytes > 5 * 1024 * 1024) {
+        toast('الصورة بعد الضغط أكبر من 5 ميغابايت. اختر صورة أصغر.');
+        return;
+      }
+      if (!mounted) return;
+      setState(() => sending = true);
+      uploadedPath = '${user.id}/image_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await _db.storage.from('chat-media').uploadBinary(
+        uploadedPath,
+        compressedBytes,
+        fileOptions: const FileOptions(
+          contentType: 'image/jpeg',
+          cacheControl: '31536000',
+          upsert: false,
+        ),
+      );
+      await _db.from('chat_messages').insert({
+        'user_id': user.id,
+        'message_type': 'image',
+        'body': null,
+        'sticker_id': null,
+        'storage_path': uploadedPath,
+      });
+      messageSaved = true;
+      toast('تم إرسال الصورة.');
+    } on StorageException catch (e) {
+      toast('فشل رفع الصورة (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
+    } on PostgrestException catch (e) {
+      toast('فشل حفظ الصورة في الدردشة (رمز ${e.code ?? 'DB'}): ${e.message}');
+    } on AuthException catch (e) {
+      toast('انتهت جلسة الدخول أثناء إرسال الصورة: ${e.message}');
+    } on SocketException catch (e) {
+      toast('تعذر الاتصال أثناء إرسال الصورة: ${e.message}');
+    } catch (e) {
+      toast('تعذر إرسال الصورة (${e.runtimeType}): ${e.toString()}');
+    } finally {
+      if (uploadedPath != null && !messageSaved) {
+        try { await _db.storage.from('chat-media').remove([uploadedPath]); } catch (_) {}
+      }
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  Future<void> _startVoiceRecording() async {
+    if (_recording || sending) return;
+    try {
+      if (!await _recorder.hasPermission()) {
+        toast('اسمح للتطبيق باستخدام المايكروفون لتسجيل رسالة صوتية.'); return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/dalilak_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 44100,
+        ),
+        path: path,
+      );
+      if (!mounted) return;
+      setState(() {
+        _recording = true;
+        _recordStartedAt = DateTime.now();
+        _recordSeconds = 0;
+      });
+      _recordTimer?.cancel();
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted || _recordStartedAt == null) return;
+        setState(() => _recordSeconds = DateTime.now().difference(_recordStartedAt!).inSeconds);
+        if (_recordSeconds >= 120) unawaited(_stopVoiceRecording(send: true));
+      });
+    } catch (e) { toast('تعذر بدء التسجيل: $e'); }
+  }
+
+  Future<void> _stopVoiceRecording({required bool send}) async {
+    _recordTimer?.cancel();
+    final seconds = _recordSeconds;
+    String? path;
+    try { path = await _recorder.stop(); } catch (_) {}
+    if (mounted) setState(() { _recording = false; _recordStartedAt = null; });
+    if (path == null) return;
+    if (!send) {
+      try { await File(path).delete(); } catch (_) {}
+      toast('تم إلغاء التسجيل.');
+      return;
+    }
+    final user = _db.auth.currentUser;
+    if (user == null || seconds < 1 || seconds > 120) {
+      try { await File(path).delete(); } catch (_) {}
+      toast('التسجيل يجب أن يكون بين ثانية واحدة ودقيقتين.'); return;
+    }
+    setState(() => sending = true);
+    String? uploadedPath;
+    bool messageSaved = false;
+    try {
+      final bytes = await File(path).readAsBytes();
+      if (bytes.isEmpty || bytes.length > 3 * 1024 * 1024) {
+        throw Exception('حجم التسجيل أكبر من الحد المسموح.');
+      }
+      uploadedPath = '${user.id}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _db.storage.from('chat-voice').uploadBinary(
+        uploadedPath, bytes,
+        fileOptions: const FileOptions(contentType: 'audio/mp4', upsert: false),
+      );
+      await _db.from('chat_messages').insert({
+        'user_id': user.id, 'message_type': 'voice',
+        'body': null, 'sticker_id': null, 'storage_path': uploadedPath,
+      });
+      messageSaved = true;
+      toast('تم إرسال الرسالة الصوتية.');
+    } on StorageException catch (e) {
+      toast('فشل رفع التسجيل الصوتي (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
+    } on PostgrestException catch (e) {
+      toast('فشل حفظ التسجيل في الدردشة (رمز ${e.code ?? 'DB'}): ${e.message}');
+    } on AuthException catch (e) {
+      toast('انتهت جلسة الدخول أثناء إرسال التسجيل: ${e.message}');
+    } on SocketException catch (e) {
+      toast('تعذر الاتصال أثناء إرسال التسجيل: ${e.message}');
+    } catch (e) {
+      toast('تعذر إرسال التسجيل (${e.runtimeType}): ${e.toString()}');
+    }
+    finally {
+      if (uploadedPath != null && !messageSaved) {
+        try { await _db.storage.from('chat-voice').remove([uploadedPath]); } catch (_) {}
+      }
+      try { await File(path).delete(); } catch (_) {}
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  final Map<String, Future<String?>> _mediaUrlCache = {};
+
+  Future<String?> _signedMediaUrl(String bucket, String? path) {
+    if (path == null || path.isEmpty) return Future.value(null);
+    final key = '$bucket/$path';
+    return _mediaUrlCache.putIfAbsent(key, () async {
+      try {
+        return await _db.storage.from(bucket).createSignedUrl(path, 86400);
+      } catch (_) {
+        _mediaUrlCache.remove(key);
+        return null;
+      }
+    });
+  }
+
+  Widget _mediaPlaceholder({
+    double width = 224,
+    double height = 190,
+    bool failed = false,
+    VoidCallback? onRetry,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      width: width,
+      height: height,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: failed
+          ? TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('إعادة تحميل الصورة'),
+            )
+          : const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+    );
+  }
+
+  Widget _buildChatMedia(String bucket, String path, {bool sticker = false}) {
+    final cacheKey = '$bucket/$path';
+    final width = sticker ? 156.0 : 224.0;
+    final height = sticker ? 156.0 : 190.0;
+    return FutureBuilder<String?>(
+      future: _signedMediaUrl(bucket, path),
+      builder: (context, snapshot) {
+        final url = snapshot.data;
+        if (url == null) {
+          return _mediaPlaceholder(
+            width: width,
+            height: height,
+            failed: snapshot.connectionState == ConnectionState.done,
+            onRetry: () => setState(() => _mediaUrlCache.remove(cacheKey)),
+          );
+        }
+        return GestureDetector(
+          onTap: () => showDialog<void>(
+            context: context,
+            barrierColor: Colors.black87,
+            builder: (dialogContext) => Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.all(12),
+              child: Stack(
+                children: [
+                  InteractiveViewer(
+                    minScale: 0.8,
+                    maxScale: 4,
+                    child: CachedNetworkImage(
+                      imageUrl: url,
+                      fit: BoxFit.contain,
+                      placeholder: (_, __) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      errorWidget: (_, __, ___) => const Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: IconButton.filledTonal(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedNetworkImage(
+              imageUrl: url,
+              width: width,
+              height: height,
+              fit: sticker ? BoxFit.contain : BoxFit.cover,
+              memCacheWidth: sticker ? 420 : 672,
+              maxWidthDiskCache: sticker ? 480 : 800,
+              fadeInDuration: const Duration(milliseconds: 120),
+              placeholder: (_, __) => _mediaPlaceholder(width: width, height: height),
+              errorWidget: (_, __, ___) => _mediaPlaceholder(
+                width: width,
+                height: height,
+                failed: true,
+                onRetry: () => setState(() => _mediaUrlCache.remove(cacheKey)),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _playVoice(Map<String, dynamic> row) async {
+    final id = row['id'].toString();
+    if (_playingMessageId == id) {
+      await _audioPlayer.pause();
+      if (mounted) setState(() => _playingMessageId = null);
+      return;
+    }
+    final url = await _signedMediaUrl('chat-voice', row['storage_path']?.toString());
+    if (url == null) { toast('تعذر فتح التسجيل الصوتي.'); return; }
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.play(UrlSource(url));
+      if (mounted) {
+        setState(() {
+        _playingMessageId = id;
+        _audioPosition = Duration.zero;
+        _audioDuration = Duration.zero;
+        });
+      }
+    } catch (_) { toast('تعذر تشغيل الرسالة الصوتية.'); }
+  }
+
+  Future<void> _blockUser(Map<String, dynamic> row) async {
+    final current = _db.auth.currentUser;
+    final blockedId = row['user_id']?.toString();
+    if (current == null || blockedId == null || blockedId == current.id) return;
+    final confirm = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(
+        title: const Text('حظر هذا المستخدم؟'),
+        content: const Text('لن تظهر لك رسائله بعد الآن على هذا الجهاز والحساب.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حظر')),
+        ],
+      ));
+    if (confirm != true) return;
+    try {
+      await _db.from('user_blocks').insert({
+        'blocker_id': current.id, 'blocked_id': blockedId,
+      });
+      if (mounted) setState(() => _blockedUserIds.add(blockedId));
+      toast('تم حظر المستخدم.');
+    } catch (_) { toast('تعذر حظر المستخدم حالياً.'); }
+  }
+
+  Future<void> _messageActions(Map<String, dynamic> row) async {
+    final mine = row['user_id'] == _db.auth.currentUser?.id;
+    final action = await showModalBottomSheet<String>(context: context,
+      builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (mine && row['message_type'] == 'text' && (row['body']?.toString().isNotEmpty ?? false))
+            ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () => Navigator.pop(ctx, 'edit')),
+          if (mine) ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('حذف الرسالة'), onTap: () => Navigator.pop(ctx, 'delete')),
+          ListTile(leading: const Icon(Icons.flag_outlined), title: const Text('الإبلاغ عن الرسالة'), onTap: () => Navigator.pop(ctx, 'report')),
+          if (!mine) ListTile(leading: const Icon(Icons.person_off_outlined), title: const Text('الإبلاغ عن المستخدم'), onTap: () => Navigator.pop(ctx, 'report_user')),
+          if (!mine) ListTile(leading: const Icon(Icons.block_outlined), title: const Text('حظر المستخدم'), onTap: () => Navigator.pop(ctx, 'block')),
+        ]))));
+    if (!mounted) return;
+    if (action == 'edit') {
+      await _editGroupMessage(row);
+      return;
+    }
+    if (action == 'delete') {
+      final ok = await showDialog<bool>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: AlertDialog(title: const Text('حذف الرسالة؟'), content: const Text('سيتم حذف الرسالة من الدردشة.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف'))])));
+      if (ok == true) {
+        final userId = _db.auth.currentUser?.id;
+        if (userId == null) { toast('انتهت جلسة تسجيل الدخول.'); return; }
+        final id = row['id'].toString();
+        if (mounted) setState(() => _deletingGroupMessageIds.add(id));
+        await Future<void>.delayed(const Duration(milliseconds: 360));
+        try { await _db.from('chat_messages').delete().eq('id', id).eq('user_id', userId); }
+        catch (e) {
+          if (mounted) setState(() => _deletingGroupMessageIds.remove(id));
+          toast('تعذر حذف الرسالة: $e');
+        }
+      }
+    }
+    if (action == 'report') await report(row);
+    if (action == 'report_user') await report(row, reportUser: true);
+    if (action == 'block') await _blockUser(row);
+  }
+  Future<void> _editGroupMessage(Map<String,dynamic> row) async {
+    final ctl = TextEditingController(text: row['body']?.toString() ?? '');
+    final value = await showDialog<String>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+      child: AlertDialog(title: const Text('تعديل الرسالة'), content: TextField(controller: ctl, autofocus: true, maxLines: 5, maxLength: 2000),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text.trim()), child: const Text('حفظ'))])));
+    ctl.dispose(); if (value == null || value.isEmpty || value == row['body']) return;
+    if (value.length > 500 || unsafe(value)) { toast('لم تُعدّل الرسالة: تجنب الإساءة أو أرقام الهواتف أو البريد أو الروابط، والحد 500 حرف.'); return; }
+    try { await _db.from('chat_messages').update({'body': value, 'edited_at': DateTime.now().toUtc().toIso8601String()}).eq('id', row['id']).eq('user_id', _db.auth.currentUser!.id); }
+    catch (e) { toast('تعذر تعديل الرسالة: $e'); }
+  }
+
+  Future<void> _openGroupEmojiPicker() async {
+    inputFocus.unfocus();
+    final emoji = await showModalBottomSheet<String>(context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      builder: (_) => _PrivateEmojiPicker(dark: Theme.of(context).brightness == Brightness.dark));
+    if (!mounted || emoji == null) return;
+    final oldValue = input.value;
+    final selection = oldValue.selection;
+    final start = selection.isValid ? selection.start : oldValue.text.length;
+    final end = selection.isValid ? selection.end : oldValue.text.length;
+    input.value = TextEditingValue(text: oldValue.text.replaceRange(start, end, emoji), selection: TextSelection.collapsed(offset: start + emoji.length));
+    inputFocus.requestFocus();
+  }
+
+  Future<void> send({String? sticker}) async {
+    final user = _db.auth.currentUser;
+    if (user == null) { toast('سجّل الدخول بحساب Google للمشاركة.'); return; }
+    final text = input.text.trim();
+    if (sticker == null && text.isEmpty) return;
+    if (sticker == null && (text.length > 500 || unsafe(text))) {
+      toast('لم تُرسل الرسالة: تجنب الإساءة أو أرقام الهواتف أو البريد أو الروابط.'); return;
+    }
+    setState(() => sending = true);
+    try {
+      await _db.from('chat_messages').insert({
+        'user_id': user.id, 'message_type': sticker == null ? 'text' : 'builtin_sticker',
+        'body': sticker == null ? text : null, 'sticker_id': sticker,
+      });
+      input.clear();
+      if (scroll.hasClients) {
+        await scroll.animateTo(
+          scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        );
+      }
+    } on PostgrestException catch (e) {
+      if (e.message.toLowerCase().contains('rate') ||
+          e.message.toLowerCase().contains('duplicate')) {
+        toast('تم إيقاف الإرسال مؤقتاً لتجنب التكرار.');
+      } else {
+        final detail = [
+          if ((e.code ?? '').isNotEmpty) 'الرمز ${e.code}',
+          e.message,
+          if ((e.details ?? '').toString().isNotEmpty) e.details.toString(),
+          if ((e.hint ?? '').toString().isNotEmpty) 'اقتراح الخادم: ${e.hint}',
+        ].join(' — ');
+        toast('فشل إرسال الرسالة: $detail');
+      }
+    } on AuthException catch (e) {
+      toast('مشكلة بجلسة تسجيل الدخول: ${e.message}');
+    } on SocketException catch (e) {
+      toast('تعذر الاتصال بالإنترنت: ${e.message}');
+    } on TimeoutException {
+      toast('انتهت مهلة الاتصال أثناء إرسال الرسالة. حاول مجدداً.');
+    } catch (e) {
+      toast('فشل إرسال الرسالة (${e.runtimeType}): ${e.toString()}');
+    }
+    finally { if (mounted) setState(() => sending = false); }
+  }
+  Future<Map<String, Map<String, dynamic>>> getProfiles(List<Map<String, dynamic>> rows) async {
+    final ids = rows.map((r) => r['user_id'].toString()).toSet().toList();
+    if (ids.isEmpty) return {};
+    try {
+      final result = await _db.rpc('get_student_chat_profiles_v1', params: {'p_user_ids': ids});
+      return {for (final p in (result as List)) p['user_id'].toString(): Map<String, dynamic>.from(p)};
+    } catch (_) { return {}; }
+  }
+  Future<void> report(Map<String, dynamic> row, {bool reportUser = false}) async {
+    final user = _db.auth.currentUser;
+    if (user == null) { toast('سجّل الدخول أولاً حتى ترسل بلاغاً.'); return; }
+    final reason = await showModalBottomSheet<String>(context: context,
+      builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(padding: const EdgeInsets.all(16), child: Text(reportUser ? 'سبب الإبلاغ عن المستخدم' : 'سبب الإبلاغ عن الرسالة', style: const TextStyle(fontWeight: FontWeight.bold))),
+          for (final item in const {
+            'abuse': 'إساءة أو ألفاظ غير لائقة', 'bullying': 'تنمر أو مضايقة',
+            'inappropriate': 'محتوى غير مناسب', 'personal_info': 'معلومات شخصية',
+            'spam': 'رسائل مزعجة', 'other': 'سبب آخر',
+          }.entries)
+            ListTile(title: Text(item.value), onTap: () => Navigator.pop(ctx, item.key)),
+        ]))));
+    if (reason == null) return;
+    try {
+      await _db.from('chat_reports').insert({'reporter_id': user.id, 'message_id': row['id'], 'reason': reason, 'details': reportUser ? 'بلاغ على صاحب الرسالة' : null});
+      toast('وصل بلاغك إلى فريق الإشراف. شكراً لك.');
+    } catch (_) { toast('تعذر إرسال البلاغ أو سبق الإبلاغ عن الرسالة.'); }
+  }
+  void toast(String value) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+  String timeOf(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    if (date == null) return '';
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+  @override
+  void dispose() {
+    _recordTimer?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
+    _completeSub?.cancel();
+    unawaited(_recorder.dispose());
+    unawaited(_audioPlayer.dispose());
+    inputFocus.dispose();
+    input.dispose();
+    scroll.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Directionality(textDirection: TextDirection.rtl,
+    child: Scaffold(
+      backgroundColor: dark ? const Color(0xFF0C1B2D) : colors.surface,
+      appBar: AppBar(
+        backgroundColor: dark ? const Color(0xFF142B46) : colors.surface,
+        foregroundColor: dark ? Colors.white : colors.onSurface,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('غرفة الدردشة',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+            Text('محادثة جماعية للطلاب',
+              style: TextStyle(fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: dark
+                ? const [Color(0xFF0C1B2D), Color(0xFF132B46), Color(0xFF102238)]
+                : const [Color(0xFFEAF3FF), Color(0xFFDCEAFF), Color(0xFFF2F7FF)],
+          ),
+        ),
+        child: Stack(children: [
+          const Positioned.fill(child: IgnorePointer(child: CustomPaint(
+            painter: _StudyChatWallpaperPainter(),
+          ))),
+          Column(children: [
+        Expanded(child: StreamBuilder<List<Map<String, dynamic>>>(stream: messages,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.cloud_off_rounded, size: 42),
+                  const SizedBox(height: 10),
+                  const Text('تعذر تحميل المحادثة. تحقق من الإنترنت وحاول مجدداً.'),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(onPressed: _retryMessages,
+                    icon: const Icon(Icons.refresh_rounded), label: const Text('إعادة المحاولة')),
+                ]),
+              ));
+            }
+            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+            final rows = snapshot.data!.where((r) => r['deleted_at'] == null &&
+              r['hidden_at'] == null &&
+              !_blockedUserIds.contains(r['user_id'].toString())).toList();
+            if (rows.length != _lastMessageCount) {
+              final hadPreviousMessages = _lastMessageCount > 0;
+              _lastMessageCount = rows.length;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!scroll.hasClients) return;
+                final distanceFromBottom = scroll.position.maxScrollExtent - scroll.offset;
+                if (!hadPreviousMessages || distanceFromBottom <= 120) {
+                  scroll.animateTo(scroll.position.maxScrollExtent,
+                    duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+                }
+              });
+            }
+            if (rows.isEmpty) return const Center(child: Text('ابدأ المحادثة برسالة مفيدة 🌟'));
+            final profileIds = rows.map((r) => r['user_id'].toString()).toSet().toList()..sort();
+            final nextProfileKey = profileIds.join('|');
+            if (nextProfileKey != _profileCacheKey) {
+              _profileCacheKey = nextProfileKey;
+              _profilesFuture = getProfiles(rows);
+            }
+            return FutureBuilder<Map<String, Map<String, dynamic>>>(future: _profilesFuture,
+              builder: (context, profiles) => ListView.builder(
+                controller: scroll,
+                reverse: false,
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+                itemCount: rows.length,
+                itemBuilder: (context, index) {
+                  final row = rows[index];
+                  final mine = row['user_id']?.toString() == _db.auth.currentUser?.id;
+                  final profile = profiles.data?[row['user_id'].toString()];
+                  final currentUser = _db.auth.currentUser;
+                  final currentUserMetadata =
+                      currentUser?.userMetadata ?? const <String, dynamic>{};
+                  final name = (profile?['display_name'] ??
+                    (mine ? (currentUserMetadata['full_name'] ??
+                      currentUserMetadata['name'] ??
+                      currentUser?.email?.split('@').first) : null) ??
+                    'طالب').toString();
+                  final type = row['message_type']?.toString() ?? 'text';
+                  final sticker = type == 'builtin_sticker' || type == 'custom_sticker';
+                  final mediaPath = row['storage_path']?.toString() ?? '';
+                  final colors = Theme.of(context).colorScheme;
+                  final avatar = profile?['avatar_url']?.toString();
+                  final fallbackAvatar = mine
+                      ? currentUserMetadata['picture']?.toString()
+                      : null;
+                  final avatarSource = avatar != null && avatar.startsWith('http')
+                      ? avatar
+                      : fallbackAvatar != null && fallbackAvatar.startsWith('http')
+                          ? fallbackAvatar
+                          : null;
+                  final isDeveloper = profile?['is_developer'] == true ||
+                      (mine && _isVerifiedDeveloper(currentUser));
+                  final bubbleTextColor = mine
+                      ? colors.onPrimary
+                      : colors.onSurface;
+                  final bubbleNameColor = mine
+                      ? colors.onPrimary
+                      : colors.primary;
+                  final bubbleMetaColor = mine
+                      ? colors.onPrimary.withValues(alpha: 0.78)
+                      : colors.onSurfaceVariant;
+
+                  return AnimatedOpacity(
+                    opacity: _deletingGroupMessageIds.contains(row['id'].toString()) ? 0 : 1,
+                    duration: const Duration(milliseconds: 360),
+                    child: AnimatedSlide(
+                      offset: _deletingGroupMessageIds.contains(row['id'].toString())
+                        ? const Offset(0.32, 0) : Offset.zero,
+                      duration: const Duration(milliseconds: 360),
+                      curve: Curves.easeInCubic,
+                      child: AnimatedScale(
+                        scale: _deletingGroupMessageIds.contains(row['id'].toString()) ? 0.82 : 1,
+                        duration: const Duration(milliseconds: 360),
+                        child: Align(
+                    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                    child: GestureDetector(
+                      onLongPress: () => _messageActions(row),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          if (!mine) ...[
+                            InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => _openChatProfile(
+                                row['user_id'].toString(), profile, name, avatarSource,
+                              ),
+                              child: CircleAvatar(
+                                radius: 15,
+                                backgroundColor: colors.surfaceContainerHighest,
+                                backgroundImage: avatarSource == null
+                                    ? null
+                                    : CachedNetworkImageProvider(avatarSource),
+                                child: avatarSource == null
+                                    ? Icon(Icons.person_rounded,
+                                        size: 17, color: colors.onSurfaceVariant)
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Container(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+                            ),
+                            margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: mine ? colors.primary : colors.surfaceContainerHigh,
+                              border: Border.all(
+                                color: mine
+                                    ? colors.primary.withValues(alpha: 0.35)
+                                    : colors.outlineVariant.withValues(alpha: 0.48),
+                                width: 0.7,
+                              ),
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(19),
+                                topRight: const Radius.circular(19),
+                                bottomLeft: Radius.circular(mine ? 19 : 6),
+                                bottomRight: Radius.circular(mine ? 6 : 19),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colors.shadow.withValues(alpha: 0.045),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      height: 1.15,
+                                      fontWeight: FontWeight.w800,
+                                      color: bubbleNameColor,
+                                    ),
+                                  ),
+                                  if (isDeveloper) ...[
+                                    const SizedBox(width: 5),
+                                    _DeveloperBadge(compact: true, onPrimary: mine),
+                                  ],
+                                ]),
+                                const SizedBox(height: 3),
+                                if (type == 'image' || type == 'custom_sticker')
+                                  _buildChatMedia(
+                                    type == 'image' ? 'chat-media' : 'chat-stickers',
+                                    mediaPath,
+                                    sticker: type == 'custom_sticker',
+                                  )
+                                else if (type == 'voice')
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        visualDensity: VisualDensity.compact,
+                                        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                                        padding: EdgeInsets.zero,
+                                        onPressed: () => _playVoice(row),
+                                        icon: Icon(
+                                          _playingMessageId == row['id'].toString()
+                                              ? Icons.pause_circle_filled_rounded
+                                              : Icons.play_circle_fill_rounded,
+                                          size: 28,
+                                          color: bubbleTextColor,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      SizedBox(
+                                        width: 104,
+                                        child: LinearProgressIndicator(
+                                          value: _playingMessageId == row['id'].toString() &&
+                                                  _audioDuration.inMilliseconds > 0
+                                              ? (_audioPosition.inMilliseconds /
+                                                      _audioDuration.inMilliseconds)
+                                                  .clamp(0.0, 1.0)
+                                                  .toDouble()
+                                              : 0,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  Text(
+                                    type == 'builtin_sticker'
+                                        ? (stickers[row['sticker_id']?.toString()] ?? '🌟')
+                                        : (unsafe((row['body'] ?? '').toString())
+                                            ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
+                                            : (row['body'] ?? '').toString()),
+                                    style: TextStyle(
+                                      fontSize: sticker ? 28 : 14,
+                                      height: 1.35,
+                                      color: bubbleTextColor,
+                                    ),
+                                  ),
+                                const SizedBox(height: 3),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                      Text(
+                                        timeOf(row['created_at']),
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          height: 1,
+                                          color: bubbleMetaColor,
+                                        ),
+                                      ),
+                                      if (mine) ...[
+                                        const SizedBox(width: 3),
+                                        Icon(Icons.done_rounded, size: 12,
+                                          color: colors.onSurfaceVariant),
+                                      ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (mine) ...[
+                            const SizedBox(width: 6),
+                            InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => _openChatProfile(
+                                row['user_id'].toString(), profile, name, avatarSource,
+                              ),
+                              child: CircleAvatar(
+                                radius: 15,
+                                backgroundColor: colors.surfaceContainerHighest,
+                                backgroundImage: avatarSource == null
+                                    ? null
+                                    : CachedNetworkImageProvider(avatarSource),
+                                child: avatarSource == null
+                                    ? Icon(Icons.person_rounded,
+                                        size: 17, color: colors.onSurfaceVariant)
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                        ),
+                      ),
+                    ),
+                  );
+                }));
+          })),
+        if (_db.auth.currentUser == null)
+          Padding(padding: const EdgeInsets.all(12),
+            child: FilledButton(onPressed: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const StudentGoogleLoginScreen())),
+              child: const Text('سجّل الدخول للمشاركة في الدردشة')))
+        else
+          SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+            child: Column(children: [
+              Row(
+                textDirection: TextDirection.rtl,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: input,
+                    builder: (context, value, _) {
+                      final hasText = value.text.trim().isNotEmpty;
+                      return Material(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: _recording ? 'إيقاف التسجيل' : (hasText ? 'إرسال الرسالة' : 'تسجيل رسالة صوتية'),
+                          onPressed: sending ? null : (_recording
+                            ? () => _stopVoiceRecording(send: true)
+                            : (hasText ? () => send() : _startVoiceRecording)),
+                          icon: Icon(
+                            _recording ? Icons.stop_rounded
+                              : (hasText ? Icons.send_rounded : Icons.mic_rounded),
+                            color: Colors.white,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 7),
+                  IconButton(
+                    tooltip: _recording ? 'إلغاء التسجيل' : 'إرسال صورة',
+                    onPressed: sending ? null : (_recording
+                      ? () => _stopVoiceRecording(send: false)
+                      : _pickAndSendImage),
+                    icon: Icon(
+                      _recording ? Icons.close_rounded : Icons.image_outlined,
+                      size: 25,
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 54, maxHeight: 118),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: dark ? const Color(0xFF1A304A) : Colors.white,
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: input,
+                              focusNode: inputFocus,
+                              minLines: 1,
+                              maxLines: 4,
+                              maxLength: 500,
+                              textAlignVertical: TextAlignVertical.center,
+                              style: TextStyle(color: colors.onSurface, fontSize: 15),
+                              decoration: InputDecoration(
+                                hintText: 'الرسالة',
+                                hintStyle: TextStyle(color: colors.onSurfaceVariant, fontSize: 15),
+                                counterText: '',
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'إضافة رمز تعبيري',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: _openGroupEmojiPicker,
+                            icon: Icon(Icons.emoji_emotions_outlined, color: colors.onSurfaceVariant, size: 25),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_recording)
+                Text('جارٍ التسجيل • $_recordSeconds ثانية',
+                  style: const TextStyle(fontSize: 11, color: Colors.red)),
+              const Text('اضغط مطولاً على رسالة للإبلاغ أو حظر المستخدم.',
+                style: TextStyle(fontSize: 10, color: Colors.grey)),
+            ]))),
+          ]),
+        ]),
+      )));
+  }
+}
+
+
+class _StudyChatWallpaperPainter extends CustomPainter {
+  const _StudyChatWallpaperPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF477DBB).withValues(alpha: 0.075)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.7;
+    final symbols = <String>['✎', '▱', '△', '⌁', '▤'];
+    for (var i = 0; i < 18; i++) {
+      final x = (i % 4) * (size.width / 3.6) + 12;
+      final y = (i ~/ 4) * 145.0 + 32;
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate((i.isEven ? -1 : 1) * 0.16);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: symbols[i % symbols.length],
+          style: TextStyle(
+            fontSize: i.isEven ? 31 : 25,
+            color: const Color(0xFF477DBB).withValues(alpha: 0.075),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset.zero);
+      canvas.drawCircle(const Offset(8, 8), 2.2, paint);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StudyChatWallpaperPainter oldDelegate) => false;
+}
+
+/// Current private conversation, used to suppress duplicate live banners while it is open.
+final ValueNotifier<String?> activeDirectMessageUserId = ValueNotifier<String?>(null);
+
+class StudentDirectInboxScreen extends StatefulWidget {
+  const StudentDirectInboxScreen({super.key});
+  @override State<StudentDirectInboxScreen> createState() => _StudentDirectInboxScreenState();
+}
+
+class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
+  final SupabaseClient _client = Supabase.instance.client;
+  List<Map<String,dynamic>> _conversations = [];
+  bool _loading = true;
+  String? _error;
+  RealtimeChannel? _channel;
+  String? get _me => _client.auth.currentUser?.id;
+
+  @override void initState() {
+    super.initState();
+    _load();
+    final me = _me;
+    if (me != null) {
+      _channel = _client.channel('private-inbox-$me')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'direct_messages',
+          callback: (_) => _load(),
+        ).subscribe();
+    }
+  }
+
+  Future<void> _load() async {
+    final me = _me;
+    if (me == null) {
+      if (mounted) setState(() { _loading = false; _error = 'سجّل الدخول أولاً.'; });
+      return;
+    }
+    try {
+      final raw = await _client.from('direct_messages')
+        .select('id,sender_id,receiver_id,body,created_at,read_at')
+        .or('sender_id.eq.$me,receiver_id.eq.$me')
+        .order('created_at', ascending: false);
+      final messages = (raw as List).whereType<Map>()
+        .map((row) => Map<String,dynamic>.from(row)).toList();
+      final ids = <String>{};
+      for (final row in messages) {
+        final other = row['sender_id'] == me ? row['receiver_id'] : row['sender_id'];
+        if (other != null && other.toString() != me) ids.add(other.toString());
+      }
+      final profiles = <String,Map<String,dynamic>>{};
+      if (ids.isNotEmpty) {
+        final rows = await _client.rpc('get_student_chat_profiles_v1',
+          params: {'p_user_ids': ids.toList()});
+        for (final row in (rows as List).whereType<Map>()) {
+          final profile = Map<String,dynamic>.from(row);
+          profiles[profile['user_id'].toString()] = profile;
+        }
+      }
+      final grouped = <String,Map<String,dynamic>>{};
+      for (final row in messages) {
+        final other = (row['sender_id'] == me ? row['receiver_id'] : row['sender_id']).toString();
+        final item = grouped.putIfAbsent(other, () => {
+          'user_id': other,
+          'last': row,
+          'unread': 0,
+          'profile': profiles[other] ?? <String,dynamic>{},
+        });
+        if (row['receiver_id'] == me && row['read_at'] == null) {
+          item['unread'] = (item['unread'] as int) + 1;
+        }
+      }
+      final result = grouped.values.toList()
+        ..sort((a,b) => (b['last']['created_at'] as String)
+          .compareTo(a['last']['created_at'] as String));
+      if (mounted) setState(() { _conversations = result; _loading = false; _error = null; });
+    } catch (error) {
+      if (mounted) setState(() { _loading = false; _error = 'تعذر تحميل صندوق الوارد: $error'; });
+    }
+  }
+
+  String _time(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    if (date == null) return '';
+    final now = DateTime.now();
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      return '${date.hour.toString().padLeft(2,'0')}:${date.minute.toString().padLeft(2,'0')}';
+    }
+    return '${date.day}/${date.month}';
+  }
+
+  @override void dispose() {
+    if (_channel != null) _client.removeChannel(_channel!);
+    super.dispose();
+  }
+
+  @override Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+      appBar: AppBar(title: const Text('المحادثات الخاصة')),
+      body: _loading
+        ? const Center(child: CircularProgressIndicator())
+        : _error != null
+          ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(
+              mainAxisSize: MainAxisSize.min, children: [
+                Text(_error!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة')),
+              ])))
+          : _conversations.isEmpty
+            ? Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(
+                mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.forum_outlined, size: 54, color: colors.primary),
+                  const SizedBox(height: 12),
+                  const Text('ما عندك محادثات خاصة بعد', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                  const SizedBox(height: 6),
+                  Text('ابدأ محادثة من الملف الشخصي لأي طالب', style: TextStyle(color: colors.onSurfaceVariant)),
+                ])))
+            : RefreshIndicator(onRefresh: _load, child: ListView.separated(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: _conversations.length,
+                separatorBuilder: (_,__) => const Divider(height: 1, indent: 82),
+                itemBuilder: (context,index) {
+                  final item = _conversations[index];
+                  final profile = item['profile'] as Map<String,dynamic>;
+                  final last = item['last'] as Map<String,dynamic>;
+                  final userId = item['user_id'].toString();
+                  final avatar = profile['avatar_url']?.toString();
+                  final displayName = profile['display_name']?.toString().trim() ?? '';
+                  final usernameValue = profile['username']?.toString().trim() ?? '';
+                  final name = displayName.isNotEmpty ? displayName : (usernameValue.isNotEmpty ? '@$usernameValue' : 'مستخدم');
+                  final username = (profile['username'] ?? '').toString();
+                  final unread = item['unread'] as int;
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                    leading: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => StudentPublicProfileScreen(
+                          userId: userId,
+                          fallbackName: name,
+                          fallbackUsername: username,
+                          fallbackStage: profile['stage']?.toString(),
+                          fallbackAvatar: avatar,
+                          fallbackBadge: profile['badge']?.toString(),
+                          fallbackBio: profile['bio']?.toString(),
+                          fallbackDeveloper: profile['is_developer'] == true,
+                        ),
+                      )),
+                      child: CircleAvatar(
+                        radius: 25,
+                        backgroundImage: avatar != null && avatar.startsWith('http') ? NetworkImage(avatar) : null,
+                        child: avatar == null || !avatar.startsWith('http') ? const Icon(Icons.person_rounded) : null,
+                      ),
+                    ),
+                    title: Row(children: [
+                      Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800))),
+                      Text(_time(last['created_at']), style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant)),
+                    ]),
+                    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if (username.isNotEmpty) Text('@$username', style: TextStyle(fontSize: 11, color: colors.primary)),
+                      const SizedBox(height: 3),
+                      Text(last['body']?.toString() ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ]),
+                    trailing: unread > 0 ? CircleAvatar(
+                      radius: 12, backgroundColor: colors.primary,
+                      child: Text(unread > 99 ? '99+' : '$unread',
+                        style: TextStyle(color: colors.onPrimary, fontSize: 10, fontWeight: FontWeight.w900)),
+                    ) : const Icon(Icons.chevron_left_rounded),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => StudentDirectMessageScreen(
+                        otherUserId: userId, otherName: name, otherAvatar: avatar,
+                      ),
+                    )).then((_) => _load()),
+                  );
+                },
+              )),
+    ));
+  }
+}
+).firstMatch(body);
+    final voice = RegExp(r'^\\[\\[DM_VOICE:(.+)\\]\\]
+    final value = input.text.trim();
+    final user = me;
+    if (value.isEmpty || user == null || sending) return;
+    if (value.length > 2000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الرسالة طويلة جداً.')),
+      );
+      return;
+    }
+    if (blocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')),
+      );
+      return;
+    }
+
+    final localId = 'local-${DateTime.now().microsecondsSinceEpoch}';
+    final optimistic = <String, dynamic>{
+      'id': localId,
+      'sender_id': user,
+      'receiver_id': widget.otherUserId,
+      'body': value,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'read_at': null,
+      'edited_at': null,
+      '_local_status': 'sending',
+    };
+    input.clear();
+    setState(() {
+      sending = true;
+      _optimisticMessages.add(optimistic);
+    });
+    _scrollToLatest();
+
+    try {
+      if (await refreshBlockStatus()) {
+        _optimisticMessages.removeWhere((row) => row['id'] == localId);
+        if (mounted) {
+          setState(() {});
+          input.value = TextEditingValue(
+            text: value,
+            selection: TextSelection.collapsed(offset: value.length),
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')),
+          );
+        }
+        return;
+      }
+      final inserted = await _db.from('direct_messages').insert({
+        'sender_id': user,
+        'receiver_id': widget.otherUserId,
+        'body': value,
+      }).select().single();
+      final index = _optimisticMessages.indexWhere((row) => row['id'] == localId);
+      if (index != -1) {
+        _optimisticMessages[index] = Map<String, dynamic>.from(inserted)
+          ..['_local_status'] = 'sent';
+      }
+      if (mounted) {
+        setState(() {});
+        _scrollToLatest();
+      }
+    } catch (error) {
+      _optimisticMessages.removeWhere((row) => row['id'] == localId);
+      if (mounted) {
+        setState(() {});
+        if (input.text.isEmpty) {
+          input.value = TextEditingValue(
+            text: value,
+            selection: TextSelection.collapsed(offset: value.length),
+          );
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر إرسال الرسالة: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+  @override void dispose(){activeDirectMessageUserId.value=null;StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);messageSubscription.cancel();blockSubscription.cancel();_scrollController.dispose();inputFocus.dispose();input.dispose();super.dispose();}
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final avatar = widget.otherAvatar;
+    final hasAvatar = avatar != null && avatar.startsWith('http');
+
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: dark ? const Color(0xFF0C1B2D) : colors.surface,
+        appBar: AppBar(
+          backgroundColor: dark ? const Color(0xFF142B46) : colors.surface,
+          foregroundColor: dark ? Colors.white : colors.onSurface,
+          title: Row(
+            children: [
+              InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StudentPublicProfileScreen(
+                      userId: widget.otherUserId,
+                      fallbackName: _resolvedOtherName,
+                      fallbackAvatar: avatar,
+                    ),
+                  ),
+                ),
+                child: CircleAvatar(
+                  radius: 19,
+                  backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+                  child: hasAvatar ? null : const Icon(Icons.person_rounded, size: 20),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _resolvedOtherName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: _otherOnline ? const Color(0xFF24B47E) : colors.outline,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _otherOnline ? 'متصل الآن' : 'غير متصل',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _otherOnline
+                                ? const Color(0xFF24B47E)
+                                : colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: dark
+                  ? const [Color(0xFF0C1B2D), Color(0xFF132B46), Color(0xFF102238)]
+                  : const [Color(0xFFEAF3FF), Color(0xFFDCEAFF), Color(0xFFF2F7FF)],
+            ),
+          ),
+          child: Stack(children: [
+            const Positioned.fill(child: IgnorePointer(child: CustomPaint(
+              painter: _StudyChatWallpaperPainter(),
+            ))),
+            Column(
+          children: [
+            Expanded(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: messages,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('تعذر تحميل المحادثة: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final items = _mergeOptimisticMessages(snapshot.data!);
+                  if (items.isEmpty) {
+                    return const Center(child: Text('ابدأ المحادثة برسالة ترحيبية 👋'));
+                  }
+
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (_scrollController.hasClients &&
+                        _scrollController.position.maxScrollExtent -
+                                _scrollController.offset <
+                            180) {
+                      _scrollController.jumpTo(
+                        _scrollController.position.maxScrollExtent,
+                      );
+                    }
+                  });
+
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(14),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final row = items[index];
+                      final mine = row['sender_id'] == me;
+                      final senderName = _participantNames[
+                              row['sender_id']?.toString()] ??
+                          (mine ? 'حسابي' : _resolvedOtherName);
+
+                      return AnimatedOpacity(
+                        opacity: _deletingMessageIds.contains(row['id'].toString()) ? 0 : 1,
+                        duration: const Duration(milliseconds: 360),
+                        child: AnimatedSlide(
+                          offset: _deletingMessageIds.contains(row['id'].toString())
+                            ? const Offset(0.32, 0) : Offset.zero,
+                          duration: const Duration(milliseconds: 360),
+                          curve: Curves.easeInCubic,
+                          child: AnimatedScale(
+                            scale: _deletingMessageIds.contains(row['id'].toString()) ? 0.82 : 1,
+                            duration: const Duration(milliseconds: 360),
+                            child: Align(
+                        alignment: mine
+                            ? Alignment.centerLeft
+                            : Alignment.centerRight,
+                        child: TweenAnimationBuilder<double>(
+                          key: ValueKey(row['_render_id'] ?? row['id']),
+                          tween: Tween<double>(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 360),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, child) => Opacity(
+                            opacity: value,
+                            child: Transform.translate(
+                              offset: Offset(0, 22 * (1 - value)),
+                              child: child,
+                            ),
+                          ),
+                          child: GestureDetector(
+                            onLongPress: mine
+                                ? () => _privateMessageActions(row)
+                                : null,
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              padding: const EdgeInsets.all(12),
+                              constraints: BoxConstraints(
+                                maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+                              ),
+                              decoration: BoxDecoration(
+                                color: mine
+                                    ? colors.primary
+                                    : colors.surfaceContainerHigh,
+                                border: Border.all(
+                                  color: mine
+                                      ? colors.primary.withValues(alpha: 0.35)
+                                      : colors.outlineVariant.withValues(alpha: 0.48),
+                                  width: 0.7,
+                                ),
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(19),
+                                  topRight: const Radius.circular(19),
+                                  bottomLeft: Radius.circular(mine ? 19 : 6),
+                                  bottomRight: Radius.circular(mine ? 6 : 19),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colors.shadow.withValues(alpha: 0.045),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    senderName,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: mine
+                                          ? colors.onPrimary.withValues(alpha: .85)
+                                          : colors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          row['body']?.toString() ?? '',
+                                          style: TextStyle(
+                                            color: mine
+                                                ? colors.onPrimary
+                                                : colors.onSurface,
+                                          ),
+                                        ),
+                                      ),
+                                      if (row['edited_at'] != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(left: 5),
+                                          child: Text(
+                                            'معدّلة',
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              color: mine
+                                                  ? colors.onPrimary.withValues(alpha: .7)
+                                                  : colors.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
+                                      if (mine) ...[
+                                        const SizedBox(width: 7),
+                                        Icon(
+                                          row['read_at'] != null
+                                              ? Icons.done_all_rounded
+                                              : Icons.done_rounded,
+                                          size: 15,
+                                          color: row['read_at'] != null
+                                              ? Colors.lightBlueAccent
+                                              : colors.onPrimary.withValues(alpha: .72),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            if (blocked)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(14, 6, 14, 0),
+                child: Text(
+                  'المراسلة متوقفة بسبب الحظر بين الحسابين.',
+                  style: TextStyle(color: Color(0xFFB87922)),
+                ),
+              ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+                child: Row(
+                  textDirection: TextDirection.rtl,
+                  children: [
+                    Material(
+                      color: Theme.of(context).colorScheme.primary,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: 'إرسال الرسالة',
+                        onPressed: sending || blocked ? null : send,
+                        icon: const Icon(Icons.send_rounded, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minHeight: 54,
+                          maxHeight: 118,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: dark ? const Color(0xFF1A304A) : Colors.white,
+                          borderRadius: BorderRadius.circular(32),
+                          border: Border.all(
+                            color: colors.outlineVariant.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: input,
+                                focusNode: inputFocus,
+                                enabled: !blocked,
+                                minLines: 1,
+                                maxLines: 4,
+                                maxLength: 2000,
+                                textAlignVertical: TextAlignVertical.center,
+                                textInputAction: TextInputAction.send,
+                                onSubmitted: (_) => send(),
+                                style: TextStyle(
+                                  color: colors.onSurface,
+                                  fontSize: 15,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: blocked
+                                      ? 'المراسلة غير متاحة بسبب الحظر'
+                                      : 'الرسالة',
+                                  hintStyle: TextStyle(
+                                    color: colors.onSurfaceVariant,
+                                    fontSize: 15,
+                                  ),
+                                  counterText: '',
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 10,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'إضافة رمز تعبيري',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: blocked ? null : _openEmojiPicker,
+                              icon: Icon(
+                                Icons.emoji_emotions_outlined,
+                                color: colors.onSurfaceVariant,
+                                size: 25,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        )]),
+      ),
+    ));
+  }
+}
+
+
+class _PrivateEmojiPicker extends StatefulWidget {
+  final bool dark;
+  const _PrivateEmojiPicker({required this.dark});
+
+  @override
+  State<_PrivateEmojiPicker> createState() => _PrivateEmojiPickerState();
+}
+
+class _PrivateEmojiPickerState extends State<_PrivateEmojiPicker> {
+  static const Map<String, List<String>> _categories = {
+    'الوجوه': [
+      '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃',
+      '😉','😍','🥰','😘','😗','😙','😚','😋','😛','😜','🤪','😎',
+      '🤓','🧐','🤔','🤫','🤭','😐','😑','😶','😏','😒','🙄','😬',
+      '😴','🥱','😷','🤒','🤕','🤧','🥵','🥶','😵','🤯','🥳','😭',
+      '😢','😤','😡','🤬','😱','😨','😰','😥','🤗','🤩','🥺','🫡',
+    ],
+    'القلوب': [
+      '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','🩷','🩵','🩶',
+      '💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','♥️','💌',
+      '👍','👎','👏','🙌','🤝','🙏','💪','🫶','👊','✊','🤞','✌️',
+    ],
+    'الإشارات': [
+      '👋','🤚','🖐️','✋','🖖','👌','🤌','🤏','✍️','💅','🤳','💃',
+      '🕺','☝️','👇','👆','👉','👈','🫵','🫰','🤟','🤘','🤙','🖕',
+      '✅','❌','⭕','🚫','⚠️','❗','❓','💯','🔥','✨','⭐','🌟',
+    ],
+    'الدراسة': [
+      '📚','📖','📕','📗','📘','📙','📓','📝','✏️','🖊️','📐','📏',
+      '🎓','🏫','🧑‍🎓','👨‍🏫','👩‍🏫','🧠','💡','🔬','🧪','🧮','📊','📈',
+      '🏆','🥇','🎯','⏰','📅','🔔','💻','⌨️','🖥️','🌍','☀️','🌈',
+    ],
+  };
+
+  int _selected = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final entries = _categories.entries.toList();
+    final background = widget.dark
+        ? const Color(0xFF142B46)
+        : colors.surface;
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 350,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .18),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.onSurfaceVariant.withValues(alpha: .35),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'الإيموجيات',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  Text(
+                    '${_categories.values.fold<int>(0, (sum, list) => sum + list.length)} رمز',
+                    style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 42,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                itemCount: entries.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 7),
+                itemBuilder: (context, index) => ChoiceChip(
+                  label: Text(entries[index].key),
+                  selected: _selected == index,
+                  onSelected: (_) => setState(() => _selected = index),
+                ),
+              ),
+            ),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                child: GridView.builder(
+                  key: ValueKey(_selected),
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 8,
+                    mainAxisSpacing: 3,
+                    crossAxisSpacing: 3,
+                  ),
+                  itemCount: entries[_selected].value.length,
+                  itemBuilder: (context, index) {
+                    final emoji = entries[_selected].value[index];
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => Navigator.pop(context, emoji),
+                      child: Center(
+                        child: Text(emoji, style: const TextStyle(fontSize: 25)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class StudentChatScreen extends StatefulWidget {
+  const StudentChatScreen({super.key});
+  @override
+  State<StudentChatScreen> createState() => _StudentChatScreenState();
+}
+class _StudentChatScreenState extends State<StudentChatScreen> {
+  final input = TextEditingController();
+  final scroll = ScrollController();
+  late Stream<List<Map<String, dynamic>>> messages;
+  String _profileCacheKey = '';
+  Future<Map<String, Map<String, dynamic>>>? _profilesFuture;
+  bool sending = false;
+  final Set<String> _deletingGroupMessageIds = {};
+  final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _recorder = AudioRecorder();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  final FocusNode inputFocus = FocusNode();
+  final Set<String> _blockedUserIds = {};
+  bool _recording = false;
+  DateTime? _recordStartedAt;
+  Timer? _recordTimer;
+  int _recordSeconds = 0;
+  int _lastMessageCount = 0;
+  String? _playingMessageId;
+  Duration _audioPosition = Duration.zero;
+  Duration _audioDuration = Duration.zero;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration>? _durationSub;
+  StreamSubscription<void>? _completeSub;
+  static const stickers = {'book': '📚', 'great': '👏', 'success': '🌟',
+    'focus': '🎯', 'thanks': '💙', 'motivation': '💪'};
+  @override
+  void initState() {
+    super.initState();
+    messages = _messageStream();
+    _loadBlockedUsers();
+    _positionSub = _audioPlayer.onPositionChanged.listen((value) {
+      if (mounted) setState(() => _audioPosition = value);
+    });
+    _durationSub = _audioPlayer.onDurationChanged.listen((value) {
+      if (mounted) setState(() => _audioDuration = value);
+    });
+    _completeSub = _audioPlayer.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _playingMessageId = null);
+    });
+  }
+  Stream<List<Map<String, dynamic>>> _messageStream() =>
+      _db.from('chat_messages').stream(primaryKey: ['id']).order('created_at', ascending: true);
+
+  void _retryMessages() {
+    setState(() => messages = _messageStream());
+  }
+
+  bool unsafe(String value) {
+    final normalized = value.toLowerCase()
+      .replaceAll('أ', 'ا').replaceAll('إ', 'ا').replaceAll('آ', 'ا')
+      .replaceAll('ى', 'ي').replaceAll('ـ', '')
+      .replaceAll(RegExp(r'[\u064B-\u065F\u0670\u200B-\u200F]'), '');
+    final compact = normalized.replaceAll(RegExp(r'[\s().-]'), '');
+    final phone = RegExp(r'(?:\+?964|00964|0)7[0-9٠-٩]{9}');
+    final email = RegExp(r'[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}');
+    final link = RegExp(
+      r'(https?://|www\.|t\.me/|wa\.me/|(?:[a-z0-9-]+\.)+(?:com|net|org|io|me|info|site|xyz|ly|co|app)(?:/|$))',
+      caseSensitive: false,
+    );
+    final shortInsult = RegExp(r'(^|[\s،,.!?؛:()])كس($|[\s،,.!?؛:()])');
+    const blockedWords = [
+      'قحبة', 'شرموطة', 'متخلف', 'منيوك', 'خول', 'طيز',
+      'زاني', 'عرص', 'يلعن', 'fuck', 'shit', 'bitch',
+    ];
+    return phone.hasMatch(compact) || email.hasMatch(normalized) ||
+      link.hasMatch(normalized) || shortInsult.hasMatch(normalized) ||
+      blockedWords.any(normalized.contains);
+  }
+
+  void _openChatProfile(String userId, Map<String,dynamic>? profile, String name, String? avatar) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => StudentPublicProfileScreen(
+      userId: userId,
+      fallbackName: name,
+      fallbackUsername: profile?['username']?.toString(),
+      fallbackStage: profile?['stage']?.toString(),
+      fallbackAvatar: avatar,
+      fallbackBadge: profile?['badge']?.toString(),
+      fallbackBio: profile?['bio']?.toString(),
+      fallbackDeveloper: profile?['is_developer'] == true,
+    )));
+  }
+
+  Future<void> _loadBlockedUsers() async {
+    final user = _db.auth.currentUser;
+    if (user == null) return;
+    try {
+      final rows = await _db.from('user_blocks').select('blocked_id')
+        .eq('blocker_id', user.id);
+      if (!mounted) return;
+      setState(() => _blockedUserIds.addAll(
+        (rows as List).map((row) => row['blocked_id'].toString())));
+    } catch (_) {}
+  }
+
+  Future<void> _pickAndSendImage() async {
+    final user = _db.auth.currentUser;
+    if (user == null) { toast('سجّل الدخول أولاً.'); return; }
+    if (sending || _recording) return;
+    String? uploadedPath;
+    bool messageSaved = false;
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 4096,
+        maxHeight: 4096,
+        imageQuality: 100,
+        requestFullMetadata: false,
+      );
+      if (image == null) return;
+      final sourceLength = await File(image.path).length();
+      if (sourceLength == 0 || sourceLength > 25 * 1024 * 1024) {
+        toast('حجم الصورة الأصلية يجب ألا يتجاوز 25 ميغابايت.');
+        return;
+      }
+      final compressedBytes = await FlutterImageCompress.compressWithFile(
+        image.path,
+        minWidth: 1600,
+        minHeight: 1600,
+        quality: 82,
+        format: CompressFormat.jpeg,
+        autoCorrectionAngle: true,
+      );
+      if (compressedBytes == null || compressedBytes.isEmpty) {
+        toast('تعذر تجهيز الصورة قبل الإرسال.');
+        return;
+      }
+      if (compressedBytes.lengthInBytes > 5 * 1024 * 1024) {
+        toast('الصورة بعد الضغط أكبر من 5 ميغابايت. اختر صورة أصغر.');
+        return;
+      }
+      if (!mounted) return;
+      setState(() => sending = true);
+      uploadedPath = '${user.id}/image_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await _db.storage.from('chat-media').uploadBinary(
+        uploadedPath,
+        compressedBytes,
+        fileOptions: const FileOptions(
+          contentType: 'image/jpeg',
+          cacheControl: '31536000',
+          upsert: false,
+        ),
+      );
+      await _db.from('chat_messages').insert({
+        'user_id': user.id,
+        'message_type': 'image',
+        'body': null,
+        'sticker_id': null,
+        'storage_path': uploadedPath,
+      });
+      messageSaved = true;
+      toast('تم إرسال الصورة.');
+    } on StorageException catch (e) {
+      toast('فشل رفع الصورة (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
+    } on PostgrestException catch (e) {
+      toast('فشل حفظ الصورة في الدردشة (رمز ${e.code ?? 'DB'}): ${e.message}');
+    } on AuthException catch (e) {
+      toast('انتهت جلسة الدخول أثناء إرسال الصورة: ${e.message}');
+    } on SocketException catch (e) {
+      toast('تعذر الاتصال أثناء إرسال الصورة: ${e.message}');
+    } catch (e) {
+      toast('تعذر إرسال الصورة (${e.runtimeType}): ${e.toString()}');
+    } finally {
+      if (uploadedPath != null && !messageSaved) {
+        try { await _db.storage.from('chat-media').remove([uploadedPath]); } catch (_) {}
+      }
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  Future<void> _startVoiceRecording() async {
+    if (_recording || sending) return;
+    try {
+      if (!await _recorder.hasPermission()) {
+        toast('اسمح للتطبيق باستخدام المايكروفون لتسجيل رسالة صوتية.'); return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/dalilak_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 44100,
+        ),
+        path: path,
+      );
+      if (!mounted) return;
+      setState(() {
+        _recording = true;
+        _recordStartedAt = DateTime.now();
+        _recordSeconds = 0;
+      });
+      _recordTimer?.cancel();
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted || _recordStartedAt == null) return;
+        setState(() => _recordSeconds = DateTime.now().difference(_recordStartedAt!).inSeconds);
+        if (_recordSeconds >= 120) unawaited(_stopVoiceRecording(send: true));
+      });
+    } catch (e) { toast('تعذر بدء التسجيل: $e'); }
+  }
+
+  Future<void> _stopVoiceRecording({required bool send}) async {
+    _recordTimer?.cancel();
+    final seconds = _recordSeconds;
+    String? path;
+    try { path = await _recorder.stop(); } catch (_) {}
+    if (mounted) setState(() { _recording = false; _recordStartedAt = null; });
+    if (path == null) return;
+    if (!send) {
+      try { await File(path).delete(); } catch (_) {}
+      toast('تم إلغاء التسجيل.');
+      return;
+    }
+    final user = _db.auth.currentUser;
+    if (user == null || seconds < 1 || seconds > 120) {
+      try { await File(path).delete(); } catch (_) {}
+      toast('التسجيل يجب أن يكون بين ثانية واحدة ودقيقتين.'); return;
+    }
+    setState(() => sending = true);
+    String? uploadedPath;
+    bool messageSaved = false;
+    try {
+      final bytes = await File(path).readAsBytes();
+      if (bytes.isEmpty || bytes.length > 3 * 1024 * 1024) {
+        throw Exception('حجم التسجيل أكبر من الحد المسموح.');
+      }
+      uploadedPath = '${user.id}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _db.storage.from('chat-voice').uploadBinary(
+        uploadedPath, bytes,
+        fileOptions: const FileOptions(contentType: 'audio/mp4', upsert: false),
+      );
+      await _db.from('chat_messages').insert({
+        'user_id': user.id, 'message_type': 'voice',
+        'body': null, 'sticker_id': null, 'storage_path': uploadedPath,
+      });
+      messageSaved = true;
+      toast('تم إرسال الرسالة الصوتية.');
+    } on StorageException catch (e) {
+      toast('فشل رفع التسجيل الصوتي (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
+    } on PostgrestException catch (e) {
+      toast('فشل حفظ التسجيل في الدردشة (رمز ${e.code ?? 'DB'}): ${e.message}');
+    } on AuthException catch (e) {
+      toast('انتهت جلسة الدخول أثناء إرسال التسجيل: ${e.message}');
+    } on SocketException catch (e) {
+      toast('تعذر الاتصال أثناء إرسال التسجيل: ${e.message}');
+    } catch (e) {
+      toast('تعذر إرسال التسجيل (${e.runtimeType}): ${e.toString()}');
+    }
+    finally {
+      if (uploadedPath != null && !messageSaved) {
+        try { await _db.storage.from('chat-voice').remove([uploadedPath]); } catch (_) {}
+      }
+      try { await File(path).delete(); } catch (_) {}
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  final Map<String, Future<String?>> _mediaUrlCache = {};
+
+  Future<String?> _signedMediaUrl(String bucket, String? path) {
+    if (path == null || path.isEmpty) return Future.value(null);
+    final key = '$bucket/$path';
+    return _mediaUrlCache.putIfAbsent(key, () async {
+      try {
+        return await _db.storage.from(bucket).createSignedUrl(path, 86400);
+      } catch (_) {
+        _mediaUrlCache.remove(key);
+        return null;
+      }
+    });
+  }
+
+  Widget _mediaPlaceholder({
+    double width = 224,
+    double height = 190,
+    bool failed = false,
+    VoidCallback? onRetry,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      width: width,
+      height: height,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: failed
+          ? TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('إعادة تحميل الصورة'),
+            )
+          : const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+    );
+  }
+
+  Widget _buildChatMedia(String bucket, String path, {bool sticker = false}) {
+    final cacheKey = '$bucket/$path';
+    final width = sticker ? 156.0 : 224.0;
+    final height = sticker ? 156.0 : 190.0;
+    return FutureBuilder<String?>(
+      future: _signedMediaUrl(bucket, path),
+      builder: (context, snapshot) {
+        final url = snapshot.data;
+        if (url == null) {
+          return _mediaPlaceholder(
+            width: width,
+            height: height,
+            failed: snapshot.connectionState == ConnectionState.done,
+            onRetry: () => setState(() => _mediaUrlCache.remove(cacheKey)),
+          );
+        }
+        return GestureDetector(
+          onTap: () => showDialog<void>(
+            context: context,
+            barrierColor: Colors.black87,
+            builder: (dialogContext) => Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.all(12),
+              child: Stack(
+                children: [
+                  InteractiveViewer(
+                    minScale: 0.8,
+                    maxScale: 4,
+                    child: CachedNetworkImage(
+                      imageUrl: url,
+                      fit: BoxFit.contain,
+                      placeholder: (_, __) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      errorWidget: (_, __, ___) => const Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: IconButton.filledTonal(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: CachedNetworkImage(
+              imageUrl: url,
+              width: width,
+              height: height,
+              fit: sticker ? BoxFit.contain : BoxFit.cover,
+              memCacheWidth: sticker ? 420 : 672,
+              maxWidthDiskCache: sticker ? 480 : 800,
+              fadeInDuration: const Duration(milliseconds: 120),
+              placeholder: (_, __) => _mediaPlaceholder(width: width, height: height),
+              errorWidget: (_, __, ___) => _mediaPlaceholder(
+                width: width,
+                height: height,
+                failed: true,
+                onRetry: () => setState(() => _mediaUrlCache.remove(cacheKey)),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _playVoice(Map<String, dynamic> row) async {
+    final id = row['id'].toString();
+    if (_playingMessageId == id) {
+      await _audioPlayer.pause();
+      if (mounted) setState(() => _playingMessageId = null);
+      return;
+    }
+    final url = await _signedMediaUrl('chat-voice', row['storage_path']?.toString());
+    if (url == null) { toast('تعذر فتح التسجيل الصوتي.'); return; }
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.play(UrlSource(url));
+      if (mounted) {
+        setState(() {
+        _playingMessageId = id;
+        _audioPosition = Duration.zero;
+        _audioDuration = Duration.zero;
+        });
+      }
+    } catch (_) { toast('تعذر تشغيل الرسالة الصوتية.'); }
+  }
+
+  Future<void> _blockUser(Map<String, dynamic> row) async {
+    final current = _db.auth.currentUser;
+    final blockedId = row['user_id']?.toString();
+    if (current == null || blockedId == null || blockedId == current.id) return;
+    final confirm = await showDialog<bool>(context: context, builder: (ctx) =>
+      AlertDialog(
+        title: const Text('حظر هذا المستخدم؟'),
+        content: const Text('لن تظهر لك رسائله بعد الآن على هذا الجهاز والحساب.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حظر')),
+        ],
+      ));
+    if (confirm != true) return;
+    try {
+      await _db.from('user_blocks').insert({
+        'blocker_id': current.id, 'blocked_id': blockedId,
+      });
+      if (mounted) setState(() => _blockedUserIds.add(blockedId));
+      toast('تم حظر المستخدم.');
+    } catch (_) { toast('تعذر حظر المستخدم حالياً.'); }
+  }
+
+  Future<void> _messageActions(Map<String, dynamic> row) async {
+    final mine = row['user_id'] == _db.auth.currentUser?.id;
+    final action = await showModalBottomSheet<String>(context: context,
+      builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (mine && row['message_type'] == 'text' && (row['body']?.toString().isNotEmpty ?? false))
+            ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () => Navigator.pop(ctx, 'edit')),
+          if (mine) ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('حذف الرسالة'), onTap: () => Navigator.pop(ctx, 'delete')),
+          ListTile(leading: const Icon(Icons.flag_outlined), title: const Text('الإبلاغ عن الرسالة'), onTap: () => Navigator.pop(ctx, 'report')),
+          if (!mine) ListTile(leading: const Icon(Icons.person_off_outlined), title: const Text('الإبلاغ عن المستخدم'), onTap: () => Navigator.pop(ctx, 'report_user')),
+          if (!mine) ListTile(leading: const Icon(Icons.block_outlined), title: const Text('حظر المستخدم'), onTap: () => Navigator.pop(ctx, 'block')),
+        ]))));
+    if (!mounted) return;
+    if (action == 'edit') {
+      await _editGroupMessage(row);
+      return;
+    }
+    if (action == 'delete') {
+      final ok = await showDialog<bool>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: AlertDialog(title: const Text('حذف الرسالة؟'), content: const Text('سيتم حذف الرسالة من الدردشة.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف'))])));
+      if (ok == true) {
+        final userId = _db.auth.currentUser?.id;
+        if (userId == null) { toast('انتهت جلسة تسجيل الدخول.'); return; }
+        final id = row['id'].toString();
+        if (mounted) setState(() => _deletingGroupMessageIds.add(id));
+        await Future<void>.delayed(const Duration(milliseconds: 360));
+        try { await _db.from('chat_messages').delete().eq('id', id).eq('user_id', userId); }
+        catch (e) {
+          if (mounted) setState(() => _deletingGroupMessageIds.remove(id));
+          toast('تعذر حذف الرسالة: $e');
+        }
+      }
+    }
+    if (action == 'report') await report(row);
+    if (action == 'report_user') await report(row, reportUser: true);
+    if (action == 'block') await _blockUser(row);
+  }
+  Future<void> _editGroupMessage(Map<String,dynamic> row) async {
+    final ctl = TextEditingController(text: row['body']?.toString() ?? '');
+    final value = await showDialog<String>(context: context, builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+      child: AlertDialog(title: const Text('تعديل الرسالة'), content: TextField(controller: ctl, autofocus: true, maxLines: 5, maxLength: 2000),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctl.text.trim()), child: const Text('حفظ'))])));
+    ctl.dispose(); if (value == null || value.isEmpty || value == row['body']) return;
+    if (value.length > 500 || unsafe(value)) { toast('لم تُعدّل الرسالة: تجنب الإساءة أو أرقام الهواتف أو البريد أو الروابط، والحد 500 حرف.'); return; }
+    try { await _db.from('chat_messages').update({'body': value, 'edited_at': DateTime.now().toUtc().toIso8601String()}).eq('id', row['id']).eq('user_id', _db.auth.currentUser!.id); }
+    catch (e) { toast('تعذر تعديل الرسالة: $e'); }
+  }
+
+  Future<void> _openGroupEmojiPicker() async {
+    inputFocus.unfocus();
+    final emoji = await showModalBottomSheet<String>(context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      builder: (_) => _PrivateEmojiPicker(dark: Theme.of(context).brightness == Brightness.dark));
+    if (!mounted || emoji == null) return;
+    final oldValue = input.value;
+    final selection = oldValue.selection;
+    final start = selection.isValid ? selection.start : oldValue.text.length;
+    final end = selection.isValid ? selection.end : oldValue.text.length;
+    input.value = TextEditingValue(text: oldValue.text.replaceRange(start, end, emoji), selection: TextSelection.collapsed(offset: start + emoji.length));
+    inputFocus.requestFocus();
+  }
+
+  Future<void> send({String? sticker}) async {
+    final user = _db.auth.currentUser;
+    if (user == null) { toast('سجّل الدخول بحساب Google للمشاركة.'); return; }
+    final text = input.text.trim();
+    if (sticker == null && text.isEmpty) return;
+    if (sticker == null && (text.length > 500 || unsafe(text))) {
+      toast('لم تُرسل الرسالة: تجنب الإساءة أو أرقام الهواتف أو البريد أو الروابط.'); return;
+    }
+    setState(() => sending = true);
+    try {
+      await _db.from('chat_messages').insert({
+        'user_id': user.id, 'message_type': sticker == null ? 'text' : 'builtin_sticker',
+        'body': sticker == null ? text : null, 'sticker_id': sticker,
+      });
+      input.clear();
+      if (scroll.hasClients) {
+        await scroll.animateTo(
+          scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        );
+      }
+    } on PostgrestException catch (e) {
+      if (e.message.toLowerCase().contains('rate') ||
+          e.message.toLowerCase().contains('duplicate')) {
+        toast('تم إيقاف الإرسال مؤقتاً لتجنب التكرار.');
+      } else {
+        final detail = [
+          if ((e.code ?? '').isNotEmpty) 'الرمز ${e.code}',
+          e.message,
+          if ((e.details ?? '').toString().isNotEmpty) e.details.toString(),
+          if ((e.hint ?? '').toString().isNotEmpty) 'اقتراح الخادم: ${e.hint}',
+        ].join(' — ');
+        toast('فشل إرسال الرسالة: $detail');
+      }
+    } on AuthException catch (e) {
+      toast('مشكلة بجلسة تسجيل الدخول: ${e.message}');
+    } on SocketException catch (e) {
+      toast('تعذر الاتصال بالإنترنت: ${e.message}');
+    } on TimeoutException {
+      toast('انتهت مهلة الاتصال أثناء إرسال الرسالة. حاول مجدداً.');
+    } catch (e) {
+      toast('فشل إرسال الرسالة (${e.runtimeType}): ${e.toString()}');
+    }
+    finally { if (mounted) setState(() => sending = false); }
+  }
+  Future<Map<String, Map<String, dynamic>>> getProfiles(List<Map<String, dynamic>> rows) async {
+    final ids = rows.map((r) => r['user_id'].toString()).toSet().toList();
+    if (ids.isEmpty) return {};
+    try {
+      final result = await _db.rpc('get_student_chat_profiles_v1', params: {'p_user_ids': ids});
+      return {for (final p in (result as List)) p['user_id'].toString(): Map<String, dynamic>.from(p)};
+    } catch (_) { return {}; }
+  }
+  Future<void> report(Map<String, dynamic> row, {bool reportUser = false}) async {
+    final user = _db.auth.currentUser;
+    if (user == null) { toast('سجّل الدخول أولاً حتى ترسل بلاغاً.'); return; }
+    final reason = await showModalBottomSheet<String>(context: context,
+      builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(padding: const EdgeInsets.all(16), child: Text(reportUser ? 'سبب الإبلاغ عن المستخدم' : 'سبب الإبلاغ عن الرسالة', style: const TextStyle(fontWeight: FontWeight.bold))),
+          for (final item in const {
+            'abuse': 'إساءة أو ألفاظ غير لائقة', 'bullying': 'تنمر أو مضايقة',
+            'inappropriate': 'محتوى غير مناسب', 'personal_info': 'معلومات شخصية',
+            'spam': 'رسائل مزعجة', 'other': 'سبب آخر',
+          }.entries)
+            ListTile(title: Text(item.value), onTap: () => Navigator.pop(ctx, item.key)),
+        ]))));
+    if (reason == null) return;
+    try {
+      await _db.from('chat_reports').insert({'reporter_id': user.id, 'message_id': row['id'], 'reason': reason, 'details': reportUser ? 'بلاغ على صاحب الرسالة' : null});
+      toast('وصل بلاغك إلى فريق الإشراف. شكراً لك.');
+    } catch (_) { toast('تعذر إرسال البلاغ أو سبق الإبلاغ عن الرسالة.'); }
+  }
+  void toast(String value) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+  String timeOf(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    if (date == null) return '';
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+  @override
+  void dispose() {
+    _recordTimer?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
+    _completeSub?.cancel();
+    unawaited(_recorder.dispose());
+    unawaited(_audioPlayer.dispose());
+    inputFocus.dispose();
+    input.dispose();
+    scroll.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Directionality(textDirection: TextDirection.rtl,
+    child: Scaffold(
+      backgroundColor: dark ? const Color(0xFF0C1B2D) : colors.surface,
+      appBar: AppBar(
+        backgroundColor: dark ? const Color(0xFF142B46) : colors.surface,
+        foregroundColor: dark ? Colors.white : colors.onSurface,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('غرفة الدردشة',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+            Text('محادثة جماعية للطلاب',
+              style: TextStyle(fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: dark
+                ? const [Color(0xFF0C1B2D), Color(0xFF132B46), Color(0xFF102238)]
+                : const [Color(0xFFEAF3FF), Color(0xFFDCEAFF), Color(0xFFF2F7FF)],
+          ),
+        ),
+        child: Stack(children: [
+          const Positioned.fill(child: IgnorePointer(child: CustomPaint(
+            painter: _StudyChatWallpaperPainter(),
+          ))),
+          Column(children: [
+        Expanded(child: StreamBuilder<List<Map<String, dynamic>>>(stream: messages,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.cloud_off_rounded, size: 42),
+                  const SizedBox(height: 10),
+                  const Text('تعذر تحميل المحادثة. تحقق من الإنترنت وحاول مجدداً.'),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(onPressed: _retryMessages,
+                    icon: const Icon(Icons.refresh_rounded), label: const Text('إعادة المحاولة')),
+                ]),
+              ));
+            }
+            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+            final rows = snapshot.data!.where((r) => r['deleted_at'] == null &&
+              r['hidden_at'] == null &&
+              !_blockedUserIds.contains(r['user_id'].toString())).toList();
+            if (rows.length != _lastMessageCount) {
+              final hadPreviousMessages = _lastMessageCount > 0;
+              _lastMessageCount = rows.length;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!scroll.hasClients) return;
+                final distanceFromBottom = scroll.position.maxScrollExtent - scroll.offset;
+                if (!hadPreviousMessages || distanceFromBottom <= 120) {
+                  scroll.animateTo(scroll.position.maxScrollExtent,
+                    duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+                }
+              });
+            }
+            if (rows.isEmpty) return const Center(child: Text('ابدأ المحادثة برسالة مفيدة 🌟'));
+            final profileIds = rows.map((r) => r['user_id'].toString()).toSet().toList()..sort();
+            final nextProfileKey = profileIds.join('|');
+            if (nextProfileKey != _profileCacheKey) {
+              _profileCacheKey = nextProfileKey;
+              _profilesFuture = getProfiles(rows);
+            }
+            return FutureBuilder<Map<String, Map<String, dynamic>>>(future: _profilesFuture,
+              builder: (context, profiles) => ListView.builder(
+                controller: scroll,
+                reverse: false,
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+                itemCount: rows.length,
+                itemBuilder: (context, index) {
+                  final row = rows[index];
+                  final mine = row['user_id']?.toString() == _db.auth.currentUser?.id;
+                  final profile = profiles.data?[row['user_id'].toString()];
+                  final currentUser = _db.auth.currentUser;
+                  final currentUserMetadata =
+                      currentUser?.userMetadata ?? const <String, dynamic>{};
+                  final name = (profile?['display_name'] ??
+                    (mine ? (currentUserMetadata['full_name'] ??
+                      currentUserMetadata['name'] ??
+                      currentUser?.email?.split('@').first) : null) ??
+                    'طالب').toString();
+                  final type = row['message_type']?.toString() ?? 'text';
+                  final sticker = type == 'builtin_sticker' || type == 'custom_sticker';
+                  final mediaPath = row['storage_path']?.toString() ?? '';
+                  final colors = Theme.of(context).colorScheme;
+                  final avatar = profile?['avatar_url']?.toString();
+                  final fallbackAvatar = mine
+                      ? currentUserMetadata['picture']?.toString()
+                      : null;
+                  final avatarSource = avatar != null && avatar.startsWith('http')
+                      ? avatar
+                      : fallbackAvatar != null && fallbackAvatar.startsWith('http')
+                          ? fallbackAvatar
+                          : null;
+                  final isDeveloper = profile?['is_developer'] == true ||
+                      (mine && _isVerifiedDeveloper(currentUser));
+                  final bubbleTextColor = mine
+                      ? colors.onPrimary
+                      : colors.onSurface;
+                  final bubbleNameColor = mine
+                      ? colors.onPrimary
+                      : colors.primary;
+                  final bubbleMetaColor = mine
+                      ? colors.onPrimary.withValues(alpha: 0.78)
+                      : colors.onSurfaceVariant;
+
+                  return AnimatedOpacity(
+                    opacity: _deletingGroupMessageIds.contains(row['id'].toString()) ? 0 : 1,
+                    duration: const Duration(milliseconds: 360),
+                    child: AnimatedSlide(
+                      offset: _deletingGroupMessageIds.contains(row['id'].toString())
+                        ? const Offset(0.32, 0) : Offset.zero,
+                      duration: const Duration(milliseconds: 360),
+                      curve: Curves.easeInCubic,
+                      child: AnimatedScale(
+                        scale: _deletingGroupMessageIds.contains(row['id'].toString()) ? 0.82 : 1,
+                        duration: const Duration(milliseconds: 360),
+                        child: Align(
+                    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                    child: GestureDetector(
+                      onLongPress: () => _messageActions(row),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          if (!mine) ...[
+                            InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => _openChatProfile(
+                                row['user_id'].toString(), profile, name, avatarSource,
+                              ),
+                              child: CircleAvatar(
+                                radius: 15,
+                                backgroundColor: colors.surfaceContainerHighest,
+                                backgroundImage: avatarSource == null
+                                    ? null
+                                    : CachedNetworkImageProvider(avatarSource),
+                                child: avatarSource == null
+                                    ? Icon(Icons.person_rounded,
+                                        size: 17, color: colors.onSurfaceVariant)
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Container(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+                            ),
+                            margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: mine ? colors.primary : colors.surfaceContainerHigh,
+                              border: Border.all(
+                                color: mine
+                                    ? colors.primary.withValues(alpha: 0.35)
+                                    : colors.outlineVariant.withValues(alpha: 0.48),
+                                width: 0.7,
+                              ),
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(19),
+                                topRight: const Radius.circular(19),
+                                bottomLeft: Radius.circular(mine ? 19 : 6),
+                                bottomRight: Radius.circular(mine ? 6 : 19),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colors.shadow.withValues(alpha: 0.045),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      height: 1.15,
+                                      fontWeight: FontWeight.w800,
+                                      color: bubbleNameColor,
+                                    ),
+                                  ),
+                                  if (isDeveloper) ...[
+                                    const SizedBox(width: 5),
+                                    _DeveloperBadge(compact: true, onPrimary: mine),
+                                  ],
+                                ]),
+                                const SizedBox(height: 3),
+                                if (type == 'image' || type == 'custom_sticker')
+                                  _buildChatMedia(
+                                    type == 'image' ? 'chat-media' : 'chat-stickers',
+                                    mediaPath,
+                                    sticker: type == 'custom_sticker',
+                                  )
+                                else if (type == 'voice')
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        visualDensity: VisualDensity.compact,
+                                        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                                        padding: EdgeInsets.zero,
+                                        onPressed: () => _playVoice(row),
+                                        icon: Icon(
+                                          _playingMessageId == row['id'].toString()
+                                              ? Icons.pause_circle_filled_rounded
+                                              : Icons.play_circle_fill_rounded,
+                                          size: 28,
+                                          color: bubbleTextColor,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      SizedBox(
+                                        width: 104,
+                                        child: LinearProgressIndicator(
+                                          value: _playingMessageId == row['id'].toString() &&
+                                                  _audioDuration.inMilliseconds > 0
+                                              ? (_audioPosition.inMilliseconds /
+                                                      _audioDuration.inMilliseconds)
+                                                  .clamp(0.0, 1.0)
+                                                  .toDouble()
+                                              : 0,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  Text(
+                                    type == 'builtin_sticker'
+                                        ? (stickers[row['sticker_id']?.toString()] ?? '🌟')
+                                        : (unsafe((row['body'] ?? '').toString())
+                                            ? 'تم إخفاء رسالة لمخالفتها إرشادات الأمان.'
+                                            : (row['body'] ?? '').toString()),
+                                    style: TextStyle(
+                                      fontSize: sticker ? 28 : 14,
+                                      height: 1.35,
+                                      color: bubbleTextColor,
+                                    ),
+                                  ),
+                                const SizedBox(height: 3),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                      Text(
+                                        timeOf(row['created_at']),
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          height: 1,
+                                          color: bubbleMetaColor,
+                                        ),
+                                      ),
+                                      if (mine) ...[
+                                        const SizedBox(width: 3),
+                                        Icon(Icons.done_rounded, size: 12,
+                                          color: colors.onSurfaceVariant),
+                                      ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (mine) ...[
+                            const SizedBox(width: 6),
+                            InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () => _openChatProfile(
+                                row['user_id'].toString(), profile, name, avatarSource,
+                              ),
+                              child: CircleAvatar(
+                                radius: 15,
+                                backgroundColor: colors.surfaceContainerHighest,
+                                backgroundImage: avatarSource == null
+                                    ? null
+                                    : CachedNetworkImageProvider(avatarSource),
+                                child: avatarSource == null
+                                    ? Icon(Icons.person_rounded,
+                                        size: 17, color: colors.onSurfaceVariant)
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                        ),
+                      ),
+                    ),
+                  );
+                }));
+          })),
+        if (_db.auth.currentUser == null)
+          Padding(padding: const EdgeInsets.all(12),
+            child: FilledButton(onPressed: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const StudentGoogleLoginScreen())),
+              child: const Text('سجّل الدخول للمشاركة في الدردشة')))
+        else
+          SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+            child: Column(children: [
+              Row(
+                textDirection: TextDirection.rtl,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: input,
+                    builder: (context, value, _) {
+                      final hasText = value.text.trim().isNotEmpty;
+                      return Material(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: _recording ? 'إيقاف التسجيل' : (hasText ? 'إرسال الرسالة' : 'تسجيل رسالة صوتية'),
+                          onPressed: sending ? null : (_recording
+                            ? () => _stopVoiceRecording(send: true)
+                            : (hasText ? () => send() : _startVoiceRecording)),
+                          icon: Icon(
+                            _recording ? Icons.stop_rounded
+                              : (hasText ? Icons.send_rounded : Icons.mic_rounded),
+                            color: Colors.white,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 7),
+                  IconButton(
+                    tooltip: _recording ? 'إلغاء التسجيل' : 'إرسال صورة',
+                    onPressed: sending ? null : (_recording
+                      ? () => _stopVoiceRecording(send: false)
+                      : _pickAndSendImage),
+                    icon: Icon(
+                      _recording ? Icons.close_rounded : Icons.image_outlined,
+                      size: 25,
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 54, maxHeight: 118),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: dark ? const Color(0xFF1A304A) : Colors.white,
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: input,
+                              focusNode: inputFocus,
+                              minLines: 1,
+                              maxLines: 4,
+                              maxLength: 500,
+                              textAlignVertical: TextAlignVertical.center,
+                              style: TextStyle(color: colors.onSurface, fontSize: 15),
+                              decoration: InputDecoration(
+                                hintText: 'الرسالة',
+                                hintStyle: TextStyle(color: colors.onSurfaceVariant, fontSize: 15),
+                                counterText: '',
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'إضافة رمز تعبيري',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: _openGroupEmojiPicker,
+                            icon: Icon(Icons.emoji_emotions_outlined, color: colors.onSurfaceVariant, size: 25),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_recording)
+                Text('جارٍ التسجيل • $_recordSeconds ثانية',
+                  style: const TextStyle(fontSize: 11, color: Colors.red)),
+              const Text('اضغط مطولاً على رسالة للإبلاغ أو حظر المستخدم.',
+                style: TextStyle(fontSize: 10, color: Colors.grey)),
+            ]))),
+          ]),
+        ]),
+      )));
+  }
+}
+
+
+class _StudyChatWallpaperPainter extends CustomPainter {
+  const _StudyChatWallpaperPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF477DBB).withValues(alpha: 0.075)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.7;
+    final symbols = <String>['✎', '▱', '△', '⌁', '▤'];
+    for (var i = 0; i < 18; i++) {
+      final x = (i % 4) * (size.width / 3.6) + 12;
+      final y = (i ~/ 4) * 145.0 + 32;
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate((i.isEven ? -1 : 1) * 0.16);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: symbols[i % symbols.length],
+          style: TextStyle(
+            fontSize: i.isEven ? 31 : 25,
+            color: const Color(0xFF477DBB).withValues(alpha: 0.075),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset.zero);
+      canvas.drawCircle(const Offset(8, 8), 2.2, paint);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StudyChatWallpaperPainter oldDelegate) => false;
+}
+
+/// Current private conversation, used to suppress duplicate live banners while it is open.
+final ValueNotifier<String?> activeDirectMessageUserId = ValueNotifier<String?>(null);
+
+class StudentDirectInboxScreen extends StatefulWidget {
+  const StudentDirectInboxScreen({super.key});
+  @override State<StudentDirectInboxScreen> createState() => _StudentDirectInboxScreenState();
+}
+
+class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
+  final SupabaseClient _client = Supabase.instance.client;
+  List<Map<String,dynamic>> _conversations = [];
+  bool _loading = true;
+  String? _error;
+  RealtimeChannel? _channel;
+  String? get _me => _client.auth.currentUser?.id;
+
+  @override void initState() {
+    super.initState();
+    _load();
+    final me = _me;
+    if (me != null) {
+      _channel = _client.channel('private-inbox-$me')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'direct_messages',
+          callback: (_) => _load(),
+        ).subscribe();
+    }
+  }
+
+  Future<void> _load() async {
+    final me = _me;
+    if (me == null) {
+      if (mounted) setState(() { _loading = false; _error = 'سجّل الدخول أولاً.'; });
+      return;
+    }
+    try {
+      final raw = await _client.from('direct_messages')
+        .select('id,sender_id,receiver_id,body,created_at,read_at')
+        .or('sender_id.eq.$me,receiver_id.eq.$me')
+        .order('created_at', ascending: false);
+      final messages = (raw as List).whereType<Map>()
+        .map((row) => Map<String,dynamic>.from(row)).toList();
+      final ids = <String>{};
+      for (final row in messages) {
+        final other = row['sender_id'] == me ? row['receiver_id'] : row['sender_id'];
+        if (other != null && other.toString() != me) ids.add(other.toString());
+      }
+      final profiles = <String,Map<String,dynamic>>{};
+      if (ids.isNotEmpty) {
+        final rows = await _client.rpc('get_student_chat_profiles_v1',
+          params: {'p_user_ids': ids.toList()});
+        for (final row in (rows as List).whereType<Map>()) {
+          final profile = Map<String,dynamic>.from(row);
+          profiles[profile['user_id'].toString()] = profile;
+        }
+      }
+      final grouped = <String,Map<String,dynamic>>{};
+      for (final row in messages) {
+        final other = (row['sender_id'] == me ? row['receiver_id'] : row['sender_id']).toString();
+        final item = grouped.putIfAbsent(other, () => {
+          'user_id': other,
+          'last': row,
+          'unread': 0,
+          'profile': profiles[other] ?? <String,dynamic>{},
+        });
+        if (row['receiver_id'] == me && row['read_at'] == null) {
+          item['unread'] = (item['unread'] as int) + 1;
+        }
+      }
+      final result = grouped.values.toList()
+        ..sort((a,b) => (b['last']['created_at'] as String)
+          .compareTo(a['last']['created_at'] as String));
+      if (mounted) setState(() { _conversations = result; _loading = false; _error = null; });
+    } catch (error) {
+      if (mounted) setState(() { _loading = false; _error = 'تعذر تحميل صندوق الوارد: $error'; });
+    }
+  }
+
+  String _time(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    if (date == null) return '';
+    final now = DateTime.now();
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      return '${date.hour.toString().padLeft(2,'0')}:${date.minute.toString().padLeft(2,'0')}';
+    }
+    return '${date.day}/${date.month}';
+  }
+
+  @override void dispose() {
+    if (_channel != null) _client.removeChannel(_channel!);
+    super.dispose();
+  }
+
+  @override Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+      appBar: AppBar(title: const Text('المحادثات الخاصة')),
+      body: _loading
+        ? const Center(child: CircularProgressIndicator())
+        : _error != null
+          ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(
+              mainAxisSize: MainAxisSize.min, children: [
+                Text(_error!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة')),
+              ])))
+          : _conversations.isEmpty
+            ? Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(
+                mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.forum_outlined, size: 54, color: colors.primary),
+                  const SizedBox(height: 12),
+                  const Text('ما عندك محادثات خاصة بعد', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                  const SizedBox(height: 6),
+                  Text('ابدأ محادثة من الملف الشخصي لأي طالب', style: TextStyle(color: colors.onSurfaceVariant)),
+                ])))
+            : RefreshIndicator(onRefresh: _load, child: ListView.separated(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: _conversations.length,
+                separatorBuilder: (_,__) => const Divider(height: 1, indent: 82),
+                itemBuilder: (context,index) {
+                  final item = _conversations[index];
+                  final profile = item['profile'] as Map<String,dynamic>;
+                  final last = item['last'] as Map<String,dynamic>;
+                  final userId = item['user_id'].toString();
+                  final avatar = profile['avatar_url']?.toString();
+                  final displayName = profile['display_name']?.toString().trim() ?? '';
+                  final usernameValue = profile['username']?.toString().trim() ?? '';
+                  final name = displayName.isNotEmpty ? displayName : (usernameValue.isNotEmpty ? '@$usernameValue' : 'مستخدم');
+                  final username = (profile['username'] ?? '').toString();
+                  final unread = item['unread'] as int;
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                    leading: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => StudentPublicProfileScreen(
+                          userId: userId,
+                          fallbackName: name,
+                          fallbackUsername: username,
+                          fallbackStage: profile['stage']?.toString(),
+                          fallbackAvatar: avatar,
+                          fallbackBadge: profile['badge']?.toString(),
+                          fallbackBio: profile['bio']?.toString(),
+                          fallbackDeveloper: profile['is_developer'] == true,
+                        ),
+                      )),
+                      child: CircleAvatar(
+                        radius: 25,
+                        backgroundImage: avatar != null && avatar.startsWith('http') ? NetworkImage(avatar) : null,
+                        child: avatar == null || !avatar.startsWith('http') ? const Icon(Icons.person_rounded) : null,
+                      ),
+                    ),
+                    title: Row(children: [
+                      Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800))),
+                      Text(_time(last['created_at']), style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant)),
+                    ]),
+                    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if (username.isNotEmpty) Text('@$username', style: TextStyle(fontSize: 11, color: colors.primary)),
+                      const SizedBox(height: 3),
+                      Text(last['body']?.toString() ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ]),
+                    trailing: unread > 0 ? CircleAvatar(
+                      radius: 12, backgroundColor: colors.primary,
+                      child: Text(unread > 99 ? '99+' : '$unread',
+                        style: TextStyle(color: colors.onPrimary, fontSize: 10, fontWeight: FontWeight.w900)),
+                    ) : const Icon(Icons.chevron_left_rounded),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => StudentDirectMessageScreen(
+                        otherUserId: userId, otherName: name, otherAvatar: avatar,
+                      ),
+                    )).then((_) => _load()),
+                  );
+                },
+              )),
+    ));
+  }
+}
+).firstMatch(body);
+    if (image != null) {
+      final path = image.group(1)!;
+      return FutureBuilder<String>(
+        future: _db.storage.from('chat-media').createSignedUrl(path, 86400),
+        builder: (context, snapshot) => snapshot.hasData
+          ? GestureDetector(
+              onTap: () => showDialog<void>(context: context, builder: (_) => Dialog(
+                backgroundColor: Colors.black,
+                child: InteractiveViewer(child: CachedNetworkImage(imageUrl: snapshot.data!, fit: BoxFit.contain)),
+              )),
+              child: ClipRRect(borderRadius: BorderRadius.circular(12),
+                child: CachedNetworkImage(imageUrl: snapshot.data!, width: 220, height: 180, fit: BoxFit.cover)),
+            )
+          : const SizedBox(width: 220, height: 150, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+      );
+    }
+    if (voice != null) {
+      final path = voice.group(1)!;
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(onPressed: () => _playDirectVoice(id, path),
+          icon: Icon(_dmPlayingMessageId == id ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded, color: foreground, size: 30)),
+        Text('رسالة صوتية', style: TextStyle(color: foreground)),
+      ]);
+    }
+    return Text(body, style: TextStyle(color: foreground));
   }
 
   Future<void> send() async {
