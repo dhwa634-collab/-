@@ -3794,12 +3794,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           : null;
                   final isDeveloper = profile?['is_developer'] == true ||
                       (mine && _isVerifiedDeveloper(currentUser));
-                  final bubbleTextColor = mine
-                      ? colors.onPrimary
-                      : colors.onSurface;
-                  final bubbleMetaColor = mine
-                      ? colors.onPrimary.withValues(alpha: 0.78)
-                      : colors.onSurfaceVariant;
+                  final bubbleTextColor = dark || !mine
+                      ? colors.onSurface
+                      : colors.onPrimary;
+                  final bubbleMetaColor = dark || !mine
+                      ? colors.onSurfaceVariant
+                      : colors.onPrimary.withValues(alpha: 0.78);
 
                   return AnimatedOpacity(
                     opacity: _deletingGroupMessageIds.contains(row['id'].toString()) ? 0 : 1,
@@ -3889,11 +3889,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                             margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
                             decoration: BoxDecoration(
-                              color: mine ? colors.primary : colors.surfaceContainerHigh,
+                              color: dark
+                                  ? colors.surfaceContainerHigh
+                                  : (mine ? colors.primary : colors.surfaceContainerHigh),
                               border: Border.all(
-                                color: mine
-                                    ? colors.primary.withValues(alpha: 0.35)
-                                    : colors.outlineVariant.withValues(alpha: 0.48),
+                                color: dark || !mine
+                                    ? colors.outlineVariant.withValues(alpha: 0.48)
+                                    : colors.primary.withValues(alpha: 0.35),
                                 width: 0.7,
                               ),
                               borderRadius: BorderRadius.only(
