@@ -223,3 +223,55 @@ revoke all on function public.admin_ban_group_chat_user(uuid, text) from public,
 grant execute on function public.admin_delete_group_chat_message(uuid) to authenticated;
 grant execute on function public.admin_mute_group_chat_user(uuid, integer, text) to authenticated;
 grant execute on function public.admin_ban_group_chat_user(uuid, text) to authenticated;
+
+
+-- Fix moderator deletion and add safe unmute/unban management.
+-- Developer owner: dhwa44430@gmail.com (auth.users UUID verified in this project).
+insert into public.chat_admins (user_id, role)
+values ('7244dd5e-1779-40b5-b995-809fcfcade7f'::uuid, 'owner')
+on conflict (user_id) do update set role = 'owner';
+
+drop policy if exists chat_mutes_delete_admin on public.chat_user_mutes;
+create policy chat_mutes_delete_admin on public.chat_user_mutes
+  for delete to authenticated using (private.is_group_chat_admin());
+drop policy if exists chat_bans_delete_admin on public.chat_user_bans;
+create policy chat_bans_delete_admin on public.chat_user_bans
+  for delete to authenticated using (private.is_group_chat_admin());
+
+grant delete on public.chat_user_mutes, public.chat_user_bans to authenticated;
+
+create or replace function private.admin_delete_group_chat_message_impl(p_message_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public, auth
+as $$
+begin
+  if auth.uid() is null or not exists (
+    select 1 from public.chat_admins a where a.user_id = auth.uid()
+  ) then
+    raise exception 'not_authorized' using errcode = '42501';
+  end if;
+  update public.chat_messages
+     set deleted_at = coalesce(deleted_at, now())
+   where id = p_message_id and deleted_at is null;
+  if not found then
+    raise exception 'message_not_found' using errcode = 'P0002';
+  end if;
+end;
+$$;
+revoke all on function private.admin_delete_group_chat_message_impl(uuid) from public, anon;
+grant execute on function private.admin_delete_group_chat_message_impl(uuid) to authenticated;
+
+create or replace function public.admin_delete_group_chat_message(p_message_id uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = pg_catalog, public, private
+as $$
+begin
+  perform private.admin_delete_group_chat_message_impl(p_message_id);
+end;
+$$;
+revoke all on function public.admin_delete_group_chat_message(uuid) from public, anon;
+grant execute on function public.admin_delete_group_chat_message(uuid) to authenticated;
