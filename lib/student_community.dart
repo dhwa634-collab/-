@@ -2282,11 +2282,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     } on PostgrestException catch (error) {
       debugPrint('Check group chat posting permission failed: ${error.message}');
       if (mounted) setState(() => _groupChatStatusLoaded = true);
-      return true;
+      return !_groupChatPostingBlocked;
     } catch (error) {
       debugPrint('Check group chat posting permission failed: $error');
       if (mounted) setState(() => _groupChatStatusLoaded = true);
-      return true;
+      return !_groupChatPostingBlocked;
     }
   }
 
@@ -2320,6 +2320,34 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       if (days == 0 && hours == 0 && minutes == 0) '$seconds ثانية',
     ];
     return 'أنت مكتوم من غرفة الدردشة. المتبقي: ${parts.join(' و ')}.';
+  }
+
+  Widget _buildGroupChatStatusLoading(ColorScheme colors, bool dark) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          decoration: BoxDecoration(
+            color: dark ? const Color(0xFF172A42) : colors.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: colors.primary.withValues(alpha: .35)),
+          ),
+          child: Row(children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2.2),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text('جارٍ التحقق من صلاحية المراسلة…',
+              style: TextStyle(color: colors.onSurface, fontWeight: FontWeight.w700))),
+          ]),
+        ),
+      ),
+    );
   }
 
   Widget _buildGroupChatRestrictionNotice(ColorScheme colors, bool dark) {
@@ -3760,6 +3788,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             child: FilledButton(onPressed: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const StudentGoogleLoginScreen())),
               child: const Text('سجّل الدخول للمشاركة في الدردشة')))
+        else if (!_groupChatStatusLoaded)
+          _buildGroupChatStatusLoading(colors, dark)
         else if (_groupChatPostingBlocked)
           _buildGroupChatRestrictionNotice(colors, dark)
         else
