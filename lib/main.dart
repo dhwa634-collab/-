@@ -4432,7 +4432,9 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
       ),
     );
     if (selected == null || !mounted ||
-        selected == _client.auth.currentUser?.email?.toLowerCase()) return;
+        selected == _client.auth.currentUser?.email?.toLowerCase()) {
+      return;
+    }
     final proceed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
