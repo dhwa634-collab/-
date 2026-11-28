@@ -2202,6 +2202,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<Map<String, Map<String, dynamic>>>? _profilesFuture;
   bool sending = false;
   bool _isGroupChatAdmin = false;
+  bool _groupChatLocked = false;
+  bool _voiceUploading = false;
+  bool _videoBusy = false;
+  double _videoProgress = 0;
+  String _videoStatus = '';
+  Map<String, dynamic>? _replyToMessage;
   bool _groupChatBanned = false;
   bool _groupChatMuted = false;
   bool _groupChatStatusLoaded = false;
@@ -2281,12 +2287,29 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       if (!mounted) return;
       setState(() => _isGroupChatAdmin =
           result == true || _isVerifiedDeveloper(_db.auth.currentUser));
+      unawaited(_refreshGroupChatPostingStatus());
     } catch (error) {
       debugPrint('Load group chat moderation role failed: $error');
       if (mounted) {
         setState(() => _isGroupChatAdmin =
             _isVerifiedDeveloper(_db.auth.currentUser));
       }
+    }
+  }
+
+  Future<void> _toggleGroupChatLock() async {
+    if (!_isGroupChatAdmin || sending) return;
+    final nextLocked = !_groupChatLocked;
+    try {
+      final result = await _db.rpc('set_group_chat_locked', params: {'p_locked': nextLocked});
+      if (result != nextLocked) throw Exception('لم يؤكد الخادم تغيير حالة الغرفة.');
+      if (!mounted) return;
+      setState(() => _groupChatLocked = nextLocked);
+      toast(nextLocked ? 'تم قفل غرفة الدردشة. المشرفون ما زالوا يستطيعون الإرسال.' : 'تم فتح غرفة الدردشة.');
+    } on PostgrestException catch (error) {
+      toast(error.code == '42501' ? 'ليس لديك صلاحية تغيير حالة الغرفة.' : 'تعذر تغيير حالة الغرفة: ${error.message}');
+    } catch (error) {
+      toast('تعذر تغيير حالة الغرفة: $error');
     }
   }
 
@@ -2442,19 +2465,22 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     );
   }
 
-  bool get _groupChatPostingBlocked => _groupChatBanned || _groupChatMuted;
+  bool get _groupChatPostingBlocked => _groupChatBanned || _groupChatMuted || (_groupChatLocked && !_isGroupChatAdmin);
 
   Future<bool> _refreshGroupChatPostingStatus() async {
     try {
       final raw = await _db.rpc('get_my_group_chat_status');
       if (!mounted) return false;
       final status = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+      final room = await _db.from('group_chat_settings').select('is_locked').eq('singleton', true).maybeSingle();
+      final locked = room?['is_locked'] == true;
       final banned = status['is_banned'] == true;
       final muted = status['is_muted'] == true;
       final permanent = muted && status['is_permanent'] == true;
       final until = DateTime.tryParse(status['muted_until']?.toString() ?? '')?.toLocal();
       setState(() {
         _groupChatBanned = banned;
+        _groupChatLocked = locked;
         _groupChatMuted = muted;
         _groupChatMutePermanent = permanent;
         _groupChatMutedUntil = until;
@@ -2482,7 +2508,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         _moderationCountdownTimer?.cancel();
         _moderationCountdownTimer = null;
       }
-      return !banned && !muted;
+      return !banned && !muted && (!locked || _isGroupChatAdmin);
     } on PostgrestException catch (error) {
       debugPrint('Check group chat posting permission failed: ${error.message}');
       if (mounted) setState(() => _groupChatStatusLoaded = true);
@@ -2555,10 +2581,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   Widget _buildGroupChatRestrictionNotice(ColorScheme colors, bool dark) {
     final banned = _groupChatBanned;
-    final title = banned ? 'تم حظرك من غرفة الدردشة' : 'تم كتمك من غرفة الدردشة';
-    final detail = banned
-        ? 'لا يمكنك إرسال الرسائل أو الصور أو التسجيلات الصوتية في هذه الغرفة.'
-        : _groupChatMuteRemainingText();
+    final locked = _groupChatLocked && !_isGroupChatAdmin;
+    final title = locked ? 'غرفة الدردشة مغلقة حالياً' : (banned ? 'تم حظرك من غرفة الدردشة' : 'تم كتمك من غرفة الدردشة');
+    final detail = locked
+        ? 'أغلق المطوّر أو أحد المشرفين الغرفة مؤقتاً. يمكنك المشاهدة والعودة للمشاركة عند فتحها.'
+        : banned
+            ? 'لا يمكنك إرسال الرسائل أو الصور أو الفيديوهات أو التسجيلات الصوتية في هذه الغرفة.'
+            : _groupChatMuteRemainingText();
     return SafeArea(
       top: false,
       child: Padding(
@@ -3675,7 +3704,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         leading: AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: ScaleTransition(scale: Tween<double>(begin: 0.94, end: 1).animate(animation), child: child)), child: _groupSelectionMode ? IconButton(key: const ValueKey('group-selection-close'), onPressed: () => setState(() => _selectedGroupMessageIds.clear()), icon: const Icon(Icons.close_rounded)) : const SizedBox(key: ValueKey('group-selection-leading-empty'), width: 48)),
         title: AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(animation), child: child)), child: _groupSelectionMode ? Text('تم تحديد ${_selectedGroupMessageIds.length} رسالة', key: const ValueKey('group-selection-title')) : Row(key: const ValueKey('group-chat-title'), children: [
           const Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('غرفة الدردشة', style: TextStyle(fontWeight: FontWeight.w800)),
@@ -3695,7 +3724,15 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             ),
           ),
         ])),
-        actions: [AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero).animate(animation), child: child)), child: _groupSelectionMode ? KeyedSubtree(key: const ValueKey('group-selection-toolbar'), child: _selectionToolbar(_selectedGroupMessageIds.length,onClear:()=>setState(()=>_selectedGroupMessageIds.clear()),onDelete:_deleteSelectedGroupMessages,onCopy:_copySelectedGroupMessages,onEdit:_editSelectedGroupMessage,canEdit:_selectedGroupMessages.length==1&&_selectedGroupMessages.first['user_id']==_db.auth.currentUser?.id&&_selectedGroupMessages.first['message_type']=='text',colors:colors)) : const SizedBox(key: ValueKey('group-selection-actions-empty'), width: 1))],
+        actions: [
+          if (_isGroupChatAdmin && !_groupSelectionMode)
+            IconButton(
+              tooltip: _groupChatLocked ? 'فتح غرفة الدردشة' : 'قفل غرفة الدردشة',
+              onPressed: _toggleGroupChatLock,
+              icon: Icon(_groupChatLocked ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                color: _groupChatLocked ? Colors.orangeAccent : null),
+            ),
+          AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero).animate(animation), child: child)), child: _groupSelectionMode ? KeyedSubtree(key: const ValueKey('group-selection-toolbar'), child: _selectionToolbar(_selectedGroupMessageIds.length,onClear:()=>setState(()=>_selectedGroupMessageIds.clear()),onDelete:_deleteSelectedGroupMessages,onCopy:_copySelectedGroupMessages,onEdit:_editSelectedGroupMessage,canEdit:_selectedGroupMessages.length==1&&_selectedGroupMessages.first['user_id']==_db.auth.currentUser?.id&&_selectedGroupMessages.first['message_type']=='text',colors:colors)) : const SizedBox(key: ValueKey('group-selection-actions-empty'), width: 1))],
       ),
       body: Container(
         decoration: BoxDecoration(
