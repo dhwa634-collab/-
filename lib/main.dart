@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'app_notice.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -754,6 +755,17 @@ class StudyApp extends StatelessWidget {
           navigationBarTheme: NavigationBarThemeData(
             backgroundColor: Colors.white,
             indicatorColor: palette.withValues(alpha: .15)),
+          snackBarTheme: SnackBarThemeData(
+            backgroundColor: const Color(0xFF172A42),
+            contentTextStyle: const TextStyle(color: Color(0xFFF1F6FF), fontSize: 14, fontWeight: FontWeight.w600),
+            behavior: SnackBarBehavior.floating,
+            elevation: 9,
+            insetPadding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFF3B6FA8), width: 1),
+            ),
+          ),
           appBarTheme: AppBarTheme(
             backgroundColor: lightBackground,
             surfaceTintColor: Colors.transparent)),
@@ -773,6 +785,17 @@ class StudyApp extends StatelessWidget {
           navigationBarTheme: const NavigationBarThemeData(
             backgroundColor: Color(0xFF172337),
             indicatorColor: Color(0xFF294A78)),
+          snackBarTheme: SnackBarThemeData(
+            backgroundColor: const Color(0xFF172A42),
+            contentTextStyle: const TextStyle(color: Color(0xFFF1F6FF), fontSize: 14, fontWeight: FontWeight.w600),
+            behavior: SnackBarBehavior.floating,
+            elevation: 9,
+            insetPadding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFF3B6FA8), width: 1),
+            ),
+          ),
           appBarTheme: const AppBarTheme(
             backgroundColor: Color(0xFF101827),
             surfaceTintColor: Colors.transparent),
