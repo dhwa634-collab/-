@@ -2268,6 +2268,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             if (!mounted) return;
             if (_groupChatMutedUntil != null &&
                 DateTime.now().isAfter(_groupChatMutedUntil!)) {
+              _moderationCountdownTimer?.cancel();
+              _moderationCountdownTimer = null;
               unawaited(_refreshGroupChatPostingStatus());
             } else {
               setState(() {});
