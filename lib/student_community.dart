@@ -3896,7 +3896,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('غرفة الدردشة', style: TextStyle(fontWeight: FontWeight.w800)),
-              Text('محادثة جماعية للطلاب', style: TextStyle(fontSize: 11)),
+              Text(_groupChatLocked ? 'الغرفة مغلقة مؤقتاً' : 'محادثة جماعية للطلاب', style: TextStyle(fontSize: 11)),
             ],
           )),
           const SizedBox(width: 9),
