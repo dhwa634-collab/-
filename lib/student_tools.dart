@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'student_visuals.dart';
 
 class PomodoroScreen extends StatefulWidget {
   const PomodoroScreen({super.key});
@@ -297,7 +298,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with WidgetsBindingObse
     final rest = TextEditingController(text: '7');
     final values = await showDialog<List<int>>(context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('تخصيص وقت الجلسة'),
+        title: BrandedDialogTitle(title: const Text('تخصيص وقت الجلسة')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(controller: study, keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: 'الدراسة بالدقائق (5–120)')),
