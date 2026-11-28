@@ -2001,6 +2001,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   String _profileCacheKey = '';
   Future<Map<String, Map<String, dynamic>>>? _profilesFuture;
   bool sending = false;
+  bool _isGroupChatAdmin = false;
   final Set<String> _deletingGroupMessageIds = {};
   final Set<String> _selectedGroupMessageIds = {};
   String? _editingGroupMessageId, _editingGroupOriginal;
@@ -2030,6 +2031,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     super.initState();
     messages = _messageStream();
     _loadBlockedUsers();
+    unawaited(_loadGroupChatRole());
     _groupReactionsSubscription = _db
         .from('chat_message_reactions')
         .stream(primaryKey: ['id'])
@@ -2060,6 +2062,45 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
   Stream<List<Map<String, dynamic>>> _messageStream() =>
       _db.from('chat_messages').stream(primaryKey: ['id']).order('created_at', ascending: true);
+
+  Future<void> _loadGroupChatRole() async {
+    try {
+      final result = await _db.rpc('is_group_chat_admin');
+      if (!mounted) return;
+      setState(() => _isGroupChatAdmin = result == true);
+    } catch (error) {
+      debugPrint('Load group chat moderation role failed: $error');
+      if (mounted) setState(() => _isGroupChatAdmin = false);
+    }
+  }
+
+  Future<bool> _checkGroupChatPostingPermission() async {
+    try {
+      final raw = await _db.rpc('get_my_group_chat_status');
+      final status = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+      if (status['is_banned'] == true) {
+        toast('تم حظرك من غرفة الدردشة الجماعية.');
+        return false;
+      }
+      if (status['is_muted'] == true) {
+        if (status['is_permanent'] == true) {
+          toast('تم كتمك بشكل دائم من غرفة الدردشة الجماعية.');
+        } else {
+          final until = DateTime.tryParse(status['muted_until']?.toString() ?? '')?.toLocal();
+          final remaining = until == null ? '' : ' حتى ${TimeOfDay.fromDateTime(until).format(context)}';
+          toast('أنت مكتوم من غرفة الدردشة$remaining.');
+        }
+        return false;
+      }
+      return true;
+    } on PostgrestException catch (error) {
+      debugPrint('Check group chat posting permission failed: ${error.message}');
+      return true;
+    } catch (error) {
+      debugPrint('Check group chat posting permission failed: $error');
+      return true;
+    }
+  }
 
   void _retryMessages() {
     setState(() => messages = _messageStream());
