@@ -1741,9 +1741,13 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                 maxWidth: MediaQuery.sizeOf(context).width * 0.72,
                               ),
                               decoration: BoxDecoration(
-                                color: colors.surfaceContainerHigh,
+                                color: dark
+                                    ? colors.surfaceContainerHigh
+                                    : (mine ? colors.primary : colors.surfaceContainerHigh),
                                 border: Border.all(
-                                  color: colors.outlineVariant.withValues(alpha: 0.48),
+                                  color: dark || !mine
+                                      ? colors.outlineVariant.withValues(alpha: 0.48)
+                                      : colors.primary.withValues(alpha: 0.35),
                                   width: 0.7,
                                 ),
                                 borderRadius: BorderRadius.only(
@@ -1767,10 +1771,14 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: colors.primary.withValues(alpha: 0.10),
+                                      color: dark || !mine
+                                          ? colors.primary.withValues(alpha: 0.10)
+                                          : colors.onPrimary.withValues(alpha: 0.13),
                                       borderRadius: BorderRadius.circular(9),
                                       border: Border.all(
-                                        color: colors.primary.withValues(alpha: 0.20),
+                                        color: dark || !mine
+                                            ? colors.primary.withValues(alpha: 0.20)
+                                            : colors.onPrimary.withValues(alpha: 0.22),
                                       ),
                                     ),
                                     child: Text(
@@ -1780,7 +1788,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                         height: 1.1,
                                         letterSpacing: 0.15,
                                         fontWeight: FontWeight.w900,
-                                        color: colors.primary,
+                                        color: dark || !mine ? colors.primary : colors.onPrimary,
                                       ),
                                     ),
                                   ),
@@ -1793,7 +1801,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                         child: _buildDirectMedia(
                                           row['body']?.toString() ?? '',
                                           (row['_render_id'] ?? row['id']).toString(),
-                                          colors.onSurface,
+                                          dark || !mine ? colors.onSurface : colors.onPrimary,
                                         ),
                                       ),
                                       if (row['edited_at'] != null)
@@ -1803,7 +1811,9 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                             'معدّلة',
                                             style: TextStyle(
                                               fontSize: 9,
-                                              color: colors.onSurfaceVariant,
+                                              color: dark || !mine
+                                                  ? colors.onSurfaceVariant
+                                                  : colors.onPrimary.withValues(alpha: .7),
                                             ),
                                           ),
                                         ),
@@ -1823,10 +1833,14 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                                     : Icons.done_rounded,
                                             size: 15,
                                             color: row['_local_status'] == 'queued'
-                                                ? colors.onSurfaceVariant
+                                                ? (dark || !mine
+                                                    ? colors.onSurfaceVariant
+                                                    : colors.onPrimary.withValues(alpha: .72))
                                                 : row['read_at'] != null
                                                     ? Colors.lightBlueAccent
-                                                    : colors.onSurfaceVariant,
+                                                    : (dark || !mine
+                                                        ? colors.onSurfaceVariant
+                                                        : colors.onPrimary.withValues(alpha: .72)),
                                           ),
                                         ),
                                       ],
