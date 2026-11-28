@@ -2077,6 +2077,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<bool> _checkGroupChatPostingPermission() async {
     try {
       final raw = await _db.rpc('get_my_group_chat_status');
+      if (!mounted) return false;
       final status = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
       if (status['is_banned'] == true) {
         toast('تم حظرك من غرفة الدردشة الجماعية.');
