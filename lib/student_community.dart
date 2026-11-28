@@ -1611,8 +1611,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                             duration: const Duration(milliseconds: 360),
                             child: Align(
                         alignment: mine
-                            ? Alignment.centerLeft
-                            : Alignment.centerRight,
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
                         child: TweenAnimationBuilder<double>(
                           key: ValueKey(row['_render_id'] ?? row['id']),
                           tween: Tween<double>(begin: 0, end: 1),
@@ -1664,9 +1664,11 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (_dmSelectionMode)
-                                    Transform.translate(
-                                      offset: const Offset(-25, 22),
-                                      child: AnimatedSwitcher(
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Transform.translate(
+                                        offset: const Offset(-28, 0),
+                                        child: AnimatedSwitcher(
                                         duration: const Duration(milliseconds: 190),
                                         switchInCurve: Curves.easeOutCubic,
                                         switchOutCurve: Curves.easeInCubic,
@@ -1683,6 +1685,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                             ? colors.primary : colors.outline,
                                           size: 21,
                                         ),
+                                      ),
                                       ),
                                     ),
                                   Container(
