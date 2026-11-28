@@ -164,7 +164,7 @@ end;
 $$;
 
 create or replace function public.admin_ban_group_chat_user(p_user_id uuid, p_reason text default '')
-returns void language plpgsql security definer
+returns void language plpgsql security invoker
 set search_path = pg_catalog, public
 as $$
 declare v_admin_id uuid := auth.uid();
