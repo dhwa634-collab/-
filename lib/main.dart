@@ -18,6 +18,7 @@ import 'exam_archive_data.dart';
 import 'review_quiz.dart';
 import 'academic_stages.dart';
 import 'notifications/study_notification_service.dart';
+import 'student_visuals.dart';
 Future<void> main() async { WidgetsFlutterBinding.ensureInitialized(); await Supabase.initialize(url: SupabaseConfig.projectUrl, publishableKey: SupabaseConfig.publishableKey); unawaited(StudentPresenceService.initialize()); await SavedExamsStore.load(); await ThemeController.load(); await AcademicStageController.load(); await StudyNotificationService.instance.initialize(); runApp(const StudyApp()); }
 const navy=Color(0xFF142D50), blue=Color(0xFF2868D7), bg=Color(0xFFF3F6FB);
 
@@ -646,7 +647,7 @@ class _StageSavedResourcesScreenState extends State<StageSavedResourcesScreen> {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(title),
+        title: BrandedDialogTitle(title: Text(title)),
         content: Text(
           'تم حفظ مصدر هذه المادة في محفوظاتك. $description\\n'
           'المصدر الحالي صفحة فهرس وليس ملف PDF مباشراً؛ لذلك لم نفتح متصفحاً '
@@ -3178,7 +3179,7 @@ class _StudyNoteDetailScreenState extends State<StudyNoteDetailScreen> {
       builder: (dialogContext) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
-          title: const Text('حذف الملاحظة؟'),
+          title: BrandedDialogTitle(title: const Text('حذف الملاحظة؟')),
           content: const Text(
             'سيتم حذف هذه الملاحظة نهائياً من جهازك. هل تريد المتابعة؟'),
           actions: [
@@ -3430,7 +3431,7 @@ class _NewsScreenState extends State<NewsScreen> {
     final entered = await showDialog<String>(
       context: context,
       builder: (dialogContext) => Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
-        title: const Text('دخول أدوات المطوّر'),
+        title: BrandedDialogTitle(title: const Text('دخول أدوات المطوّر')),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -3799,7 +3800,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     final id=(post['id']??'').toString();if(id.isEmpty)return;
     final yes=await showDialog<bool>(context:context,builder:(ctx)=>Directionality(
       textDirection:TextDirection.rtl,child:AlertDialog(
-        title:const Text('تأكيد حذف الخبر'),
+        title:BrandedDialogTitle(title: const Text('تأكيد حذف الخبر')),
         content:Text('هل تريد حذف الخبر «${(post['title'] ?? '').toString()}» نهائياً؟'),
         actions:[
           TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),
@@ -3945,7 +3946,7 @@ class MoreScreen extends StatelessWidget {
       builder: (dialogContext) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
-          title: const Text('ملاحظة أو اقتراح'),
+          title: BrandedDialogTitle(title: const Text('ملاحظة أو اقتراح')),
           content: TextField(
             controller: controller,
             autofocus: true,
@@ -4060,7 +4061,7 @@ class MoreScreen extends StatelessWidget {
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           icon: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent),
-          title: const Text('مسح جميع المحفوظات؟'),
+          title: BrandedDialogTitle(title: const Text('مسح جميع المحفوظات؟')),
           content: Text(
             'سيتم حذف $count من العناصر المحفوظة من هذا الجهاز نهائياً. '
             'لا يمكن التراجع عن هذه العملية.'),
@@ -4399,7 +4400,7 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           icon: const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-          title: const Text('حذف الحساب نهائياً؟'),
+          title: BrandedDialogTitle(title: const Text('حذف الحساب نهائياً؟')),
           content: const Text(
             'سيتم حذف حسابك وملفك الشخصي ورسائلك وملفاتك الصوتية والملصقات '
             'المرتبطة به من الخادم. لا يمكن التراجع عن هذه العملية.'),
@@ -4654,7 +4655,7 @@ class StageInternalArchiveScreen extends StatelessWidget {
                 onTap: () => showDialog<void>(
                   context: context,
                   builder: (dialogContext) => AlertDialog(
-                    title: Text(subject.name),
+                    title: BrandedDialogTitle(title: Text(subject.name)),
                     content: const Text(
                       'لا توجد حالياً صور أو ملفات لهذه المرحلة والمادة داخل مستودع التطبيق. '
                       'ستظهر هنا مباشرة بعد رفع الملفات، بدون فتح روابط خارجية.',
@@ -4961,8 +4962,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('الإبلاغ عن الإجابة',
-            style: TextStyle(fontWeight: FontWeight.w900)),
+          title: BrandedDialogTitle(title: const Text('الإبلاغ عن الإجابة',
+            style: TextStyle(fontWeight: FontWeight.w900))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
