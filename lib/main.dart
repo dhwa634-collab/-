@@ -4432,7 +4432,6 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
     list.insert(0, entry);
     if (list.length > 8) list.removeRange(8, list.length);
     await prefs.setString(_knownAccountsKey, jsonEncode(list));
-    if (mounted) setState(() => _knownAccounts = list);
   }
 
   void _showMessage(String message, {bool isError = false}) {
