@@ -81,6 +81,19 @@ Future<void> signOutStudentSession() async {
   await _db.auth.signOut();
 }
 
+String _googleSignInFailureMessage(Object error, String detail) {
+  final isNetworkError = error is PlatformException &&
+          error.code == 'network_error' ||
+      error.toString().toLowerCase().contains('network_error');
+  if (isNetworkError) {
+    return 'تعذر الاتصال بخدمات Google بسبب عدم توفر الإنترنت. '
+        'تسجيل الدخول لأول مرة يحتاج إلى إنترنت. إذا سبق أن سجلت الدخول '
+        'على هذا الجهاز، ارجع إلى التطبيق دون تسجيل الخروج لاستخدام جلستك '
+        'المحفوظة والبيانات المحلية.';
+  }
+  return 'فشل تسجيل الدخول (${error.runtimeType}): $detail';
+}
+
 /// Runs the existing native Google ID-token flow without showing an intermediate login screen.
 Future<bool> signInWithGoogleAccount(BuildContext context) async {
   if (SupabaseConfig.googleWebClientId.isEmpty) {
@@ -120,7 +133,7 @@ Future<bool> signInWithGoogleAccount(BuildContext context) async {
       final message = detail.length > 420 ? detail.substring(0, 420) : detail;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         duration: const Duration(seconds: 12),
-        content: Text('فشل تسجيل الدخول (${error.runtimeType}): $message'),
+        content: Text(_googleSignInFailureMessage(error, message)),
       ));
     }
     return false;
@@ -300,7 +313,7 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
         final message = detail.length > 420 ? detail.substring(0, 420) : detail;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           duration: const Duration(seconds: 12),
-          content: Text('فشل تسجيل الدخول (${error.runtimeType}): $message'),
+          content: Text(_googleSignInFailureMessage(error, message)),
         ));
       }
     } finally { if (mounted) setState(() => busy = false); }
