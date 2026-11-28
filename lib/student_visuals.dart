@@ -7,6 +7,8 @@ const List<Color> _studentAvatarPalette = [
   Color(0xFFB34D91), Color(0xFF687BC7),
 ];
 
+Color studentNameColor(String identity) => studentAvatarColor(identity);
+
 Color studentAvatarColor(String name) {
   final normalized = name.trim().toLowerCase();
   var hash = 0;
