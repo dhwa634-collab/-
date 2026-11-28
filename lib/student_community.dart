@@ -824,7 +824,9 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
   Future<void> _syncDmOutbox() async {
     final user = me;
     if (user == null || !mounted || sending || _syncingDmOutbox ||
-        _optimisticMessages.isEmpty) return;
+        _optimisticMessages.isEmpty) {
+      return;
+    }
     _syncingDmOutbox = true;
     try {
     final pending = _optimisticMessages
@@ -1277,8 +1279,11 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         input.clear(); inputFocus.unfocus();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تعديل الرسالة.')));
       } catch (error) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر تعديل الرسالة دون اتصال. جرّب عند عودة الإنترنت.')));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تعذر تعديل الرسالة دون اتصال. جرّب عند عودة الإنترنت.')),
+          );
+        }
       } finally { if (mounted) setState(() => sending = false); }
       return;
     }
@@ -3608,7 +3613,7 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
   final SupabaseClient _client = Supabase.instance.client;
   List<Map<String,dynamic>> _conversations = [];
   bool _hasInboxCache = false;
-  String get _inboxCacheKey => 'dalilak_private_inbox_${_me}';
+  String get _inboxCacheKey => 'dalilak_private_inbox_$_me';
 
   Future<void> _loadInboxCache() async {
     final me = _me;
@@ -3718,20 +3723,24 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
           return (b['last']['created_at'] as String)
             .compareTo(a['last']['created_at'] as String);
         });
-      if (mounted) setState(() {
-        _conversations = result;
+      if (mounted) {
+        setState(() {
+          _conversations = result;
         _loading = false;
         _error = null;
-        _hasInboxCache = true;
-      });
+          _hasInboxCache = true;
+        });
+      }
       await _saveInboxCache(result);
     } catch (error) {
-      if (mounted) setState(() {
-        _loading = false;
+      if (mounted) {
+        setState(() {
+          _loading = false;
         _error = _conversations.isEmpty && !_hasInboxCache
             ? 'ليس متصلاً بالإنترنت، ولا توجد محادثات محفوظة على هذا الجهاز بعد.'
             : null;
-      });
+        });
+      }
     }
   }
 
