@@ -2334,7 +2334,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         _groupChatStatusLoaded = true;
       });
       if (banned || muted) {
-        inputFocus.unfocus();
         if (_recording) unawaited(_stopVoiceRecording(send: false));
       }
       if (muted && !permanent && until != null) {
@@ -2373,7 +2372,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       return _refreshGroupChatPostingStatus();
     }
     if (_groupChatPostingBlocked) {
-      inputFocus.unfocus();
       return false;
     }
     return _refreshGroupChatPostingStatus();
