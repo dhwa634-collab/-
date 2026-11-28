@@ -123,7 +123,7 @@ Future<bool> signInWithGoogleAccount(BuildContext context) async {
   } on AuthException catch (e) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تعذر تسجيل الدخول: ${e.message}')),
+        SnackBar(content: BrandedNoticeContent(child: Text('تعذر تسجيل الدخول: ${e.message}'))),
       );
     }
     return false;
@@ -275,7 +275,7 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
   Future<void> signIn() async {
     if (SupabaseConfig.googleWebClientId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar( SnackBar(
-        content: Text('أكمل إعداد Google OAuth ثم أضف Web Client ID في supabase_config.dart.')));
+        content: BrandedNoticeContent(child: Text('أكمل إعداد Google OAuth ثم أضف Web Client ID في supabase_config.dart.'))));
       return;
     }
     setState(() => busy = true);
@@ -302,7 +302,7 @@ class _StudentGoogleLoginScreenState extends State<StudentGoogleLoginScreen> {
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر تسجيل الدخول: ${e.message}')),
+          SnackBar(content: BrandedNoticeContent(child: Text('تعذر تسجيل الدخول: ${e.message}'))),
         );
       }
     } catch (error, stackTrace) {
@@ -518,7 +518,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
     catch(e){toast('تعذر حفظ الملف: $e');}
     finally{if(mounted)setState(()=>saving=false);}
   }
-  void toast(String s){if(mounted)ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content:Text(s)));}
+  void toast(String s){if(mounted)ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content:BrandedNoticeContent(child: Text(s))));}
   Future<void> copyId()async{final v=username.text.trim().replaceFirst(RegExp(r'^@'),'');if(v.isEmpty){toast('لا يوجد معرّف لنسخه.');return;}await Clipboard.setData(ClipboardData(text:'@$v'));toast('تم نسخ المعرّف');}
   Widget panel(Widget child){final dark=Theme.of(context).brightness==Brightness.dark;return Card(elevation:0,color:dark?const Color(0xFF112B45):Colors.white,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20),side:BorderSide(color:Theme.of(context).colorScheme.outlineVariant.withValues(alpha:.55))),child:Padding(padding:const EdgeInsets.all(16),child:child));}
   @override void dispose(){usernameTimer?.cancel();profileScroll.dispose();name.dispose();username.dispose();bio.dispose();age.dispose();super.dispose();}
@@ -588,7 +588,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
           Expanded(child:OutlinedButton.icon(onPressed:uploading?null:pickAvatar,icon:const Icon(Icons.camera_alt_rounded),label:const Text('تعيين صورة'),style:OutlinedButton.styleFrom(foregroundColor:const Color(0xFFFFD36A),side:const BorderSide(color:Color(0x55FFD36A)),padding:const EdgeInsets.symmetric(vertical:13)))),
           const SizedBox(width:7),
           Expanded(child:FilledButton.icon(onPressed:()=>profileScroll.animateTo(390,duration:const Duration(milliseconds:350),curve:Curves.easeOut),icon:const Icon(Icons.edit_rounded),label:const Text('تعديل البيانات'),style:FilledButton.styleFrom(backgroundColor:const Color(0xFF17436D),foregroundColor:Colors.white,padding:const EdgeInsets.symmetric(vertical:13)))),
-          IconButton(tooltip:'الإعدادات',onPressed:()=>showModalBottomSheet<void>(context:context,backgroundColor:const Color(0xFF10263D),shape:const RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(24))),builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:SafeArea(child:Padding(padding:const EdgeInsets.all(18),child:Column(mainAxisSize:MainAxisSize.min,children:[const Text('إعدادات الحساب',style:TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),ListTile(leading:const Icon(Icons.verified_user_outlined,color:Color(0xFF56B4F8)),title:const Text('حماية الحساب',style:TextStyle(color:Colors.white)),subtitle:Text(_db.auth.currentUser?.email??'التصفح كضيف',style:const TextStyle(color:Colors.white60)),trailing:const Icon(Icons.chevron_left,color:Colors.white70),onTap:(){Navigator.pop(ctx);showDialog<void>(context:context,builder:(dialogContext){final user=_db.auth.currentUser;final session=_db.auth.currentSession;final email=user?.email??'غير مرتبط';final google=user?.identities?.any((identity)=>identity.provider.toLowerCase()=='google')??(user?.appMetadata['provider']?.toString().toLowerCase()=='google');final confirmed=user?.emailConfirmedAt;return Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('حماية الحساب'),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[_securityInfoRow('طريقة الدخول',google?'Google':'غير محددة عبر Google'),_securityInfoRow('البريد الإلكتروني',email),_securityInfoRow('تأكيد البريد',confirmed==null?'غير مؤكّد':'مؤكّد'),_securityInfoRow('تاريخ التوثيق',confirmed==null?'—':(DateTime.tryParse(confirmed)?.toLocal().toString().split('.').first??'غير متاح')),_securityInfoRow('حالة الجلسة',session==null?'لا توجد جلسة نشطة':'جلسة نشطة'),_securityInfoRow('انتهاء الجلسة',session?.expiresAt==null?'—':DateTime.fromMillisecondsSinceEpoch(session!.expiresAt!*1000).toLocal().toString().split('.').first)]),actions:[TextButton.icon(onPressed:email=='غير مرتبط'?null:()async{await Clipboard.setData(ClipboardData(text:email));if(dialogContext.mounted)ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:Text('تم نسخ البريد الإلكتروني.')));},icon:const Icon(Icons.copy),label:const Text('نسخ البريد')),FilledButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('إغلاق'))]));});}),ListTile(leading:const Icon(Icons.logout_rounded,color:Color(0xFFFF8A80)),title:const Text('تسجيل الخروج',style:TextStyle(color:Colors.white)),subtitle:const Text('إنهاء جلسة الحساب بأمان',style:TextStyle(color:Colors.white60)),trailing:const Icon(Icons.chevron_left,color:Colors.white70),onTap:()async{Navigator.pop(ctx);final signedOut=await confirmStudentSignOut(context);if(signedOut&&context.mounted)Navigator.of(context).popUntil((route)=>route.isFirst);}),ListTile(leading:const Icon(Icons.info_outline,color:Color(0xFF56B4F8)),title:const Text('حالة التوثيق',style:TextStyle(color:Colors.white)),subtitle:Text(developer?'حساب المطوّر موثّق':'حساب طالب',style:const TextStyle(color:Colors.white60)))]))))),icon:const Icon(Icons.settings_rounded,color:Color(0xFFFFD36A))),
+          IconButton(tooltip:'الإعدادات',onPressed:()=>showModalBottomSheet<void>(context:context,backgroundColor:const Color(0xFF10263D),shape:const RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(24))),builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:SafeArea(child:Padding(padding:const EdgeInsets.all(18),child:Column(mainAxisSize:MainAxisSize.min,children:[const Text('إعدادات الحساب',style:TextStyle(color:Colors.white,fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),ListTile(leading:const Icon(Icons.verified_user_outlined,color:Color(0xFF56B4F8)),title:const Text('حماية الحساب',style:TextStyle(color:Colors.white)),subtitle:Text(_db.auth.currentUser?.email??'التصفح كضيف',style:const TextStyle(color:Colors.white60)),trailing:const Icon(Icons.chevron_left,color:Colors.white70),onTap:(){Navigator.pop(ctx);showDialog<void>(context:context,builder:(dialogContext){final user=_db.auth.currentUser;final session=_db.auth.currentSession;final email=user?.email??'غير مرتبط';final google=user?.identities?.any((identity)=>identity.provider.toLowerCase()=='google')??(user?.appMetadata['provider']?.toString().toLowerCase()=='google');final confirmed=user?.emailConfirmedAt;return Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('حماية الحساب'),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[_securityInfoRow('طريقة الدخول',google?'Google':'غير محددة عبر Google'),_securityInfoRow('البريد الإلكتروني',email),_securityInfoRow('تأكيد البريد',confirmed==null?'غير مؤكّد':'مؤكّد'),_securityInfoRow('تاريخ التوثيق',confirmed==null?'—':(DateTime.tryParse(confirmed)?.toLocal().toString().split('.').first??'غير متاح')),_securityInfoRow('حالة الجلسة',session==null?'لا توجد جلسة نشطة':'جلسة نشطة'),_securityInfoRow('انتهاء الجلسة',session?.expiresAt==null?'—':DateTime.fromMillisecondsSinceEpoch(session!.expiresAt!*1000).toLocal().toString().split('.').first)]),actions:[TextButton.icon(onPressed:email=='غير مرتبط'?null:()async{await Clipboard.setData(ClipboardData(text:email));if(dialogContext.mounted)ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:BrandedNoticeContent(child: Text('تم نسخ البريد الإلكتروني.'))));},icon:const Icon(Icons.copy),label:const Text('نسخ البريد')),FilledButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('إغلاق'))]));});}),ListTile(leading:const Icon(Icons.logout_rounded,color:Color(0xFFFF8A80)),title:const Text('تسجيل الخروج',style:TextStyle(color:Colors.white)),subtitle:const Text('إنهاء جلسة الحساب بأمان',style:TextStyle(color:Colors.white60)),trailing:const Icon(Icons.chevron_left,color:Colors.white70),onTap:()async{Navigator.pop(ctx);final signedOut=await confirmStudentSignOut(context);if(signedOut&&context.mounted)Navigator.of(context).popUntil((route)=>route.isFirst);}),ListTile(leading:const Icon(Icons.info_outline,color:Color(0xFF56B4F8)),title:const Text('حالة التوثيق',style:TextStyle(color:Colors.white)),subtitle:Text(developer?'حساب المطوّر موثّق':'حساب طالب',style:const TextStyle(color:Colors.white60)))]))))),icon:const Icon(Icons.settings_rounded,color:Color(0xFFFFD36A))),
         ]),
         const SizedBox(height:14),
         panel(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -680,8 +680,8 @@ class _StudentPublicProfileScreenState extends State<StudentPublicProfileScreen>
     final me=_db.auth.currentUser?.id;if(me==null||me==widget.userId||blockBusy)return;final removing=blockedByMe;
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text(removing?'إلغاء الحظر؟':'حظر هذا الطالب؟'),content:Text(removing?'سيعود خيار المراسلة إذا لم يكن هناك حظر من الطرف الآخر.':'لن تتمكنوا من مراسلة بعضكما ما دام الحظر مفعّلاً.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:Text(removing?'إلغاء الحظر':'حظر'))]));
     if(ok!=true)return;setState(() { blockBusy=true;blockedByMe=!removing; });
-    try{if(removing){await _db.from('user_blocks').delete().eq('blocker_id',me).eq('blocked_id',widget.userId);}else{await _db.from('user_blocks').insert({'blocker_id':me,'blocked_id':widget.userId});}if(mounted)ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content:Text(removing?'تم إلغاء الحظر.':'تم حظر الطالب.')));}
-    catch(e){if(mounted){setState(()=>blockedByMe=removing);ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تحديث الحظر: $e')));}}
+    try{if(removing){await _db.from('user_blocks').delete().eq('blocker_id',me).eq('blocked_id',widget.userId);}else{await _db.from('user_blocks').insert({'blocker_id':me,'blocked_id':widget.userId});}if(mounted)ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content:BrandedNoticeContent(child: Text(removing?'تم إلغاء الحظر.':'تم حظر الطالب.'))));}
+    catch(e){if(mounted){setState(()=>blockedByMe=removing);ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:BrandedNoticeContent(child: Text('تعذر تحديث الحظر: $e'))));}}
     finally{if(mounted)setState(()=>blockBusy=false);}
   }
   @override Widget build(BuildContext context){final av=p?['avatar_url']?.toString();final own=_db.auth.currentUser?.id==widget.userId;
@@ -1006,11 +1006,11 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
   Future<bool> refreshBlockStatus()async{final user=me;if(user==null)return true;try{final rows=await _db.from('user_blocks').select('blocker_id,blocked_id').or('and(blocker_id.eq.$user,blocked_id.eq.${widget.otherUserId}),and(blocker_id.eq.${widget.otherUserId},blocked_id.eq.$user)');final value=(rows as List).isNotEmpty;if(mounted)setState(()=>blocked=value);return value;}catch(_){return blocked;}}
   Future<void> markIncomingAsRead()async{final user=me;if(user==null)return;try{await _db.rpc('mark_direct_messages_read',params:{'p_sender_id':widget.otherUserId});}catch(error){debugPrint('Mark private messages read failed: $error');}}
   void _toggleDmSelection(Map<String,dynamic> row){final id=row['id']?.toString();if(id==null||id.startsWith('local-'))return;setState((){if(_selectedDmIds.remove(id)){_selectedDmRows.remove(id);}else{_selectedDmIds.add(id);_selectedDmRows[id]=Map<String,dynamic>.from(row);}});}
-  Future<void> _copySelectedDm() async {final text=_selectedDmIds.map((id)=>(_selectedDmRows[id]?['body']??'').toString()).where((v)=>v.trim().isNotEmpty&&!v.startsWith('[[')).join('\n');if(text.isEmpty)return;await Clipboard.setData(ClipboardData(text:text));if(mounted){setState(()=>_selectedDmIds.clear());_selectedDmRows.clear();ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:Text('تم نسخ الرسائل المحددة.')));}}
-  Future<void> _deleteSelectedDm() async {final ids=_selectedDmIds.where((id)=>_selectedDmRows[id]?['sender_id']==me).toList();if(ids.isEmpty){setState(()=>_selectedDmIds.clear());_selectedDmRows.clear();return;}final ok=await showDialog<bool>(context:context,builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('حذف الرسائل المحددة؟'),content:Text('سيتم حذف ${ids.length} رسالة.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف'))])));if(ok!=true)return;setState(()=>_deletingMessageIds.addAll(ids));await Future<void>.delayed(const Duration(milliseconds:360));try{await _db.from('direct_messages').delete().inFilter('id',ids).eq('sender_id',me!);if(!mounted)return;setState(()=>_selectedDmIds.clear());_selectedDmRows.clear();ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:Text('تم حذف الرسائل المحددة.')));}catch(e){if(mounted){setState(()=>_deletingMessageIds.removeAll(ids));ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حذف الرسائل: $e')));}}}
+  Future<void> _copySelectedDm() async {final text=_selectedDmIds.map((id)=>(_selectedDmRows[id]?['body']??'').toString()).where((v)=>v.trim().isNotEmpty&&!v.startsWith('[[')).join('\n');if(text.isEmpty)return;await Clipboard.setData(ClipboardData(text:text));if(mounted){setState(()=>_selectedDmIds.clear());_selectedDmRows.clear();ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:BrandedNoticeContent(child: Text('تم نسخ الرسائل المحددة.'))));}}
+  Future<void> _deleteSelectedDm() async {final ids=_selectedDmIds.where((id)=>_selectedDmRows[id]?['sender_id']==me).toList();if(ids.isEmpty){setState(()=>_selectedDmIds.clear());_selectedDmRows.clear();return;}final ok=await showDialog<bool>(context:context,builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:const Text('حذف الرسائل المحددة؟'),content:Text('سيتم حذف ${ids.length} رسالة.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف'))])));if(ok!=true)return;setState(()=>_deletingMessageIds.addAll(ids));await Future<void>.delayed(const Duration(milliseconds:360));try{await _db.from('direct_messages').delete().inFilter('id',ids).eq('sender_id',me!);if(!mounted)return;setState(()=>_selectedDmIds.clear());_selectedDmRows.clear();ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:BrandedNoticeContent(child: Text('تم حذف الرسائل المحددة.'))));}catch(e){if(mounted){setState(()=>_deletingMessageIds.removeAll(ids));ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:BrandedNoticeContent(child: Text('تعذر حذف الرسائل: $e'))));}}}
   Future<void> _editSelectedDm() async {if(!_canEditSelectedDm)return;_beginDmEdit(_selectedDmRows[_selectedDmIds.first]!);}
-  Future<void> _showDmReactionPicker(Map<String,dynamic> row) async {final id=row['id']?.toString(),user=me;if(id==null||user==null||id.startsWith('local-'))return;final emoji=await showModalBottomSheet<String>(context:context,builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:SafeArea(child:Padding(padding:const EdgeInsets.all(18),child:Wrap(alignment:WrapAlignment.center,spacing:12,children:['❤️','👍','😂','🔥','💙','👏','🌟','🥰'].map((e)=>InkWell(onTap:()=>Navigator.pop(ctx,e),child:Padding(padding:const EdgeInsets.all(8),child:Text(e,style:const TextStyle(fontSize:30))))).toList())))));if(emoji==null||!mounted)return;try{final old=await _db.from('direct_message_reactions').select('id,emoji').eq('direct_message_id',id).eq('user_id',user).maybeSingle();if(old?['emoji']==emoji){await _db.from('direct_message_reactions').delete().eq('id',old!['id']).eq('user_id',user);}else{await _db.from('direct_message_reactions').upsert({'direct_message_id':id,'user_id':user,'emoji':emoji},onConflict:'direct_message_id,user_id');}}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تسجيل التفاعل: $e')));}}
-  Widget _buildDmReactions(String id,ColorScheme colors){final list=_dmReactions[id]??const [];if(list.isEmpty)return const SizedBox.shrink();final counts=<String,int>{};final mine=<String>{};for(final r in list){final e=r['emoji']?.toString()??'';if(e.isEmpty)continue;counts[e]=(counts[e]??0)+1;if(r['user_id']==me)mine.add(e);}return Padding(padding:const EdgeInsets.only(top:5),child:Wrap(spacing:5,children:counts.entries.map((e)=>InkWell(onTap:()async{final user=me;if(user==null)return;try{final old=await _db.from('direct_message_reactions').select('id,emoji').eq('direct_message_id',id).eq('user_id',user).maybeSingle();if(old?['emoji']==e.key){await _db.from('direct_message_reactions').delete().eq('id',old!['id']).eq('user_id',user);}else{await _db.from('direct_message_reactions').upsert({'direct_message_id':id,'user_id':user,'emoji':e.key},onConflict:'direct_message_id,user_id');}}catch(err){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تحديث التفاعل: $err')));}},child:Container(padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),decoration:BoxDecoration(color:mine.contains(e.key)?colors.primaryContainer:colors.surfaceContainerHighest,borderRadius:BorderRadius.circular(15)),child:Text('${e.key} ${e.value}',style:TextStyle(color:colors.onSurface,fontSize:12))))).toList()));}
+  Future<void> _showDmReactionPicker(Map<String,dynamic> row) async {final id=row['id']?.toString(),user=me;if(id==null||user==null||id.startsWith('local-'))return;final emoji=await showModalBottomSheet<String>(context:context,builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:SafeArea(child:Padding(padding:const EdgeInsets.all(18),child:Wrap(alignment:WrapAlignment.center,spacing:12,children:['❤️','👍','😂','🔥','💙','👏','🌟','🥰'].map((e)=>InkWell(onTap:()=>Navigator.pop(ctx,e),child:Padding(padding:const EdgeInsets.all(8),child:Text(e,style:const TextStyle(fontSize:30))))).toList())))));if(emoji==null||!mounted)return;try{final old=await _db.from('direct_message_reactions').select('id,emoji').eq('direct_message_id',id).eq('user_id',user).maybeSingle();if(old?['emoji']==emoji){await _db.from('direct_message_reactions').delete().eq('id',old!['id']).eq('user_id',user);}else{await _db.from('direct_message_reactions').upsert({'direct_message_id':id,'user_id':user,'emoji':emoji},onConflict:'direct_message_id,user_id');}}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:BrandedNoticeContent(child: Text('تعذر تسجيل التفاعل: $e'))));}}
+  Widget _buildDmReactions(String id,ColorScheme colors){final list=_dmReactions[id]??const [];if(list.isEmpty)return const SizedBox.shrink();final counts=<String,int>{};final mine=<String>{};for(final r in list){final e=r['emoji']?.toString()??'';if(e.isEmpty)continue;counts[e]=(counts[e]??0)+1;if(r['user_id']==me)mine.add(e);}return Padding(padding:const EdgeInsets.only(top:5),child:Wrap(spacing:5,children:counts.entries.map((e)=>InkWell(onTap:()async{final user=me;if(user==null)return;try{final old=await _db.from('direct_message_reactions').select('id,emoji').eq('direct_message_id',id).eq('user_id',user).maybeSingle();if(old?['emoji']==e.key){await _db.from('direct_message_reactions').delete().eq('id',old!['id']).eq('user_id',user);}else{await _db.from('direct_message_reactions').upsert({'direct_message_id':id,'user_id':user,'emoji':e.key},onConflict:'direct_message_id,user_id');}}catch(err){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:BrandedNoticeContent(child: Text('تعذر تحديث التفاعل: $err'))));}},child:Container(padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),decoration:BoxDecoration(color:mine.contains(e.key)?colors.primaryContainer:colors.surfaceContainerHighest,borderRadius:BorderRadius.circular(15)),child:Text('${e.key} ${e.value}',style:TextStyle(color:colors.onSurface,fontSize:12))))).toList()));}
   Future<void> _privateMessageActions(Map<String,dynamic> row) async {
     if (row['sender_id'] != me) return;
     final action = await showModalBottomSheet<String>(context: context, builder: (ctx) =>
@@ -1031,7 +1031,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         if (mounted) setState(() => _deletingMessageIds.add(id));
         await Future<void>.delayed(const Duration(milliseconds: 300));
         try { await _db.from('direct_messages').delete().eq('id', id).eq('sender_id', me!); }
-        catch (e) { if (mounted) { setState(() => _deletingMessageIds.remove(id)); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر حذف الرسالة: $e'))); } }
+        catch (e) { if (mounted) { setState(() => _deletingMessageIds.remove(id)); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: BrandedNoticeContent(child: Text('تعذر حذف الرسالة: $e')))); } }
       }
     }
   }
@@ -1145,7 +1145,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         'receiver_id': widget.otherUserId, 'body': '[[DM_IMAGE:$uploadedPath]]'});
       saved = true;
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال الصورة: $error')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: BrandedNoticeContent(child: Text('تعذر إرسال الصورة: $error'))));
     } finally {
       if (uploadedPath != null && !saved) {
         try { await _db.storage.from('chat-media').remove([uploadedPath]); } catch (_) {}
@@ -1159,7 +1159,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     try {
       if (!await _dmRecorder.hasPermission()) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: Text('اسمح للتطبيق باستخدام المايكروفون لتسجيل رسالة صوتية.')));
+        ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: BrandedNoticeContent(child: Text('اسمح للتطبيق باستخدام المايكروفون لتسجيل رسالة صوتية.'))));
         return;
       }
       final dir = await getTemporaryDirectory();
@@ -1174,7 +1174,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         if (_dmRecordSeconds >= 120) unawaited(_stopDirectVoiceRecording(send: true));
       });
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر بدء التسجيل: $error')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: BrandedNoticeContent(child: Text('تعذر بدء التسجيل: $error'))));
     }
   }
 
@@ -1189,7 +1189,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     final user = _db.auth.currentUser;
     if (user == null || seconds < 1 || seconds > 120 || blocked) {
       try { await File(path).delete(); } catch (_) {}
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: Text('التسجيل يجب أن يكون بين ثانية واحدة ودقيقتين.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: BrandedNoticeContent(child: Text('التسجيل يجب أن يكون بين ثانية واحدة ودقيقتين.'))));
       return;
     }
     String? uploadedPath;
@@ -1205,7 +1205,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         'receiver_id': widget.otherUserId, 'body': '[[DM_VOICE:$uploadedPath]]'});
       saved = true;
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال التسجيل: $error')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: BrandedNoticeContent(child: Text('تعذر إرسال التسجيل: $error'))));
     } finally {
       if (uploadedPath != null && !saved) {
         try { await _db.storage.from('chat-voice').remove([uploadedPath]); } catch (_) {}
@@ -1227,7 +1227,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       await _dmAudioPlayer.play(UrlSource(url));
       if (mounted) setState(() => _dmPlayingMessageId = id);
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تشغيل التسجيل: $error')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: BrandedNoticeContent(child: Text('تعذر تشغيل التسجيل: $error'))));
     }
   }
 
@@ -1278,11 +1278,11 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         if (!mounted) return;
         setState(() { _editingDmId = null; _editingDmOriginal = null; });
         input.clear(); inputFocus.unfocus();
-        ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: Text('تم تعديل الرسالة.')));
+        ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: BrandedNoticeContent(child: Text('تم تعديل الرسالة.'))));
       } catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text('تعذر تعديل الرسالة دون اتصال. جرّب عند عودة الإنترنت.')),
+             SnackBar(content: BrandedNoticeContent(child: Text('تعذر تعديل الرسالة دون اتصال. جرّب عند عودة الإنترنت.'))),
           );
         }
       } finally { if (mounted) setState(() => sending = false); }
@@ -1290,13 +1290,13 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     }
     if (value.length > 2000) {
       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('الرسالة طويلة جداً.')),
+         SnackBar(content: BrandedNoticeContent(child: Text('الرسالة طويلة جداً.'))),
       );
       return;
     }
     if (blocked) {
       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')),
+         SnackBar(content: BrandedNoticeContent(child: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.'))),
       );
       return;
     }
@@ -1331,7 +1331,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
             selection: TextSelection.collapsed(offset: value.length),
           );
           ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.')),
+             SnackBar(content: BrandedNoticeContent(child: Text('لا يمكن إرسال الرسائل بسبب وجود حظر بين الحسابين.'))),
           );
         }
         return;
@@ -1364,7 +1364,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       if (mounted) {
         setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('حُفظت الرسالة على جهازك وستُرسل تلقائياً عند عودة الإنترنت.')),
+           SnackBar(content: BrandedNoticeContent(child: Text('حُفظت الرسالة على جهازك وستُرسل تلقائياً عند عودة الإنترنت.'))),
         );
       }
     } finally {
@@ -3307,7 +3307,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     } catch (error) {
       if (mounted) {
         messenger.showSnackBar(
-          SnackBar(content: Text('تعذر تحميل أعضاء الغرفة: $error')),
+          SnackBar(content: BrandedNoticeContent(child: Text('تعذر تحميل أعضاء الغرفة: $error'))),
         );
       }
     }
@@ -3342,7 +3342,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     } catch (_) { toast('تعذر إرسال البلاغ أو سبق الإبلاغ عن الرسالة.'); }
   }
   void toast(String value) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: BrandedNoticeContent(child: Text(value))));
   }
   String timeOf(dynamic value) {
     final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
