@@ -811,7 +811,7 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
     final parts = book.availableParts.where((part) => part.isAvailable).toList();
     if (parts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('كتاب ${book.name} قيد التجهيز. سنضيفه بعد توفير ملف PDF موثوق.'),
+        content: BrandedNoticeContent(child: Text('كتاب ${book.name} قيد التجهيز. سنضيفه بعد توفير ملف PDF موثوق.')),
       ));
       return;
     }
@@ -936,7 +936,7 @@ class _BooksLibraryScreenState extends State<BooksLibraryScreen> {
                 ? 'ما قدرنا نتصل بمصدر الكتاب. افحص اتصال الإنترنت وحاول مجدداً.'
                 : 'ملف الكتاب غير مكتمل أو غير صالح حالياً. حاول مرة ثانية لاحقاً.';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(message),
+          content: BrandedNoticeContent(child: Text(message)),
           duration: const Duration(seconds: 5),
           action: SnackBarAction(
             label: 'إعادة المحاولة',
