@@ -509,6 +509,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
     if (_switchingAccount) return;
     const storageKey = 'dalilak_known_google_accounts_v1';
     List<Map<String, String>> accounts = [];
+    final currentUser = _db.auth.currentUser;
+    final currentEmail = currentUser?.email?.trim().toLowerCase();
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(storageKey);
@@ -521,9 +523,21 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
               .toList();
         }
       }
+      if (currentUser != null && currentEmail != null && currentEmail.isNotEmpty) {
+        final metadata = currentUser.userMetadata ?? const <String, dynamic>{};
+        accounts.removeWhere((item) =>
+            item['email']?.trim().toLowerCase() == currentEmail);
+        accounts.insert(0, {
+          'email': currentEmail,
+          'name': (metadata['full_name'] ?? metadata['name'] ??
+              currentEmail.split('@').first).toString(),
+          'avatar': (metadata['picture'] ?? metadata['avatar_url'] ?? '').toString(),
+        });
+        if (accounts.length > 8) accounts.removeRange(8, accounts.length);
+        await prefs.setString(storageKey, jsonEncode(accounts));
+      }
     } catch (_) {}
     if (!mounted) return;
-    final currentEmail = _db.auth.currentUser?.email?.trim().toLowerCase();
     if (accounts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: BrandedNoticeContent(
