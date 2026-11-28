@@ -4360,6 +4360,96 @@ class MoreAccountSection extends StatefulWidget {
 class _MoreAccountSectionState extends State<MoreAccountSection> {
   bool _busy = false;
   final _client = Supabase.instance.client;
+  static const _knownAccountsKey = 'dalilak_known_google_accounts_v1';
+  List<Map<String, String>> _knownAccounts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadKnownAccounts();
+    _rememberAccount(_client.auth.currentUser);
+    _client.auth.onAuthStateChange.listen((event) {
+      if (event.session?.user != null) _rememberAccount(event.session!.user);
+    });
+  }
+
+  Future<void> _loadKnownAccounts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_knownAccountsKey);
+    if (raw == null) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        final accounts = decoded.whereType<Map>().map((e) =>
+          Map<String, String>.from(e)).where((e) => (e['email'] ?? '').isNotEmpty).toList();
+        if (mounted) setState(() => _knownAccounts = accounts);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _rememberAccount(User? user) async {
+    final email = user?.email?.trim().toLowerCase() ?? '';
+    if (email.isEmpty) return;
+    final metadata = user!.userMetadata ?? const <String, dynamic>{};
+    final entry = <String, String>{
+      'email': email,
+      'name': (metadata['full_name'] ?? metadata['name'] ?? email.split('@').first).toString(),
+      'avatar': (metadata['picture'] ?? metadata['avatar_url'] ?? '').toString(),
+    };
+    final prefs = await SharedPreferences.getInstance();
+    final list = List<Map<String, String>>.from(_knownAccounts);
+    list.removeWhere((e) => e['email'] == email);
+    list.insert(0, entry);
+    if (list.length > 8) list.removeRange(8, list.length);
+    await prefs.setString(_knownAccountsKey, jsonEncode(list));
+    if (mounted) setState(() => _knownAccounts = list);
+  }
+
+  Future<void> _switchAccount() async {
+    if (_busy || _knownAccounts.isEmpty) return;
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const BrandedDialogTitle(title: Text('تبديل الحساب')),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: _knownAccounts.map((account) => ListTile(
+              leading: StudentAvatar(name: account['name'] ?? account['email']!,
+                imageUrl: account['avatar'], radius: 22),
+              title: Text(account['name'] ?? ''),
+              subtitle: Text(account['email'] ?? ''),
+              trailing: account['email'] == _client.auth.currentUser?.email?.toLowerCase()
+                ? const Icon(Icons.check_circle_rounded, color: Color(0xFF35B982))
+                : const Icon(Icons.chevron_left_rounded),
+              onTap: () => Navigator.pop(ctx, account['email']),
+            )).toList(),
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx),
+          child: const Text('إغلاق'))],
+      ),
+    );
+    if (selected == null || !mounted ||
+        selected == _client.auth.currentUser?.email?.toLowerCase()) return;
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const BrandedDialogTitle(title: Text('تأكيد تبديل الحساب')),
+        content: Text('سيتم إنهاء جلسة الحساب الحالي، ثم يمكنك اختيار $selected من نافذة Google.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
+        ],
+      ),
+    );
+    if (proceed != true || !mounted) return;
+    await signOutStudentSession();
+    if (!mounted) return;
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => const StudentGoogleLoginScreen()));
+  }
 
   void _showMessage(String message, {bool isError = false}) {
     if (!mounted) return;
@@ -4487,6 +4577,16 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.chevron_left_rounded),
               onTap: _busy ? null : _signOut,
+            ),
+            ListTile(
+              enabled: !_busy && _knownAccounts.isNotEmpty,
+              leading: const Icon(Icons.switch_account_rounded),
+              title: const Text('تبديل الحساب'),
+              subtitle: Text(_knownAccounts.isEmpty
+                ? 'ستظهر هنا الحسابات التي تسجّل الدخول بها على هذا الجهاز'
+                : '${_knownAccounts.length} حسابات محفوظة على هذا الجهاز'),
+              trailing: const Icon(Icons.chevron_left_rounded),
+              onTap: _busy ? null : _switchAccount,
             ),
             ListTile(
               enabled: !_busy,
