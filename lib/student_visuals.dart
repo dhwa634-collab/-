@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 const List<Color> _studentAvatarPalette = [
   Color(0xFFD94B55), Color(0xFF2878D0), Color(0xFF21966B),
@@ -58,8 +59,9 @@ class BrandedDialogTitle extends StatelessWidget {
           borderRadius: BorderRadius.circular(17),
           border: Border.all(color: const Color(0xFF3B8BEB).withValues(alpha: .65)),
         ),
-        child: Image.asset('assets/icon/app_icon.png', fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const Icon(Icons.school_rounded,
+        child: SvgPicture.asset('assets/brand/app_icon.svg',
+          fit: BoxFit.contain,
+          placeholderBuilder: (_) => const Icon(Icons.school_rounded,
             color: Colors.white, size: 31)),
       ),
       if (title != null) ...[
