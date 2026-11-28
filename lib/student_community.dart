@@ -754,6 +754,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
   final List<Map<String, dynamic>> _cachedMessages = [];
   Timer? _offlineSyncTimer;
   bool _dmCacheLoaded = false;
+  bool _syncingDmOutbox = false;
   String get _dmCacheKey => 'dalilak_dm_cache_${me}_${widget.otherUserId}';
   String get _dmOutboxKey => 'dalilak_dm_outbox_${me}_${widget.otherUserId}';
 
@@ -822,7 +823,10 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
 
   Future<void> _syncDmOutbox() async {
     final user = me;
-    if (user == null || !mounted || _optimisticMessages.isEmpty) return;
+    if (user == null || !mounted || sending || _syncingDmOutbox ||
+        _optimisticMessages.isEmpty) return;
+    _syncingDmOutbox = true;
+    try {
     final pending = _optimisticMessages
         .where((row) => row['_local_status'] == 'queued')
         .map((row) => Map<String, dynamic>.from(row))
@@ -868,6 +872,9 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         debugPrint('Retry private message failed; kept in outbox: $error');
         break;
       }
+    }
+    } finally {
+      _syncingDmOutbox = false;
     }
   }
   String? _editingDmId, _editingDmOriginal;
