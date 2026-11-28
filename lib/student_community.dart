@@ -2206,6 +2206,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   bool sending = false;
   bool _isGroupChatAdmin = false;
   bool _groupChatLocked = false;
+  bool _changingRoomLock = false;
   bool _voiceUploading = false;
   bool _videoBusy = false;
   double _videoProgress = 0;
@@ -2301,8 +2302,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
 
   Future<void> _toggleGroupChatLock() async {
-    if (!_isGroupChatAdmin || sending) return;
+    if (!_isGroupChatAdmin || sending || _changingRoomLock) return;
     final nextLocked = !_groupChatLocked;
+    if (mounted) setState(() => _changingRoomLock = true);
     try {
       final result = await _db.rpc('set_group_chat_locked', params: {'p_locked': nextLocked});
       if (result != nextLocked) throw Exception('لم يؤكد الخادم تغيير حالة الغرفة.');
@@ -2313,6 +2315,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       toast(error.code == '42501' ? 'ليس لديك صلاحية تغيير حالة الغرفة.' : 'تعذر تغيير حالة الغرفة: ${error.message}');
     } catch (error) {
       toast('تعذر تغيير حالة الغرفة: $error');
+    } finally {
+      if (mounted) setState(() => _changingRoomLock = false);
     }
   }
 
@@ -3665,6 +3669,34 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                     if (_isGroupChatAdmin)
                       Card(
                         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: SwitchListTile(
+                          value: _groupChatLocked,
+                          onChanged: _changingRoomLock ? null : (_) => _toggleGroupChatLock(),
+                          secondary: CircleAvatar(
+                            backgroundColor: _groupChatLocked
+                                ? const Color(0xFFB34D91)
+                                : const Color(0xFF238B68),
+                            child: Icon(
+                              _groupChatLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                          title: Text(
+                            _groupChatLocked ? 'فتح غرفة الدردشة' : 'قفل غرفة الدردشة',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          subtitle: Text(
+                            _changingRoomLock
+                                ? 'جارٍ تحديث حالة الغرفة…'
+                                : _groupChatLocked
+                                    ? 'الغرفة مغلقة أمام الأعضاء، ويمكن للمشرفين الإرسال'
+                                    : 'الغرفة مفتوحة ويمكن للأعضاء إرسال الرسائل',
+                          ),
+                        ),
+                      ),
+                    if (_isGroupChatAdmin)
+                      Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         child: ListTile(
                           leading: const CircleAvatar(backgroundColor: Color(0xFFB34D91),
                             child: Text('م', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900))),
@@ -3897,15 +3929,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       appBar: AppBar(backgroundColor: dark ? const Color(0xFF142B46) : colors.surface, foregroundColor: dark ? Colors.white : colors.onSurface, elevation: 0,
         leading: AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: ScaleTransition(scale: Tween<double>(begin: 0.94, end: 1).animate(animation), child: child)), child: _groupSelectionMode ? IconButton(key: const ValueKey('group-selection-close'), onPressed: () => setState(() => _selectedGroupMessageIds.clear()), icon: const Icon(Icons.close_rounded)) : const SizedBox(key: ValueKey('group-selection-leading-empty'), width: 48)),
         title: AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(animation), child: child)), child: _groupSelectionMode ? Text('تم تحديد ${_selectedGroupMessageIds.length} رسالة', key: const ValueKey('group-selection-title')) : Row(key: const ValueKey('group-chat-title'), children: [
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('غرفة الدردشة', style: TextStyle(fontWeight: FontWeight.w800)),
-              Text(_groupChatLocked ? 'الغرفة مغلقة مؤقتاً' : 'محادثة جماعية للطلاب', style: TextStyle(fontSize: 11)),
-            ],
-          )),
-          const SizedBox(width: 9),
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: _showGroupMembers,
@@ -3917,15 +3940,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               ),
             ),
           ),
-        ])),
+          const SizedBox(width: 9),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('غرفة الدردشة', style: TextStyle(fontWeight: FontWeight.w800)),
+              Text(_groupChatLocked ? 'الغرفة مغلقة مؤقتاً' : 'محادثة جماعية للطلاب', style: TextStyle(fontSize: 11)),
+            ],
+          ))        ])),
         actions: [
-          if (_isGroupChatAdmin && !_groupSelectionMode)
-            IconButton(
-              tooltip: _groupChatLocked ? 'فتح غرفة الدردشة' : 'قفل غرفة الدردشة',
-              onPressed: _toggleGroupChatLock,
-              icon: Icon(_groupChatLocked ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
-                color: _groupChatLocked ? Colors.orangeAccent : null),
-            ),
           AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero).animate(animation), child: child)), child: _groupSelectionMode ? KeyedSubtree(key: const ValueKey('group-selection-toolbar'), child: _selectionToolbar(_selectedGroupMessageIds.length,onClear:()=>setState(()=>_selectedGroupMessageIds.clear()),onDelete:_deleteSelectedGroupMessages,onCopy:_copySelectedGroupMessages,onEdit:_editSelectedGroupMessage,canEdit:_selectedGroupMessages.length==1&&_selectedGroupMessages.first['user_id']==_db.auth.currentUser?.id&&_selectedGroupMessages.first['message_type']=='text',colors:colors)) : const SizedBox(key: ValueKey('group-selection-actions-empty'), width: 1))],
       ),
       body: Container(
