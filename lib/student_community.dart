@@ -4461,12 +4461,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   const SizedBox(height: 5),
                   LinearProgressIndicator(value: _videoProgress > 0 ? _videoProgress : null),
                 ]),
-              if (_voiceUploading)
-                Row(children: [
-                  const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2)),
-                  const SizedBox(width: 8),
-                  const Expanded(child: Text('جارٍ رفع الرسالة الصوتية…', style: TextStyle(fontSize: 11))),
-                ]),
               if (_recording)
                 Text('جارٍ التسجيل • $_recordSeconds ثانية',
                   style: const TextStyle(fontSize: 11, color: Colors.red)),
