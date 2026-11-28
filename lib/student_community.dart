@@ -143,6 +143,75 @@ Future<bool> signInWithGoogleAccount(BuildContext context) async {
   }
 }
 
+/// Switches to a previously saved Google account without signing out first.
+/// The active Supabase session remains valid if the chooser is cancelled or fails.
+Future<bool> switchStudentGoogleAccount(
+  BuildContext context,
+  String expectedEmail,
+) async {
+  if (SupabaseConfig.googleWebClientId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: BrandedNoticeContent(child: Text('إعداد Google OAuth غير مكتمل.')),
+    ));
+    return false;
+  }
+  try {
+    final google = GoogleSignIn(
+      serverClientId: SupabaseConfig.googleWebClientId.trim(),
+    );
+    final account = await google.signIn();
+    if (account == null) return false;
+    final actualEmail = account.email.trim().toLowerCase();
+    if (actualEmail != expectedEmail.trim().toLowerCase()) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: BrandedNoticeContent(
+            child: Text('الحساب المختار لا يطابق الحساب المحفوظ: $expectedEmail'),
+          ),
+        ));
+      }
+      return false;
+    }
+    final tokens = await account.authentication;
+    if (tokens.idToken == null || tokens.accessToken == null) {
+      throw const AuthException('لم نستلم رموز Google المطلوبة.');
+    }
+    await _db.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: tokens.idToken!,
+      accessToken: tokens.accessToken!,
+    );
+    final signedInEmail = _db.auth.currentUser?.email?.trim().toLowerCase();
+    if (signedInEmail != expectedEmail.trim().toLowerCase()) {
+      throw const AuthException('لم يتم تأكيد الحساب المطلوب بعد المصادقة.');
+    }
+    return true;
+  } on AuthException catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: BrandedNoticeContent(
+          child: Text('تعذر تبديل الحساب: ${error.message}'),
+        ),
+      ));
+    }
+    return false;
+  } catch (error, stackTrace) {
+    debugPrint('Google account switch failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+    if (context.mounted) {
+      final detail = error.toString();
+      final message = detail.length > 420 ? detail.substring(0, 420) : detail;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 10),
+        content: BrandedNoticeContent(
+          child: Text(_googleSignInFailureMessage(error, message)),
+        ),
+      ));
+    }
+    return false;
+  }
+}
+
 /// Asks before ending the current account session.
 Future<bool> confirmStudentSignOut(BuildContext context) async {
   final theme = Theme.of(context);
