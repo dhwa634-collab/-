@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -750,6 +751,125 @@ class StudentDirectMessageScreen extends StatefulWidget{
 }
 class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>{
   final Set<String> _selectedDmIds = {};
+  final List<Map<String, dynamic>> _cachedMessages = [];
+  Timer? _offlineSyncTimer;
+  bool _dmCacheLoaded = false;
+  String get _dmCacheKey => 'dalilak_dm_cache_${me}_${widget.otherUserId}';
+  String get _dmOutboxKey => 'dalilak_dm_outbox_${me}_${widget.otherUserId}';
+
+  Future<void> _loadDmCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_dmCacheKey);
+    if (raw != null) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          _cachedMessages
+            ..clear()
+            ..addAll(decoded.whereType<Map>().map((row) => Map<String, dynamic>.from(row)));
+        }
+      } catch (error) {
+        debugPrint('Read private message cache failed: $error');
+      }
+    }
+    final queued = prefs.getString(_dmOutboxKey);
+    if (queued != null) {
+      try {
+        final decoded = jsonDecode(queued);
+        if (decoded is List) {
+          for (final value in decoded.whereType<Map>()) {
+            final row = Map<String, dynamic>.from(value);
+            if (!_optimisticMessages.any((item) => item['id'] == row['id'])) {
+              _optimisticMessages.add(row);
+            }
+          }
+        }
+      } catch (error) {
+        debugPrint('Read private message outbox failed: $error');
+      }
+    }
+    _dmCacheLoaded = true;
+    if (mounted) setState(() {});
+    _scrollToLatest();
+  }
+
+  Future<void> _saveDmCache(List<Map<String, dynamic>> rows) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final unique = <String, Map<String, dynamic>>{};
+      for (final row in rows) {
+        final id = row['id']?.toString();
+        if (id != null) unique[id] = Map<String, dynamic>.from(row);
+      }
+      await prefs.setString(_dmCacheKey, jsonEncode(unique.values.toList()));
+    } catch (error) {
+      debugPrint('Save private message cache failed: $error');
+    }
+  }
+
+  Future<void> _saveDmOutbox() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pending = _optimisticMessages
+          .where((row) => row['_local_status'] == 'queued')
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList();
+      await prefs.setString(_dmOutboxKey, jsonEncode(pending));
+    } catch (error) {
+      debugPrint('Save private message outbox failed: $error');
+    }
+  }
+
+  Future<void> _syncDmOutbox() async {
+    final user = me;
+    if (user == null || !mounted || _optimisticMessages.isEmpty) return;
+    final pending = _optimisticMessages
+        .where((row) => row['_local_status'] == 'queued')
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
+    for (final row in pending) {
+      if (!mounted) return;
+      try {
+        final createdAt = DateTime.tryParse(row['created_at']?.toString() ?? '') ??
+            DateTime.now().toUtc();
+        final duplicate = await _db.from('direct_messages')
+            .select('id,sender_id,receiver_id,body,created_at,read_at')
+            .eq('sender_id', user)
+            .eq('receiver_id', widget.otherUserId)
+            .eq('body', row['body'].toString())
+            .gte('created_at', createdAt.subtract(const Duration(minutes: 2)).toIso8601String())
+            .limit(1);
+        Map<String, dynamic> delivered;
+        if ((duplicate as List).isNotEmpty) {
+          delivered = Map<String, dynamic>.from(duplicate.first);
+        } else {
+          delivered = Map<String, dynamic>.from(await _db.from('direct_messages')
+              .insert({
+                'sender_id': user,
+                'receiver_id': widget.otherUserId,
+                'body': row['body'],
+              }).select().single());
+        }
+        final index = _optimisticMessages.indexWhere((item) => item['id'] == row['id']);
+        if (index != -1) {
+          _stableMessageRenderIds[delivered['id'].toString()] = row['id'].toString();
+          _optimisticMessages[index] = {
+            ...delivered,
+            '_local_status': 'sent',
+            '_render_id': row['id'],
+          };
+        }
+        _cachedMessages.removeWhere((item) => item['id'] == delivered['id']);
+        _cachedMessages.add(delivered);
+        await _saveDmCache(_cachedMessages);
+        await _saveDmOutbox();
+        if (mounted) setState(() {});
+      } catch (error) {
+        debugPrint('Retry private message failed; kept in outbox: $error');
+        break;
+      }
+    }
+  }
   String? _editingDmId, _editingDmOriginal;
   RealtimeChannel? _typingChannel;
   Timer? _typingIdleTimer, _typingExpiryTimer;
@@ -781,7 +901,20 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     final next = StudentPresenceService.onlineUserIds.value.contains(widget.otherUserId);
     if (mounted && next != _otherOnline) setState(() => _otherOnline = next);
   }
-  @override void initState(){super.initState();_resolvedOtherName=widget.otherName;_otherOnline=StudentPresenceService.onlineUserIds.value.contains(widget.otherUserId);StudentPresenceService.onlineUserIds.addListener(_presenceChanged);_loadOtherProfileName();_loadParticipantNames();activeDirectMessageUserId.value=widget.otherUserId;messages=stream();_initTypingChannel();messageSubscription=messages.listen((_) { markIncomingAsRead(); _scrollToLatest(); });_dmReactionSubscription=_db.from('direct_message_reactions').stream(primaryKey:['id']).listen((rows){if(!mounted)return;final grouped=<String,List<Map<String,dynamic>>>{};for(final r in rows){final id=r['direct_message_id']?.toString();if(id!=null)grouped.putIfAbsent(id,()=>[]).add(r);}setState(()=>_dmReactions..clear()..addAll(grouped));});blockSubscription=_db.from('user_blocks').stream(primaryKey:['blocker_id','blocked_id']).listen((rows){final user=me;final next=user==null||rows.any((r)=>(r['blocker_id']==user&&r['blocked_id']==widget.otherUserId)||(r['blocker_id']==widget.otherUserId&&r['blocked_id']==user));if(mounted&&blocked!=next)setState(()=>blocked=next);});refreshBlockStatus();markIncomingAsRead();}
+  @override void initState(){super.initState();_resolvedOtherName=widget.otherName;_otherOnline=StudentPresenceService.onlineUserIds.value.contains(widget.otherUserId);StudentPresenceService.onlineUserIds.addListener(_presenceChanged);_loadOtherProfileName();_loadParticipantNames();activeDirectMessageUserId.value=widget.otherUserId;messages=stream();_initTypingChannel();messageSubscription=messages.listen((rows) {
+      _cachedMessages
+        ..clear()
+        ..addAll(rows.map((row) => Map<String, dynamic>.from(row)));
+      unawaited(_saveDmCache(_cachedMessages));
+      markIncomingAsRead();
+      _scrollToLatest();
+    }, onError: (Object error) {
+      debugPrint('Private messages stream offline; using local cache: $error');
+    });
+    unawaited(_loadDmCache());
+    _offlineSyncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      unawaited(_syncDmOutbox());
+    });_dmReactionSubscription=_db.from('direct_message_reactions').stream(primaryKey:['id']).listen((rows){if(!mounted)return;final grouped=<String,List<Map<String,dynamic>>>{};for(final r in rows){final id=r['direct_message_id']?.toString();if(id!=null)grouped.putIfAbsent(id,()=>[]).add(r);}setState(()=>_dmReactions..clear()..addAll(grouped));});blockSubscription=_db.from('user_blocks').stream(primaryKey:['blocker_id','blocked_id']).listen((rows){final user=me;final next=user==null||rows.any((r)=>(r['blocker_id']==user&&r['blocked_id']==widget.otherUserId)||(r['blocker_id']==widget.otherUserId&&r['blocked_id']==user));if(mounted&&blocked!=next)setState(()=>blocked=next);});refreshBlockStatus();markIncomingAsRead();}
   void _initTypingChannel() {
     final ids = [me ?? '', widget.otherUserId]..sort();
     _typingChannel = _db.channel('dm-typing-${ids.join('-')}');
@@ -1137,7 +1270,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         input.clear(); inputFocus.unfocus();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تعديل الرسالة.')));
       } catch (error) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تعديل الرسالة: $error')));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر تعديل الرسالة دون اتصال. جرّب عند عودة الإنترنت.')));
       } finally { if (mounted) setState(() => sending = false); }
       return;
     }
@@ -1163,18 +1297,20 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
       'created_at': DateTime.now().toUtc().toIso8601String(),
       'read_at': null,
       'edited_at': null,
-      '_local_status': 'sending',
+      '_local_status': 'queued',
     };
     input.clear();
     setState(() {
       sending = true;
       _optimisticMessages.add(optimistic);
     });
+    await _saveDmOutbox();
     _scrollToLatest();
 
     try {
       if (await refreshBlockStatus()) {
         _optimisticMessages.removeWhere((row) => row['id'] == localId);
+        await _saveDmOutbox();
         if (mounted) {
           setState(() {});
           input.value = TextEditingValue(
@@ -1199,22 +1335,23 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
           ..['_local_status'] = 'sent'
           ..['_render_id'] = localId;
       }
+      _cachedMessages.add(Map<String, dynamic>.from(inserted));
+      await _saveDmCache(_cachedMessages);
+      await _saveDmOutbox();
       if (mounted) {
         setState(() {});
         _scrollToLatest();
       }
     } catch (error) {
-      _optimisticMessages.removeWhere((row) => row['id'] == localId);
+      final index = _optimisticMessages.indexWhere((row) => row['id'] == localId);
+      if (index != -1) {
+        _optimisticMessages[index]['_local_status'] = 'queued';
+      }
+      await _saveDmOutbox();
       if (mounted) {
         setState(() {});
-        if (input.text.isEmpty) {
-          input.value = TextEditingValue(
-            text: value,
-            selection: TextSelection.collapsed(offset: value.length),
-          );
-        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر إرسال الرسالة: $error')),
+          const SnackBar(content: Text('حُفظت الرسالة على جهازك وستُرسل تلقائياً عند عودة الإنترنت.')),
         );
       }
     } finally {
@@ -1222,6 +1359,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
     }
   }
   @override void dispose(){
+    _offlineSyncTimer?.cancel();
     activeDirectMessageUserId.value = null;
     StudentPresenceService.onlineUserIds.removeListener(_presenceChanged);
     messageSubscription.cancel();
@@ -1336,14 +1474,15 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: messages,
                 builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return Center(child: Text('تعذر تحميل المحادثة: ${snapshot.error}'));
+                  if (snapshot.hasError && !_dmCacheLoaded && _cachedMessages.isEmpty) {
+                    return const Center(child: Text('تعذر الاتصال. لا توجد رسائل محفوظة على هذا الجهاز بعد.'));
                   }
-                  if (!snapshot.hasData) {
+                  if (!snapshot.hasData && !_dmCacheLoaded) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final items = _mergeOptimisticMessages(snapshot.data!);
+                  final remoteRows = snapshot.data ?? _cachedMessages;
+                  final items = _mergeOptimisticMessages(remoteRows);
                   if (items.isEmpty) {
                     return const Center(child: Text('ابدأ المحادثة برسالة ترحيبية 👋'));
                   }
@@ -3452,6 +3591,42 @@ class StudentDirectInboxScreen extends StatefulWidget {
 class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
   final SupabaseClient _client = Supabase.instance.client;
   List<Map<String,dynamic>> _conversations = [];
+  bool _hasInboxCache = false;
+  String get _inboxCacheKey => 'dalilak_private_inbox_${_me}';
+
+  Future<void> _loadInboxCache() async {
+    final me = _me;
+    if (me == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_inboxCacheKey);
+      if (raw == null) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        final cached = decoded.whereType<Map>()
+            .map((row) => Map<String, dynamic>.from(row)).toList();
+        if (mounted && cached.isNotEmpty) {
+          setState(() {
+            _conversations = cached;
+            _loading = false;
+            _hasInboxCache = true;
+            _error = null;
+          });
+        }
+      }
+    } catch (error) {
+      debugPrint('Read private inbox cache failed: $error');
+    }
+  }
+
+  Future<void> _saveInboxCache(List<Map<String, dynamic>> rows) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_inboxCacheKey, jsonEncode(rows));
+    } catch (error) {
+      debugPrint('Save private inbox cache failed: $error');
+    }
+  }
   bool _loading = true;
   String? _error;
   RealtimeChannel? _channel;
@@ -3460,6 +3635,7 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
 
   @override void initState() {
     super.initState();
+    unawaited(_loadInboxCache());
     _load();
     final me = _me;
     if (me != null) {
@@ -3526,9 +3702,20 @@ class _StudentDirectInboxScreenState extends State<StudentDirectInboxScreen> {
           return (b['last']['created_at'] as String)
             .compareTo(a['last']['created_at'] as String);
         });
-      if (mounted) setState(() { _conversations = result; _loading = false; _error = null; });
+      if (mounted) setState(() {
+        _conversations = result;
+        _loading = false;
+        _error = null;
+        _hasInboxCache = true;
+      });
+      await _saveInboxCache(result);
     } catch (error) {
-      if (mounted) setState(() { _loading = false; _error = 'تعذر تحميل صندوق الوارد: $error'; });
+      if (mounted) setState(() {
+        _loading = false;
+        _error = _conversations.isEmpty && !_hasInboxCache
+            ? 'ليس متصلاً بالإنترنت، ولا توجد محادثات محفوظة على هذا الجهاز بعد.'
+            : null;
+      });
     }
   }
 
