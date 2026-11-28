@@ -2189,6 +2189,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         toast('الصورة بعد الضغط أكبر من 5 ميغابايت. اختر صورة أصغر.');
         return;
       }
+      if (!await _checkGroupChatPostingPermission()) return;
       if (!mounted) return;
       setState(() => sending = true);
       uploadedPath = '${user.id}/image_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -2273,6 +2274,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (user == null || seconds < 1 || seconds > 120) {
       try { await File(path).delete(); } catch (_) {}
       toast('التسجيل يجب أن يكون بين ثانية واحدة ودقيقتين.'); return;
+    }
+    if (!await _checkGroupChatPostingPermission()) {
+      try { await File(path).delete(); } catch (_) {}
+      return;
     }
     setState(() => sending = true);
     String? uploadedPath;
@@ -2756,6 +2761,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<void> send({String? sticker}) async {
     final user = _db.auth.currentUser;
     if (user == null) { toast('سجّل الدخول بحساب Google للمشاركة.'); return; }
+    if (!await _checkGroupChatPostingPermission()) return;
     final text = input.text.trim();
     if (sticker == null && text.isEmpty) return;
     if (_editingGroupMessageId != null) {
