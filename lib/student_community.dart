@@ -3263,6 +3263,29 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<void> _copySelectedGroupMessages() async { final values=_selectedGroupMessages.map((r)=>(r['body']??'').toString()).where((v)=>v.trim().isNotEmpty).toList(); if(values.isEmpty){toast('لا توجد نصوص قابلة للنسخ.');return;} await Clipboard.setData(ClipboardData(text:values.join('\n'))); if(!mounted)return; toast('تم نسخ ${values.length} رسالة.'); setState(()=>_selectedGroupMessageIds.clear()); _selectedGroupRows.clear(); }
   Future<void> _deleteSelectedGroupMessages() async { final user=_db.auth.currentUser?.id; if(user==null)return; final ids=_selectedGroupMessages.where((r)=>r['user_id']==user).map((r)=>r['id'].toString()).toList(); if(ids.isEmpty){setState(()=>_selectedGroupMessageIds.clear());_selectedGroupRows.clear();return;} final ok=await showDialog<bool>(context:context,builder:(ctx)=>Directionality(textDirection:TextDirection.rtl,child:AlertDialog(title:BrandedDialogTitle(title: const Text('حذف الرسائل المحددة؟')),content:Text('سيتم حذف ${ids.length} رسالة تملكها.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف'))]))); if(ok!=true)return; setState(()=>_deletingGroupMessageIds.addAll(ids)); await Future<void>.delayed(const Duration(milliseconds:360)); try { await _db.from('chat_messages').delete().inFilter('id',ids).eq('user_id',user); if(!mounted)return; setState(()=>_selectedGroupMessageIds.clear()); _selectedGroupRows.clear(); toast('تم حذف الرسائل المحددة.'); } catch(e){if(mounted){setState(()=>_deletingGroupMessageIds.removeAll(ids));toast('تعذر حذف الرسائل: $e');}} }
   Future<void> _editSelectedGroupMessage() async { final rows=_selectedGroupMessages; final user=_db.auth.currentUser?.id; if(rows.length!=1||rows.first['user_id']!=user||rows.first['message_type']!='text')return; await _editGroupMessage(rows.first); if(mounted){setState(()=>_selectedGroupMessageIds.clear());_selectedGroupRows.clear();} }
+  void _setReplyToGroupMessage(Map<String, dynamic> row) {
+    setState(() { _replyToMessage = Map<String, dynamic>.from(row); _editingGroupMessageId = null; _editingGroupOriginal = null; });
+    inputFocus.requestFocus();
+  }
+
+  Widget _buildGroupReplyQuote(Map<String, dynamic> row, List<Map<String, dynamic>> rows, Map<String, Map<String, dynamic>>? profiles, ColorScheme colors, bool mine) {
+    final replyId = row['reply_to_id']?.toString();
+    if (replyId == null || replyId.isEmpty) return const SizedBox.shrink();
+    Map<String, dynamic>? target;
+    for (final candidate in rows) { if (candidate['id']?.toString() == replyId) { target = candidate; break; } }
+    final targetType = target?['message_type']?.toString() ?? 'text';
+    final targetUser = target?['user_id']?.toString();
+    final targetName = targetUser == null ? 'رسالة سابقة' : (profiles?[targetUser]?['display_name']?.toString() ?? 'طالب');
+    final preview = target == null ? 'تم الرد على رسالة سابقة' : targetType == 'video' ? 'مقطع فيديو' : targetType == 'voice' ? 'رسالة صوتية' : targetType == 'image' ? 'صورة' : (target['body']?.toString().trim().isNotEmpty == true ? target['body'].toString().trim() : 'رسالة');
+    return Container(width: double.infinity, margin: const EdgeInsets.only(bottom: 7), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(color: (mine ? Colors.black : colors.primary).withValues(alpha: .10), borderRadius: BorderRadius.circular(10), border: Border(right: BorderSide(color: colors.primary, width: 3))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(targetName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: mine ? Colors.white : colors.primary)),
+        const SizedBox(height: 2),
+        Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: mine ? Colors.white70 : colors.onSurfaceVariant)),
+      ]),
+    );
+  }
   Future<void> _messageActions(Map<String, dynamic> row) async {
     final mine = row['user_id'] == _db.auth.currentUser?.id;
     final canModerate = _isGroupChatAdmin && !mine;
@@ -3270,6 +3293,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
         child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const Icon(Icons.reply_rounded), title: const Text('الرد على الرسالة'), onTap: () => Navigator.pop(ctx, 'reply')),
           if (mine && row['message_type'] == 'text' && (row['body']?.toString().isNotEmpty ?? false))
             ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('تعديل الرسالة'), onTap: () => Navigator.pop(ctx, 'edit')),
           if (mine && (row['body']?.toString().trim().isNotEmpty ?? false))
@@ -3295,6 +3319,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
     if (action == 'edit') {
       await _editGroupMessage(row);
+      return;
+    }
+    if (action == 'reply') {
+      _setReplyToGroupMessage(row);
       return;
     }
     if (action == 'delete') {
@@ -3483,8 +3511,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       await _db.from('chat_messages').insert({
         'user_id': user.id, 'message_type': sticker == null ? 'text' : 'builtin_sticker',
         'body': sticker == null ? text : null, 'sticker_id': sticker,
+        'reply_to_id': _replyToMessage?['id'],
       });
       input.clear();
+      if (mounted) setState(() => _replyToMessage = null);
       if (scroll.hasClients) {
         await scroll.animateTo(
           scroll.position.maxScrollExtent,
@@ -4135,6 +4165,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     ],
                                   ],
                                 ),
+                                if (row['reply_to_id'] != null)
+                                  _buildGroupReplyQuote(row, rows, profiles.data, colors, mine),
                                 const SizedBox(height: 7),
                                 if (type == 'image' || type == 'custom_sticker')
                                   _buildChatMedia(
