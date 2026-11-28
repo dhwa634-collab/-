@@ -238,7 +238,8 @@ class StudentCommunityScreen extends StatelessWidget {
             Text('تواصل مع زملائك وشارك الفائدة ضمن بيئة دراسية آمنة.', style: TextStyle(color: Colors.white70)),
           ])),
         const SizedBox(height: 16),
-        Card(child: ListTile(leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+        Card(child: ListTile(leading: StudentAvatar(name: user?.userMetadata?['full_name']?.toString()
+            ?? user?.email?.split('@').first ?? 'طالب', imageUrl: user?.userMetadata?['picture']?.toString()),
           title: Text(user == null ? 'لم تسجل الدخول' : 'الملف الشخصي'),
           subtitle: Text(user?.email ?? 'التصفح متاح دون حساب'),
           trailing: const Icon(Icons.chevron_left),
@@ -3225,7 +3226,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                       Card(
                         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         child: ListTile(
-                          leading: const CircleAvatar(child: Icon(Icons.gpp_maybe_rounded)),
+                          leading: const CircleAvatar(backgroundColor: Color(0xFFB34D91),
+                            child: Text('م', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900))),
                           title: const Text('المحظورون', style: TextStyle(fontWeight: FontWeight.w900)),
                           subtitle: const Text('عرض المحظورين والمكتومين وإدارة فك الحظر وإلغاء الكتم'),
                           trailing: const Icon(Icons.chevron_left_rounded),
@@ -3267,7 +3269,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               backgroundImage: avatarUrl != null && avatarUrl.startsWith('http')
                                 ? NetworkImage(avatarUrl) : null,
                               child: avatarUrl == null || !avatarUrl.startsWith('http')
-                                ? const Icon(Icons.person_rounded, color: Colors.white, size: 27)
+                                ? Text(studentAvatarInitial((developerProfile?['display_name'] ?? 'المطوّر').toString()),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 19))
                                 : null,
                             ),
                           ),
@@ -3312,7 +3315,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           backgroundImage: (profile['avatar_url']?.toString().startsWith('http') ?? false)
                             ? NetworkImage(profile['avatar_url'].toString()) : null,
                           child: !(profile['avatar_url']?.toString().startsWith('http') ?? false)
-                            ? const Icon(Icons.person_rounded) : null,
+                            ? Text(studentAvatarInitial((profile['display_name'] ?? 'طالب').toString()),
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)) : null,
                         ),
                         title: Text(profile['display_name']?.toString().trim().isNotEmpty == true
                           ? profile['display_name'].toString() : 'طالب',
