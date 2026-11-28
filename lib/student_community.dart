@@ -2003,6 +2003,13 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<Map<String, Map<String, dynamic>>>? _profilesFuture;
   bool sending = false;
   bool _isGroupChatAdmin = false;
+  bool _groupChatBanned = false;
+  bool _groupChatMuted = false;
+  bool _groupChatStatusLoaded = false;
+  bool _groupChatMutePermanent = false;
+  DateTime? _groupChatMutedUntil;
+  Timer? _moderationStatusTimer;
+  Timer? _moderationCountdownTimer;
   final Set<String> _deletingGroupMessageIds = {};
   final Set<String> _selectedGroupMessageIds = {};
   String? _editingGroupMessageId, _editingGroupOriginal;
@@ -2033,6 +2040,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     messages = _messageStream();
     _loadBlockedUsers();
     unawaited(_loadGroupChatRole());
+    unawaited(_refreshGroupChatPostingStatus());
+    _moderationStatusTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => unawaited(_refreshGroupChatPostingStatus()),
+    );
     _groupReactionsSubscription = _db
         .from('chat_message_reactions')
         .stream(primaryKey: ['id'])
@@ -2227,33 +2239,143 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     );
   }
 
-  Future<bool> _checkGroupChatPostingPermission() async {
+  bool get _groupChatPostingBlocked => _groupChatBanned || _groupChatMuted;
+
+  Future<bool> _refreshGroupChatPostingStatus() async {
     try {
       final raw = await _db.rpc('get_my_group_chat_status');
       if (!mounted) return false;
       final status = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
-      if (status['is_banned'] == true) {
-        toast('تم حظرك من غرفة الدردشة الجماعية.');
-        return false;
+      final banned = status['is_banned'] == true;
+      final muted = status['is_muted'] == true;
+      final permanent = muted && status['is_permanent'] == true;
+      final until = DateTime.tryParse(status['muted_until']?.toString() ?? '')?.toLocal();
+      setState(() {
+        _groupChatBanned = banned;
+        _groupChatMuted = muted;
+        _groupChatMutePermanent = permanent;
+        _groupChatMutedUntil = until;
+        _groupChatStatusLoaded = true;
+      });
+      if (banned || muted) {
+        inputFocus.unfocus();
+        if (_recording) unawaited(_stopVoiceRecording(send: false));
       }
-      if (status['is_muted'] == true) {
-        if (status['is_permanent'] == true) {
-          toast('تم كتمك بشكل دائم من غرفة الدردشة الجماعية.');
-        } else {
-          final until = DateTime.tryParse(status['muted_until']?.toString() ?? '')?.toLocal();
-          final remaining = until == null ? '' : ' حتى ${TimeOfDay.fromDateTime(until).format(context)}';
-          toast('أنت مكتوم من غرفة الدردشة$remaining.');
-        }
-        return false;
+      if (muted && !permanent && until != null) {
+        _moderationCountdownTimer ??= Timer.periodic(
+          const Duration(seconds: 1),
+          (_) {
+            if (!mounted) return;
+            if (_groupChatMutedUntil != null &&
+                DateTime.now().isAfter(_groupChatMutedUntil!)) {
+              unawaited(_refreshGroupChatPostingStatus());
+            } else {
+              setState(() {});
+            }
+          },
+        );
+      } else {
+        _moderationCountdownTimer?.cancel();
+        _moderationCountdownTimer = null;
       }
-      return true;
+      return !banned && !muted;
     } on PostgrestException catch (error) {
       debugPrint('Check group chat posting permission failed: ${error.message}');
+      if (mounted) setState(() => _groupChatStatusLoaded = true);
       return true;
     } catch (error) {
       debugPrint('Check group chat posting permission failed: $error');
+      if (mounted) setState(() => _groupChatStatusLoaded = true);
       return true;
     }
+  }
+
+  Future<bool> _checkGroupChatPostingPermission() async {
+    if (!_groupChatStatusLoaded) {
+      return _refreshGroupChatPostingStatus();
+    }
+    if (_groupChatPostingBlocked) {
+      inputFocus.unfocus();
+      return false;
+    }
+    return _refreshGroupChatPostingStatus();
+  }
+
+  String _groupChatMuteRemainingText() {
+    if (_groupChatMutePermanent) return 'تم كتمك بشكل دائم من غرفة الدردشة الجماعية.';
+    final until = _groupChatMutedUntil;
+    if (until == null) return 'أنت مكتوم مؤقتاً من غرفة الدردشة الجماعية.';
+    final remaining = until.difference(DateTime.now());
+    if (remaining.isNegative || remaining == Duration.zero) {
+      return 'انتهت مدة الكتم، جارٍ تحديث صلاحية المراسلة…';
+    }
+    final days = remaining.inDays;
+    final hours = remaining.inHours.remainder(24);
+    final minutes = remaining.inMinutes.remainder(60);
+    final seconds = remaining.inSeconds.remainder(60);
+    final parts = <String>[
+      if (days > 0) '$days يوم',
+      if (hours > 0) '$hours ساعة',
+      if (minutes > 0) '$minutes دقيقة',
+      if (days == 0 && hours == 0 && minutes == 0) '$seconds ثانية',
+    ];
+    return 'أنت مكتوم من غرفة الدردشة. المتبقي: ${parts.join(' و ')}.';
+  }
+
+  Widget _buildGroupChatRestrictionNotice(ColorScheme colors, bool dark) {
+    final banned = _groupChatBanned;
+    final title = banned ? 'تم حظرك من غرفة الدردشة' : 'تم كتمك من غرفة الدردشة';
+    final detail = banned
+        ? 'لا يمكنك إرسال الرسائل أو الصور أو التسجيلات الصوتية في هذه الغرفة.'
+        : _groupChatMuteRemainingText();
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          decoration: BoxDecoration(
+            color: dark ? const Color(0xFF172A42) : colors.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: (banned ? colors.error : const Color(0xFFFFC66D)).withValues(alpha: .62),
+              width: 1.1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: dark ? .18 : .06),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                banned ? Icons.block_rounded : Icons.volume_off_rounded,
+                color: banned ? colors.error : const Color(0xFFFFC66D),
+                size: 25,
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title, style: TextStyle(
+                      color: colors.onSurface, fontWeight: FontWeight.w900, fontSize: 14)),
+                    const SizedBox(height: 4),
+                    Text(detail, style: TextStyle(
+                      color: colors.onSurfaceVariant, fontSize: 12, height: 1.4)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _retryMessages() {
@@ -2385,6 +2507,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
 
   Future<void> _startVoiceRecording() async {
     if (_recording || sending) return;
+    if (!await _checkGroupChatPostingPermission()) return;
     try {
       if (!await _recorder.hasPermission()) {
         toast('اسمح للتطبيق باستخدام المايكروفون لتسجيل رسالة صوتية.'); return;
