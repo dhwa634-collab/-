@@ -1659,6 +1659,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
             ],
           ),
         ),
+        ),
         body: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
