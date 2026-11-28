@@ -1659,14 +1659,25 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                         ),
                                       if (mine) ...[
                                         const SizedBox(width: 7),
-                                        Icon(
-                                          row['read_at'] != null
-                                              ? Icons.done_all_rounded
-                                              : Icons.done_rounded,
-                                          size: 15,
-                                          color: row['read_at'] != null
-                                              ? Colors.lightBlueAccent
-                                              : colors.onPrimary.withValues(alpha: .72),
+                                        Tooltip(
+                                          message: row['_local_status'] == 'queued'
+                                              ? 'بانتظار عودة الإنترنت والإرسال'
+                                              : row['read_at'] != null
+                                                  ? 'تمت قراءة الرسالة'
+                                                  : 'تم إرسال الرسالة',
+                                          child: Icon(
+                                            row['_local_status'] == 'queued'
+                                                ? Icons.schedule_rounded
+                                                : row['read_at'] != null
+                                                    ? Icons.done_all_rounded
+                                                    : Icons.done_rounded,
+                                            size: 15,
+                                            color: row['_local_status'] == 'queued'
+                                                ? colors.onPrimary.withValues(alpha: .72)
+                                                : row['read_at'] != null
+                                                    ? Colors.lightBlueAccent
+                                                    : colors.onPrimary.withValues(alpha: .72),
+                                          ),
                                         ),
                                       ],
                                     ],
