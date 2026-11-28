@@ -2862,12 +2862,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       if (uploadedPath != null && !messageSaved) {
         try { await _db.storage.from('chat-videos').remove([uploadedPath]); } catch (_) {}
       }
-      if (mounted) setState(() {
-        sending = false;
-        _videoBusy = false;
-        _videoProgress = 0;
-        _videoStatus = '';
-      });
+      if (mounted) {
+        setState(() {
+          sending = false;
+          _videoBusy = false;
+          _videoProgress = 0;
+          _videoStatus = '';
+        });
+      }
     }
   }
 
@@ -3895,7 +3897,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       appBar: AppBar(backgroundColor: dark ? const Color(0xFF142B46) : colors.surface, foregroundColor: dark ? Colors.white : colors.onSurface, elevation: 0,
         leading: AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: ScaleTransition(scale: Tween<double>(begin: 0.94, end: 1).animate(animation), child: child)), child: _groupSelectionMode ? IconButton(key: const ValueKey('group-selection-close'), onPressed: () => setState(() => _selectedGroupMessageIds.clear()), icon: const Icon(Icons.close_rounded)) : const SizedBox(key: ValueKey('group-selection-leading-empty'), width: 48)),
         title: AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(animation), child: child)), child: _groupSelectionMode ? Text('تم تحديد ${_selectedGroupMessageIds.length} رسالة', key: const ValueKey('group-selection-title')) : Row(key: const ValueKey('group-chat-title'), children: [
-          const Expanded(child: Column(
+          Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -3980,6 +3982,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               _profileCacheKey = nextProfileKey;
               _profilesFuture = getProfiles(rows);
             }
+            final colors = Theme.of(context).colorScheme;
             return FutureBuilder<Map<String, Map<String, dynamic>>>(future: _profilesFuture,
               builder: (context, profiles) => ListView.builder(
                 controller: scroll,
