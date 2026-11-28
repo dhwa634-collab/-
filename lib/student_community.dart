@@ -159,6 +159,11 @@ Future<bool> switchStudentGoogleAccount(
     final google = GoogleSignIn(
       serverClientId: SupabaseConfig.googleWebClientId.trim(),
     );
+
+    // The Google SDK may silently reuse the last account. Clear only its
+    // app-level selection (not the Supabase session) so the native chooser
+    // lets the user select the account tapped in the app's saved list.
+    await google.signOut();
     final account = await google.signIn();
     if (account == null) return false;
     final actualEmail = account.email.trim().toLowerCase();
@@ -3659,7 +3664,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                 ),
                               ),
                             ),
-                          if (!mine) ...[
+                          if (mine) ...[
                             InkWell(
                               customBorder: const CircleBorder(),
                               onTap: () => _openChatProfile(
@@ -3830,7 +3835,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               ],
                             ),
                           ),
-                          if (mine) ...[
+                          if (!mine) ...[
                             const SizedBox(width: 6),
                             InkWell(
                               customBorder: const CircleBorder(),
