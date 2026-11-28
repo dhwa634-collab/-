@@ -6,6 +6,9 @@ import 'dart:io';
 import 'student_visuals.dart';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:compress_video/compress_video.dart';
+import 'package:video_player/video_player.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'app_notice.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -2765,6 +2768,139 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
   }
 
+  Future<void> _pickAndSendVideo() async {
+    final user = _db.auth.currentUser;
+    if (user == null) { toast('سجّل الدخول أولاً.'); return; }
+    if (sending || _recording || _videoBusy) return;
+    String? uploadedPath;
+    bool messageSaved = false;
+    StreamSubscription<double>? compressionSubscription;
+    final compressor = CompressVideo();
+    try {
+      final picked = await _imagePicker.pickVideo(
+        source: ImageSource.gallery,
+        maxDuration: const Duration(seconds: 30),
+      );
+      if (picked == null) return;
+      final sourceInfo = await compressor.getMediaInfo(picked.path);
+      if (sourceInfo.durationMs <= 0 || sourceInfo.durationMs > 30000) {
+        toast('مدة الفيديو يجب ألا تتجاوز 30 ثانية.');
+        return;
+      }
+      if (sourceInfo.sizeBytes <= 0 || sourceInfo.sizeBytes > 150 * 1024 * 1024) {
+        toast('حجم الفيديو الأصلي كبير جداً. اختر فيديو أصغر من 150 ميغابايت.');
+        return;
+      }
+      if (!await _checkGroupChatPostingPermission()) return;
+      if (!mounted) return;
+      setState(() {
+        sending = true;
+        _videoBusy = true;
+        _videoProgress = 0;
+        _videoStatus = 'جارٍ ضغط الفيديو لتقليل استهلاك الإنترنت والتخزين…';
+      });
+      final job = compressor.compress(
+        picked.path,
+        options: const CompressOptions(
+          preset: CompressPreset.p480,
+          targetSizeMb: 8,
+          maxFps: 24,
+        ),
+      );
+      compressionSubscription = job.progress.listen((progress) {
+        if (!mounted) return;
+        setState(() {
+          _videoProgress = (progress / 100).clamp(0.0, 1.0);
+          _videoStatus = 'جارٍ ضغط الفيديو • ${progress.round()}٪';
+        });
+      });
+      final result = await job.result;
+      await compressionSubscription.cancel();
+      compressionSubscription = null;
+      final compressedFile = File(result.outputPath);
+      final compressedBytes = await compressedFile.length();
+      if (compressedBytes <= 0 || compressedBytes > 10 * 1024 * 1024) {
+        toast('تعذر ضغط الفيديو إلى الحد المسموح (10 ميغابايت).');
+        return;
+      }
+      if (result.durationMs > 30000) {
+        toast('الفيديو بعد المعالجة تجاوز 30 ثانية، لذلك لم يُرسل.');
+        return;
+      }
+      if (!await _checkGroupChatPostingPermission()) return;
+      uploadedPath = '${user.id}/video_${DateTime.now().millisecondsSinceEpoch}.mp4';
+      if (mounted) setState(() {
+        _videoProgress = 0;
+        _videoStatus = 'جارٍ رفع الفيديو…';
+      });
+      await _uploadGroupVideo(compressedFile, uploadedPath);
+      await _db.from('chat_messages').insert({
+        'user_id': user.id,
+        'message_type': 'video',
+        'body': null,
+        'sticker_id': null,
+        'storage_path': uploadedPath,
+        'reply_to_id': _replyToMessage?['id'],
+      });
+      messageSaved = true;
+      if (mounted) setState(() => _replyToMessage = null);
+      toast('تم إرسال الفيديو بنجاح.');
+    } on PostgrestException catch (error) {
+      toast('تعذر حفظ الفيديو في الدردشة: ${error.message}');
+    } on SocketException {
+      toast('انقطع الاتصال أثناء تجهيز الفيديو أو إرساله.');
+    } catch (error) {
+      toast('تعذر إرسال الفيديو: $error');
+    } finally {
+      await compressionSubscription?.cancel();
+      if (uploadedPath != null && !messageSaved) {
+        try { await _db.storage.from('chat-videos').remove([uploadedPath]); } catch (_) {}
+      }
+      if (mounted) setState(() {
+        sending = false;
+        _videoBusy = false;
+        _videoProgress = 0;
+        _videoStatus = '';
+      });
+    }
+  }
+
+  Future<void> _uploadGroupVideo(File file, String storagePath) async {
+    final session = _db.auth.currentSession;
+    if (session == null) throw const AuthException('انتهت جلسة تسجيل الدخول.');
+    final length = await file.length();
+    final encodedPath = storagePath.split('/').map(Uri.encodeComponent).join('/');
+    final uri = Uri.parse('${SupabaseConfig.projectUrl}/storage/v1/object/chat-videos/$encodedPath');
+    final client = http.Client();
+    try {
+      final request = http.StreamedRequest('POST', uri)
+        ..contentLength = length
+        ..headers.addAll({
+          'apikey': SupabaseConfig.publishableKey,
+          'Authorization': 'Bearer ${session.accessToken}',
+          'Content-Type': 'video/mp4',
+          'Cache-Control': '31536000',
+          'x-upsert': 'false',
+        });
+      final responseFuture = client.send(request).timeout(const Duration(minutes: 3));
+      var sent = 0;
+      await for (final chunk in file.openRead()) {
+        request.sink.add(chunk);
+        sent += chunk.length;
+        if (mounted) setState(() => _videoProgress = (sent / length).clamp(0.0, 1.0));
+      }
+      await request.sink.close();
+      final response = await responseFuture;
+      final body = await response.stream.bytesToString();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Storage HTTP ${response.statusCode}: $body');
+      }
+      if (mounted) setState(() => _videoProgress = 1);
+    } finally {
+      client.close();
+    }
+  }
+
   Future<void> _startVoiceRecording() async {
     if (_recording || sending) return;
     if (!await _checkGroupChatPostingPermission()) return;
@@ -2972,6 +3108,24 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             ),
           ),
         );
+      },
+    );
+  }
+
+  Widget _buildChatVideo(String path) {
+    return FutureBuilder<String?>(
+      future: _signedMediaUrl('chat-videos', path),
+      builder: (context, snapshot) {
+        final url = snapshot.data;
+        if (url == null) {
+          return _mediaPlaceholder(
+            width: 224,
+            height: 150,
+            failed: snapshot.connectionState == ConnectionState.done,
+            onRetry: () => setState(() => _mediaUrlCache.remove('chat-videos/$path')),
+          );
+        }
+        return _GroupChatVideoPlayer(url: url);
       },
     );
   }
@@ -3988,6 +4142,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                     mediaPath,
                                     sticker: type == 'custom_sticker',
                                   )
+                                else if (type == 'video')
+                                  _buildChatVideo(mediaPath)
                                 else if (type == 'voice')
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -4134,6 +4290,11 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   ),
                   const SizedBox(width: 7),
                   IconButton(
+                    tooltip: 'إرسال فيديو قصير (30 ثانية)',
+                    onPressed: sending ? null : (_recording ? null : _pickAndSendVideo),
+                    icon: const Icon(Icons.video_library_outlined, size: 24),
+                  ),
+                  IconButton(
                     tooltip: _recording ? 'إلغاء التسجيل' : 'إرسال صورة',
                     onPressed: sending ? null : (_recording
                       ? () => _stopVoiceRecording(send: false)
@@ -4214,6 +4375,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   IconButton(tooltip: 'إلغاء التعديل', onPressed: _cancelGroupEdit,
                     icon: Icon(Icons.close_rounded, color: colors.error, size: 19)),
                 ]),
+              if (_videoBusy)
+                Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Text(_videoStatus, style: TextStyle(fontSize: 11, color: colors.primary, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 5),
+                  LinearProgressIndicator(value: _videoProgress > 0 ? _videoProgress : null),
+                ]),
               if (_recording)
                 Text('جارٍ التسجيل • $_recordSeconds ثانية',
                   style: const TextStyle(fontSize: 11, color: Colors.red)),
@@ -4226,6 +4393,77 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   }
 }
 
+
+class _GroupChatVideoPlayer extends StatefulWidget {
+  final String url;
+  const _GroupChatVideoPlayer({required this.url});
+  @override
+  State<_GroupChatVideoPlayer> createState() => _GroupChatVideoPlayerState();
+}
+class _GroupChatVideoPlayerState extends State<_GroupChatVideoPlayer> {
+  late final VideoPlayerController _controller;
+  bool _failed = false;
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+      ..initialize().then((_) {
+        if (mounted) setState(() {});
+      }).catchError((_) {
+        if (mounted) setState(() => _failed = true);
+      });
+    _controller.addListener(_onChanged);
+  }
+  void _onChanged() { if (mounted) setState(() {}); }
+  @override
+  void dispose() {
+    _controller.removeListener(_onChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) {
+    if (_failed) {
+      return Container(
+        width: 224, height: 150, alignment: Alignment.center,
+        decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(12)),
+        child: const Icon(Icons.error_outline_rounded, color: Colors.white70, size: 30),
+      );
+    }
+    if (!_controller.value.isInitialized) {
+      return Container(
+        width: 224, height: 150, alignment: Alignment.center,
+        decoration: BoxDecoration(color: const Color(0xFF101820), borderRadius: BorderRadius.circular(12)),
+        child: const CircularProgressIndicator(),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: AspectRatio(
+        aspectRatio: _controller.value.aspectRatio,
+        child: Stack(alignment: Alignment.center, children: [
+          VideoPlayer(_controller),
+          Material(
+            color: Colors.black38,
+            shape: const CircleBorder(),
+            child: IconButton(
+              tooltip: _controller.value.isPlaying ? 'إيقاف مؤقت' : 'تشغيل الفيديو',
+              onPressed: () {
+                if (_controller.value.isPlaying) { _controller.pause(); }
+                else { _controller.play(); }
+              },
+              iconSize: 42,
+              color: Colors.white,
+              icon: Icon(_controller.value.isPlaying
+                  ? Icons.pause_circle_filled_rounded
+                  : Icons.play_circle_fill_rounded),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
 
 class _TypingDots extends StatefulWidget {
   const _TypingDots();
