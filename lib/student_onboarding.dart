@@ -668,7 +668,7 @@ class _StudentFirstRunSetupState extends State<StudentFirstRunSetup> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(SnackBar(content: BrandedNoticeContent(child: Text(message))));
   }
 
   @override
