@@ -753,6 +753,23 @@ class StudyApp extends StatelessWidget {
             color: lightCard,
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ThemeController.cardRadius.value))),
+          dialogTheme: DialogThemeData(
+            backgroundColor: const Color(0xFF172A42),
+            surfaceTintColor: Colors.transparent,
+            elevation: 16,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+              side: const BorderSide(color: Color(0xFF3B6FA8), width: 1),
+            ),
+            titleTextStyle: const TextStyle(
+              color: Color(0xFFF1F6FF), fontSize: 19,
+              fontWeight: FontWeight.w900,
+            ),
+            contentTextStyle: const TextStyle(
+              color: Color(0xFFD7E3F4), fontSize: 14, height: 1.65,
+            ),
+            actionsPadding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
+          ),
           navigationBarTheme: NavigationBarThemeData(
             backgroundColor: Colors.white,
             indicatorColor: palette.withValues(alpha: .15)),
@@ -783,6 +800,23 @@ class StudyApp extends StatelessWidget {
             color: darkCard,
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ThemeController.cardRadius.value))),
+          dialogTheme: DialogThemeData(
+            backgroundColor: const Color(0xFF172A42),
+            surfaceTintColor: Colors.transparent,
+            elevation: 16,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+              side: const BorderSide(color: Color(0xFF3B6FA8), width: 1),
+            ),
+            titleTextStyle: const TextStyle(
+              color: Color(0xFFF1F6FF), fontSize: 19,
+              fontWeight: FontWeight.w900,
+            ),
+            contentTextStyle: const TextStyle(
+              color: Color(0xFFD7E3F4), fontSize: 14, height: 1.65,
+            ),
+            actionsPadding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
+          ),
           navigationBarTheme: const NavigationBarThemeData(
             backgroundColor: Color(0xFF172337),
             indicatorColor: Color(0xFF294A78)),
@@ -4397,8 +4431,19 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
       'avatar': (metadata['picture'] ?? metadata['avatar_url'] ?? '').toString(),
     };
     final prefs = await SharedPreferences.getInstance();
-    final list = List<Map<String, String>>.from(_knownAccounts);
-    list.removeWhere((e) => e['email'] == email);
+    final stored = prefs.getString(_knownAccountsKey);
+    final list = <Map<String, String>>[];
+    if (stored != null && stored.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(stored);
+        if (decoded is List) {
+          list.addAll(decoded.whereType<Map>().map(
+            (item) => Map<String, String>.from(item),
+          ).where((item) => (item['email'] ?? '').isNotEmpty));
+        }
+      } catch (_) {}
+    }
+    list.removeWhere((item) => item['email']?.toLowerCase() == email);
     list.insert(0, entry);
     if (list.length > 8) list.removeRange(8, list.length);
     await prefs.setString(_knownAccountsKey, jsonEncode(list));
@@ -4406,51 +4451,81 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
   }
 
   Future<void> _switchAccount() async {
-    if (_busy || _knownAccounts.isEmpty) return;
-    final selected = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const BrandedDialogTitle(title: Text('تبديل الحساب')),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: _knownAccounts.map((account) => ListTile(
-              leading: StudentAvatar(name: account['name'] ?? account['email']!,
-                imageUrl: account['avatar'], radius: 22),
-              title: Text(account['name'] ?? ''),
-              subtitle: Text(account['email'] ?? ''),
-              trailing: account['email'] == _client.auth.currentUser?.email?.toLowerCase()
-                ? const Icon(Icons.check_circle_rounded, color: Color(0xFF35B982))
-                : const Icon(Icons.chevron_left_rounded),
-              onTap: () => Navigator.pop(ctx, account['email']),
-            )).toList(),
-          ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx),
-          child: const Text('إغلاق'))],
-      ),
-    );
-    if (selected == null || !mounted ||
-        selected == _client.auth.currentUser?.email?.toLowerCase()) {
+    if (_busy) return;
+    await _loadKnownAccounts();
+    if (!mounted || _knownAccounts.isEmpty) {
+      if (mounted) _showMessage('لا توجد حسابات Google محفوظة على هذا الجهاز.', isError: true);
       return;
     }
-    final proceed = await showDialog<bool>(
+    final selected = await showDialog<Map<String, String>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const BrandedDialogTitle(title: Text('تأكيد تبديل الحساب')),
-        content: Text('سيتم إنهاء جلسة الحساب الحالي، ثم يمكنك اختيار $selected من نافذة Google.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
-        ],
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const BrandedDialogTitle(title: Text('تبديل الحساب')),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: _knownAccounts.map((account) => ListTile(
+                leading: StudentAvatar(
+                  name: account['name'] ?? account['email'] ?? 'طالب',
+                  imageUrl: account['avatar'],
+                  radius: 22,
+                ),
+                title: Text(account['name'] ?? account['email'] ?? ''),
+                subtitle: Text(account['email'] ?? ''),
+                trailing: account['email']?.toLowerCase() ==
+                    _client.auth.currentUser?.email?.toLowerCase()
+                  ? const Icon(Icons.check_circle_rounded, color: Color(0xFF35B982))
+                  : const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.pop(ctx, account),
+              )).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
       ),
     );
-    if (proceed != true || !mounted) return;
-    await signOutStudentSession();
-    if (!mounted) return;
-    Navigator.push(context, MaterialPageRoute(
-      builder: (_) => const StudentGoogleLoginScreen()));
+    if (selected == null || !mounted) return;
+    final selectedEmail = (selected['email'] ?? '').trim().toLowerCase();
+    if (selectedEmail.isEmpty ||
+        selectedEmail == _client.auth.currentUser?.email?.toLowerCase()) {
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      // Keep the current Supabase session alive until Google authenticates
+      // the selected saved account successfully. Cancelling/failing is safe.
+      final switched = await switchStudentGoogleAccount(context, selectedEmail);
+      if (!switched || !mounted) return;
+
+      final accountName = (selected['name'] ?? selectedEmail.split('@').first).trim();
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: BrandedNoticeContent(
+            child: Text('تم تبديل الحساب إلى $accountName'),
+          ),
+        ));
+    } catch (error) {
+      if (mounted) {
+        _showMessage(
+          'تعذر تبديل الحساب: ${error.toString().replaceFirst('Exception: ', '')}',
+          isError: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _showMessage(String message, {bool isError = false}) {
