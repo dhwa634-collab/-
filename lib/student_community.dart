@@ -503,6 +503,94 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
   String? gender,avatarUrl; XFile? selectedAvatar; Timer? usernameTimer;
   bool loading=true,saving=false,uploading=false,checking=false,available=false;
   bool get developer=>_isVerifiedDeveloper(_db.auth.currentUser);
+  bool _switchingAccount = false;
+
+  Future<void> _switchProfileAccount() async {
+    if (_switchingAccount) return;
+    const storageKey = 'dalilak_known_google_accounts_v1';
+    List<Map<String, String>> accounts = [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(storageKey);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          accounts = decoded.whereType<Map>()
+              .map((item) => Map<String, String>.from(item))
+              .where((item) => (item['email'] ?? '').trim().isNotEmpty)
+              .toList();
+        }
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    final currentEmail = _db.auth.currentUser?.email?.trim().toLowerCase();
+    if (accounts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: BrandedNoticeContent(
+          child: Text('لا توجد حسابات محفوظة على هذا الجهاز.'),
+        ),
+      ));
+      return;
+    }
+    final selected = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const BrandedDialogTitle(title: Text('تبديل الحساب')),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: accounts.map((account) => ListTile(
+                leading: StudentAvatar(
+                  name: account['name'] ?? account['email'] ?? 'طالب',
+                  imageUrl: account['avatar'],
+                  radius: 22,
+                ),
+                title: Text(account['name'] ?? account['email'] ?? ''),
+                subtitle: Text(account['email'] ?? ''),
+                trailing: account['email']?.trim().toLowerCase() == currentEmail
+                    ? const Icon(Icons.check_circle_rounded,
+                        color: Color(0xFF35B982))
+                    : const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.pop(dialogContext, account),
+              )).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    final email = (selected['email'] ?? '').trim().toLowerCase();
+    if (email.isEmpty || email == currentEmail) return;
+
+    setState(() => _switchingAccount = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final switched = await switchStudentGoogleAccount(context, email);
+      if (!switched || !mounted) return;
+      final accountName =
+          (selected['name'] ?? email.split('@').first).trim();
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: BrandedNoticeContent(
+            child: Text('تم تبديل الحساب إلى $accountName'),
+          ),
+        ));
+    } finally {
+      if (mounted) setState(() => _switchingAccount = false);
+    }
+  }
+
   @override void initState(){super.initState();load();}
   Future<void> load()async{
     final user=_db.auth.currentUser;
@@ -603,7 +691,21 @@ class _StudentProfileScreenState extends State<StudentProfileScreen>{
     final dark=parentTheme.brightness==Brightness.dark;
     final c=parentTheme.colorScheme;
     final avatar=selectedAvatar!=null?FileImage(File(selectedAvatar!.path)) as ImageProvider<Object>:avatarUrl!=null?NetworkImage(avatarUrl!) as ImageProvider<Object>:null;
-    return Theme(data:parentTheme,child:Directionality(textDirection:TextDirection.rtl,child:Scaffold(backgroundColor:dark?const Color(0xFF071421):c.surface,appBar:AppBar(backgroundColor:dark?const Color(0xFF071421):c.surface,foregroundColor:c.onSurface,title:const Text('الملف الشخصي'),elevation:0),
+    return Theme(data:parentTheme,child:Directionality(textDirection:TextDirection.rtl,child:Scaffold(backgroundColor:dark?const Color(0xFF071421):c.surface,appBar:AppBar(
+        backgroundColor:dark?const Color(0xFF071421):c.surface,
+        foregroundColor:c.onSurface,
+        title:const Text('الملف الشخصي'),
+        elevation:0,
+        actions:[
+          IconButton(
+            tooltip:'تبديل الحساب',
+            onPressed:_switchingAccount?null:_switchProfileAccount,
+            icon:_switchingAccount
+              ? const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2))
+              : const Icon(Icons.switch_account_rounded),
+          ),
+        ],
+      ),
       body:loading?const Center(child:CircularProgressIndicator()):ListView(controller:profileScroll,padding:const EdgeInsets.all(16),children:[
         Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(25),gradient:LinearGradient(colors:dark?const[Color(0xFF142C4B),Color(0xFF285080)]:const[Color(0xFF17427E),Color(0xFF347FE8)])),
           child:Column(children:[
@@ -1611,8 +1713,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                             duration: const Duration(milliseconds: 360),
                             child: Align(
                         alignment: mine
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
+                            ? Alignment.centerLeft
+                            : Alignment.centerRight,
                         child: TweenAnimationBuilder<double>(
                           key: ValueKey(row['_render_id'] ?? row['id']),
                           tween: Tween<double>(begin: 0, end: 1),
@@ -1639,13 +1741,9 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                 maxWidth: MediaQuery.sizeOf(context).width * 0.72,
                               ),
                               decoration: BoxDecoration(
-                                color: mine
-                                    ? colors.primary
-                                    : colors.surfaceContainerHigh,
+                                color: colors.surfaceContainerHigh,
                                 border: Border.all(
-                                  color: mine
-                                      ? colors.primary.withValues(alpha: 0.35)
-                                      : colors.outlineVariant.withValues(alpha: 0.48),
+                                  color: colors.outlineVariant.withValues(alpha: 0.48),
                                   width: 0.7,
                                 ),
                                 borderRadius: BorderRadius.only(
@@ -1669,14 +1767,10 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: mine
-                                          ? colors.onPrimary.withValues(alpha: 0.13)
-                                          : colors.primary.withValues(alpha: 0.10),
+                                      color: colors.primary.withValues(alpha: 0.10),
                                       borderRadius: BorderRadius.circular(9),
                                       border: Border.all(
-                                        color: mine
-                                            ? colors.onPrimary.withValues(alpha: 0.22)
-                                            : colors.primary.withValues(alpha: 0.20),
+                                        color: colors.primary.withValues(alpha: 0.20),
                                       ),
                                     ),
                                     child: Text(
@@ -1686,7 +1780,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                         height: 1.1,
                                         letterSpacing: 0.15,
                                         fontWeight: FontWeight.w900,
-                                        color: mine ? colors.onPrimary : colors.primary,
+                                        color: colors.primary,
                                       ),
                                     ),
                                   ),
@@ -1699,7 +1793,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                         child: _buildDirectMedia(
                                           row['body']?.toString() ?? '',
                                           (row['_render_id'] ?? row['id']).toString(),
-                                          mine ? colors.onPrimary : colors.onSurface,
+                                          colors.onSurface,
                                         ),
                                       ),
                                       if (row['edited_at'] != null)
@@ -1709,9 +1803,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                             'معدّلة',
                                             style: TextStyle(
                                               fontSize: 9,
-                                              color: mine
-                                                  ? colors.onPrimary.withValues(alpha: .7)
-                                                  : colors.onSurfaceVariant,
+                                              color: colors.onSurfaceVariant,
                                             ),
                                           ),
                                         ),
@@ -1731,10 +1823,10 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                                     : Icons.done_rounded,
                                             size: 15,
                                             color: row['_local_status'] == 'queued'
-                                                ? colors.onPrimary.withValues(alpha: .72)
+                                                ? colors.onSurfaceVariant
                                                 : row['read_at'] != null
                                                     ? Colors.lightBlueAccent
-                                                    : colors.onPrimary.withValues(alpha: .72),
+                                                    : colors.onSurfaceVariant,
                                           ),
                                         ),
                                       ],
@@ -1746,7 +1838,8 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                 ),
                                 if (_dmSelectionMode)
                                   Positioned(
-                                    left: -28,
+                                    left: mine ? null : -28,
+                                    right: mine ? -28 : null,
                                     top: 14,
                                     child: AnimatedSwitcher(
                                       duration: const Duration(milliseconds: 190),
@@ -2169,10 +2262,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     try {
       final result = await _db.rpc('is_group_chat_admin');
       if (!mounted) return;
-      setState(() => _isGroupChatAdmin = result == true);
+      setState(() => _isGroupChatAdmin =
+          result == true || _isVerifiedDeveloper(_db.auth.currentUser));
     } catch (error) {
       debugPrint('Load group chat moderation role failed: $error');
-      if (mounted) setState(() => _isGroupChatAdmin = false);
+      if (mounted) {
+        setState(() => _isGroupChatAdmin =
+            _isVerifiedDeveloper(_db.auth.currentUser));
+      }
     }
   }
 
@@ -3219,6 +3316,24 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
     finally { if (mounted) setState(() => sending = false); }
   }
+  void _openGroupMemberProfile(Map<String, dynamic> profile,
+      {bool isDeveloper = false}) {
+    final userId = profile['user_id']?.toString();
+    if (userId == null || userId.isEmpty) return;
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => StudentPublicProfileScreen(
+        userId: userId,
+        fallbackName: profile['display_name']?.toString() ?? 'طالب',
+        fallbackUsername: profile['username']?.toString(),
+        fallbackStage: profile['stage']?.toString(),
+        fallbackAvatar: profile['avatar_url']?.toString(),
+        fallbackBadge: profile['badge']?.toString(),
+        fallbackBio: profile['bio']?.toString(),
+        fallbackDeveloper: isDeveloper || profile['is_developer'] == true,
+      ),
+    ));
+  }
+
   Future<void> _showGroupMembers() async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -3325,7 +3440,15 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         : (profiles[devId] ?? developer);
                       final avatarUrl = developerProfile?['avatar_url']?.toString();
                       final isOnline = devId != null && online.contains(devId);
-                      return Container(
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: devId == null || developerProfile == null
+                            ? null
+                            : () => _openGroupMemberProfile(
+                                developerProfile,
+                                isDeveloper: true,
+                              ),
+                        child: Container(
                         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         decoration: BoxDecoration(
@@ -3391,17 +3514,23 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               style: const TextStyle(color: Color(0xFFCBD8E8), fontSize: 10)),
                           ]),
                         ]),
+                        ),
                       );
                     }),
                     const Divider(indent: 16, endIndent: 16),
                     for (final profile in participants)
                       ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: (profile['avatar_url']?.toString().startsWith('http') ?? false)
-                            ? NetworkImage(profile['avatar_url'].toString()) : null,
-                          child: !(profile['avatar_url']?.toString().startsWith('http') ?? false)
-                            ? Text(studentAvatarInitial((profile['display_name'] ?? 'طالب').toString()),
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)) : null,
+                        onTap: () => _openGroupMemberProfile(profile),
+                        leading: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () => _openGroupMemberProfile(profile),
+                          child: CircleAvatar(
+                            backgroundImage: (profile['avatar_url']?.toString().startsWith('http') ?? false)
+                              ? NetworkImage(profile['avatar_url'].toString()) : null,
+                            child: !(profile['avatar_url']?.toString().startsWith('http') ?? false)
+                              ? Text(studentAvatarInitial((profile['display_name'] ?? 'طالب').toString()),
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)) : null,
+                          ),
                         ),
                         title: Text(profile['display_name']?.toString().trim().isNotEmpty == true
                           ? profile['display_name'].toString() : 'طالب',
@@ -3415,6 +3544,39 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                           const SizedBox(width: 5),
                           Text(online.contains(profile['user_id']?.toString())
                             ? 'متصل' : 'غير متصل', style: const TextStyle(fontSize: 11)),
+                          if (_isGroupChatAdmin &&
+                              profile['user_id']?.toString() != _db.auth.currentUser?.id)
+                            PopupMenuButton<String>(
+                              tooltip: 'إجراءات الإشراف',
+                              onSelected: (action) {
+                                final target = Map<String, dynamic>.from(profile);
+                                if (action == 'mute') {
+                                  unawaited(_adminMuteGroupUser(target));
+                                } else if (action == 'ban') {
+                                  unawaited(_adminBanGroupUser(target));
+                                }
+                              },
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: 'mute',
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.timer_off_outlined),
+                                    title: Text('كتم المستخدم'),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'ban',
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.gpp_bad_outlined,
+                                        color: Colors.redAccent),
+                                    title: Text('حظر المستخدم'),
+                                  ),
+                                ),
+                              ],
+                              icon: const Icon(Icons.more_vert_rounded, size: 20),
+                            ),
                         ]),
                       ),
                   ],
