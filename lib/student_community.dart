@@ -2952,7 +2952,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       try { await File(path).delete(); } catch (_) {}
       return;
     }
-    setState(() => sending = true);
+    setState(() { sending = true; _voiceUploading = true; });
     String? uploadedPath;
     bool messageSaved = false;
     try {
@@ -2987,7 +2987,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         try { await _db.storage.from('chat-voice').remove([uploadedPath]); } catch (_) {}
       }
       try { await File(path).delete(); } catch (_) {}
-      if (mounted) setState(() => sending = false);
+      if (mounted) setState(() { sending = false; _voiceUploading = false; });
     }
   }
 
