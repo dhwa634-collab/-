@@ -1629,7 +1629,10 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                             onTap: () => _dmSelectionMode ? _toggleDmSelection(row) : _showDmReactionPicker(row),
                             onLongPress: () => _toggleDmSelection(row),
                             onDoubleTap: mine ? () => _privateMessageActions(row) : null,
-                            child: Container(
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
                               margin: const EdgeInsets.symmetric(vertical: 4),
                               padding: const EdgeInsets.all(12),
                               constraints: BoxConstraints(
@@ -1663,31 +1666,6 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (_dmSelectionMode)
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Transform.translate(
-                                        offset: const Offset(-28, 0),
-                                        child: AnimatedSwitcher(
-                                        duration: const Duration(milliseconds: 190),
-                                        switchInCurve: Curves.easeOutCubic,
-                                        switchOutCurve: Curves.easeInCubic,
-                                        transitionBuilder: (child, animation) => ScaleTransition(
-                                          scale: animation,
-                                          child: FadeTransition(opacity: animation, child: child),
-                                        ),
-                                        child: Icon(
-                                          _selectedDmIds.contains(row['id'].toString())
-                                            ? Icons.check_circle_rounded
-                                            : Icons.radio_button_unchecked_rounded,
-                                          key: ValueKey(_selectedDmIds.contains(row['id'].toString())),
-                                          color: _selectedDmIds.contains(row['id'].toString())
-                                            ? colors.primary : colors.outline,
-                                          size: 21,
-                                        ),
-                                      ),
-                                      ),
-                                    ),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                                     decoration: BoxDecoration(
@@ -1765,6 +1743,38 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                   _buildDmReactions(row['id'].toString(),colors),
                                 ],
                               ),
+                                ),
+                                if (_dmSelectionMode)
+                                  Positioned(
+                                    left: -28,
+                                    top: 14,
+                                    child: AnimatedSwitcher(
+                                      duration: const Duration(milliseconds: 190),
+                                      switchInCurve: Curves.easeOutCubic,
+                                      switchOutCurve: Curves.easeInCubic,
+                                      transitionBuilder: (child, animation) =>
+                                          ScaleTransition(
+                                        scale: animation,
+                                        child: FadeTransition(
+                                          opacity: animation,
+                                          child: child,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        _selectedDmIds.contains(row['id'].toString())
+                                            ? Icons.check_circle_rounded
+                                            : Icons.radio_button_unchecked_rounded,
+                                        key: ValueKey(
+                                          _selectedDmIds.contains(row['id'].toString()),
+                                        ),
+                                        color: _selectedDmIds.contains(row['id'].toString())
+                                            ? colors.primary
+                                            : colors.outline,
+                                        size: 21,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),
