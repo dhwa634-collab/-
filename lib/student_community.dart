@@ -2569,7 +2569,9 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   Future<void> _editSelectedGroupMessage() async { final rows=_selectedGroupMessages; final user=_db.auth.currentUser?.id; if(rows.length!=1||rows.first['user_id']!=user||rows.first['message_type']!='text')return; await _editGroupMessage(rows.first); if(mounted){setState(()=>_selectedGroupMessageIds.clear());_selectedGroupRows.clear();} }
   Future<void> _messageActions(Map<String, dynamic> row) async {
     final mine = row['user_id'] == _db.auth.currentUser?.id;
+    final canModerate = _isGroupChatAdmin && !mine;
     final action = await showModalBottomSheet<String>(context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
         child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (mine && row['message_type'] == 'text' && (row['body']?.toString().isNotEmpty ?? false))
@@ -2577,9 +2579,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
           if (mine && (row['body']?.toString().trim().isNotEmpty ?? false))
             ListTile(leading: const Icon(Icons.copy_rounded), title: const Text('نسخ الرسالة'), onTap: () => Navigator.pop(ctx, 'copy')),
           if (mine) ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red), title: const Text('حذف الرسالة'), onTap: () => Navigator.pop(ctx, 'delete')),
+          if (canModerate) ...[
+            ListTile(leading: const Icon(Icons.delete_forever_outlined, color: Colors.red), title: const Text('حذف رسالة المستخدم'), onTap: () => Navigator.pop(ctx, 'admin_delete')),
+            ListTile(leading: const Icon(Icons.timer_off_outlined), title: const Text('كتم المستخدم'), onTap: () => Navigator.pop(ctx, 'admin_mute')),
+            ListTile(leading: const Icon(Icons.gpp_bad_outlined, color: Colors.red), title: const Text('حظر المستخدم من الغرفة'), onTap: () => Navigator.pop(ctx, 'admin_ban')),
+          ],
           if (!mine) ListTile(leading: const Icon(Icons.flag_outlined), title: const Text('الإبلاغ عن الرسالة'), onTap: () => Navigator.pop(ctx, 'report')),
           if (!mine) ListTile(leading: const Icon(Icons.person_off_outlined), title: const Text('الإبلاغ عن المستخدم'), onTap: () => Navigator.pop(ctx, 'report_user')),
-          if (!mine) ListTile(leading: const Icon(Icons.block_outlined), title: const Text('حظر المستخدم'), onTap: () => Navigator.pop(ctx, 'block')),
+          if (!mine && !canModerate) ListTile(leading: const Icon(Icons.block_outlined), title: const Text('حظر المستخدم عندي'), onTap: () => Navigator.pop(ctx, 'block')),
         ]))));
     if (!mounted) return;
     if (action == 'copy') {
@@ -2612,10 +2619,14 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         }
       }
     }
+    if (action == 'admin_delete') await _adminDeleteGroupMessage(row);
+    if (action == 'admin_mute') await _adminMuteGroupUser(row);
+    if (action == 'admin_ban') await _adminBanGroupUser(row);
     if (action == 'report') await report(row);
     if (action == 'report_user') await report(row, reportUser: true);
     if (action == 'block') await _blockUser(row);
   }
+
   Future<void> _editGroupMessage(Map<String,dynamic> row) async {
     if (row['user_id'] != _db.auth.currentUser?.id || row['message_type'] != 'text') return;
     final value = row['body']?.toString() ?? '';
