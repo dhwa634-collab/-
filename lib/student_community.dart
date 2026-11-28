@@ -2627,6 +2627,103 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     if (action == 'block') await _blockUser(row);
   }
 
+  Future<void> _adminDeleteGroupMessage(Map<String, dynamic> row) async {
+    if (!_isGroupChatAdmin || row['user_id'] == _db.auth.currentUser?.id) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('حذف رسالة من الغرفة؟'),
+          content: const Text('ستُخفى الرسالة عن جميع أعضاء غرفة الدردشة.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف')),
+          ],
+        )),
+    );
+    if (confirmed != true || !mounted) return;
+    final id = row['id']?.toString();
+    if (id == null) return;
+    setState(() => _deletingGroupMessageIds.add(id));
+    await Future<void>.delayed(const Duration(milliseconds: 320));
+    try {
+      await _db.rpc('admin_delete_group_chat_message', params: {'p_message_id': id});
+      if (mounted) toast('تم حذف الرسالة من الغرفة.');
+    } on PostgrestException catch (error) {
+      if (mounted) {
+        setState(() => _deletingGroupMessageIds.remove(id));
+        toast(error.code == '42501' ? 'ليس لديك صلاحية تنفيذ هذا الإجراء.' : 'تعذر حذف الرسالة: ${error.message}');
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _deletingGroupMessageIds.remove(id));
+        toast('تعذر حذف الرسالة: $error');
+      }
+    }
+  }
+
+  Future<void> _adminMuteGroupUser(Map<String, dynamic> row) async {
+    if (!_isGroupChatAdmin) return;
+    final targetId = row['user_id']?.toString();
+    if (targetId == null || targetId == _db.auth.currentUser?.id) return;
+    final hours = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(padding: EdgeInsets.all(16), child: Text('مدة كتم المستخدم', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17))),
+          ListTile(leading: const Icon(Icons.hourglass_bottom_rounded), title: const Text('ساعة واحدة'), onTap: () => Navigator.pop(ctx, 1)),
+          ListTile(leading: const Icon(Icons.timer_outlined), title: const Text('24 ساعة'), onTap: () => Navigator.pop(ctx, 24)),
+          ListTile(leading: const Icon(Icons.lock_clock_outlined), title: const Text('كتم دائم'), onTap: () => Navigator.pop(ctx, 0)),
+        ])),
+      ),
+    );
+    if (hours == null || !mounted) return;
+    try {
+      await _db.rpc('admin_mute_group_chat_user', params: {
+        'p_user_id': targetId, 'p_duration_hours': hours, 'p_reason': 'إشراف غرفة الدردشة',
+      });
+      if (mounted) toast(hours == 0 ? 'تم كتم المستخدم بشكل دائم.' : 'تم كتم المستخدم لمدة ${hours == 1 ? 'ساعة' : '24 ساعة'}.');
+    } on PostgrestException catch (error) {
+      if (mounted) toast(error.code == '42501' ? 'ليس لديك صلاحية كتم هذا المستخدم.' : 'تعذر كتم المستخدم: ${error.message}');
+    } catch (error) {
+      if (mounted) toast('تعذر كتم المستخدم: $error');
+    }
+  }
+
+  Future<void> _adminBanGroupUser(Map<String, dynamic> row) async {
+    if (!_isGroupChatAdmin) return;
+    final targetId = row['user_id']?.toString();
+    if (targetId == null || targetId == _db.auth.currentUser?.id) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Directionality(textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('حظر المستخدم من الغرفة؟'),
+          content: const Text('لن يتمكن هذا الحساب من مشاهدة غرفة الدردشة أو إرسال الرسائل فيها.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+              child: const Text('حظر نهائي'),
+            ),
+          ],
+        )),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _db.rpc('admin_ban_group_chat_user', params: {
+        'p_user_id': targetId, 'p_reason': 'حظر إداري من غرفة الدردشة',
+      });
+      if (mounted) toast('تم حظر المستخدم من غرفة الدردشة.');
+    } on PostgrestException catch (error) {
+      if (mounted) toast(error.code == '42501' ? 'ليس لديك صلاحية حظر هذا المستخدم.' : 'تعذر حظر المستخدم: ${error.message}');
+    } catch (error) {
+      if (mounted) toast('تعذر حظر المستخدم: $error');
+    }
+  }
+
   Future<void> _editGroupMessage(Map<String,dynamic> row) async {
     if (row['user_id'] != _db.auth.currentUser?.id || row['message_type'] != 'text') return;
     final value = row['body']?.toString() ?? '';
