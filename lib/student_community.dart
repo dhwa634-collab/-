@@ -3693,7 +3693,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
               ),
             ),
           ),
-        ]),
+        ])),
         actions: [AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero).animate(animation), child: child)), child: _groupSelectionMode ? KeyedSubtree(key: const ValueKey('group-selection-toolbar'), child: _selectionToolbar(_selectedGroupMessageIds.length,onClear:()=>setState(()=>_selectedGroupMessageIds.clear()),onDelete:_deleteSelectedGroupMessages,onCopy:_copySelectedGroupMessages,onEdit:_editSelectedGroupMessage,canEdit:_selectedGroupMessages.length==1&&_selectedGroupMessages.first['user_id']==_db.auth.currentUser?.id&&_selectedGroupMessages.first['message_type']=='text',colors:colors)) : const SizedBox(key: ValueKey('group-selection-actions-empty'), width: 1))],
       ),
       body: Container(
