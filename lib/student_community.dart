@@ -2074,6 +2074,158 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     }
   }
 
+  Future<List<Map<String, dynamic>>> _fetchModerationAccounts() async {
+    if (!_isGroupChatAdmin) return <Map<String, dynamic>>[];
+    final results = await Future.wait([
+      _db.from('chat_user_bans').select('user_id,reason,created_at'),
+      _db.from('chat_user_mutes').select('user_id,muted_until,is_permanent,reason,created_at'),
+    ]);
+    final banned = (results[0] as List).whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row)).toList();
+    final mutes = (results[1] as List).whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .where((row) => row['is_permanent'] == true ||
+            (DateTime.tryParse(row['muted_until']?.toString() ?? '')?.isAfter(DateTime.now().toUtc()) ?? false))
+        .toList();
+    final byId = <String, Map<String, dynamic>>{};
+    for (final row in banned) {
+      final id = row['user_id']?.toString();
+      if (id == null) continue;
+      byId.putIfAbsent(id, () => {'user_id': id})['banned'] = row;
+    }
+    for (final row in mutes) {
+      final id = row['user_id']?.toString();
+      if (id == null) continue;
+      byId.putIfAbsent(id, () => {'user_id': id})['mute'] = row;
+    }
+    if (byId.isEmpty) return <Map<String, dynamic>>[];
+    final profiles = await _db.rpc('get_student_chat_profiles_v1',
+        params: {'p_user_ids': byId.keys.toList()});
+    final profileById = <String, Map<String, dynamic>>{
+      for (final item in (profiles as List).whereType<Map>())
+        item['user_id'].toString(): Map<String, dynamic>.from(item),
+    };
+    return byId.values.map((row) {
+      final id = row['user_id'].toString();
+      return {...row, 'profile': profileById[id] ?? <String, dynamic>{}};
+    }).toList();
+  }
+
+  Future<void> _showModerationAccounts() async {
+    if (!_isGroupChatAdmin) return;
+    var future = _fetchModerationAccounts();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: SafeArea(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(sheetContext).height * 0.72,
+              child: Column(children: [
+                Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(children: [
+                    const Icon(Icons.gpp_maybe_rounded, color: Color(0xFF438CF5), size: 27),
+                    const SizedBox(width: 10),
+                    const Expanded(child: Text('المحظورون والمكتومون',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900))),
+                    IconButton(
+                      tooltip: 'تحديث القائمة',
+                      onPressed: () => setSheetState(() => future = _fetchModerationAccounts()),
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  ]),
+                ),
+                const Divider(height: 1),
+                Expanded(child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: future,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('تعذر تحميل قائمة الإشراف: ${snapshot.error}'));
+                    }
+                    final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+                    if (rows.isEmpty) {
+                      return const Center(child: Text('لا توجد حسابات محظورة أو مكتومة حالياً.'));
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, indent: 72),
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        final profile = Map<String, dynamic>.from(row['profile'] as Map? ?? {});
+                        final name = profile['display_name']?.toString().trim().isNotEmpty == true
+                            ? profile['display_name'].toString()
+                            : (profile['username']?.toString().isNotEmpty == true
+                                ? '@${profile['username']}' : 'مستخدم');
+                        final banned = row['banned'] != null;
+                        final mute = row['mute'] as Map<String, dynamic>?;
+                        final permanent = mute?['is_permanent'] == true;
+                        final until = DateTime.tryParse(mute?['muted_until']?.toString() ?? '')?.toLocal();
+                        final status = [
+                          if (banned) 'محظور',
+                          if (mute != null) permanent ? 'مكتوم دائم' : 'مكتوم حتى ${until == null ? 'انتهاء المدة' : TimeOfDay.fromDateTime(until).format(context)}',
+                        ].join(' • ');
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage: (profile['avatar_url']?.toString().startsWith('http') ?? false)
+                                ? NetworkImage(profile['avatar_url'].toString()) : null,
+                            child: !(profile['avatar_url']?.toString().startsWith('http') ?? false)
+                                ? const Icon(Icons.person_outline_rounded) : null,
+                          ),
+                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                          subtitle: Text(status),
+                          isThreeLine: false,
+                          trailing: Wrap(spacing: 2, children: [
+                            if (banned) TextButton(
+                              onPressed: () async {
+                                try {
+                                  await _db.from('chat_user_bans').delete().eq('user_id', row['user_id']);
+                                  if (!mounted) return;
+                                  toast('تم فك الحظر عن $name.');
+                                  setSheetState(() => future = _fetchModerationAccounts());
+                                } catch (error) {
+                                  toast('تعذر فك الحظر: $error');
+                                }
+                              },
+                              child: const Text('فك الحظر'),
+                            ),
+                            if (mute != null) TextButton(
+                              onPressed: () async {
+                                try {
+                                  await _db.from('chat_user_mutes').delete().eq('user_id', row['user_id']);
+                                  if (!mounted) return;
+                                  toast('تم إلغاء كتم $name.');
+                                  setSheetState(() => future = _fetchModerationAccounts());
+                                } catch (error) {
+                                  toast('تعذر إلغاء الكتم: $error');
+                                }
+                              },
+                              child: const Text('إلغاء الكتم'),
+                            ),
+                          ]),
+                        );
+                      },
+                    );
+                  },
+                )),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<bool> _checkGroupChatPostingPermission() async {
     try {
       final raw = await _db.rpc('get_my_group_chat_status');
@@ -2914,6 +3066,17 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 Expanded(child: ListView(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   children: [
+                    if (_isGroupChatAdmin)
+                      Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: ListTile(
+                          leading: const CircleAvatar(child: Icon(Icons.gpp_maybe_rounded)),
+                          title: const Text('المحظورون', style: TextStyle(fontWeight: FontWeight.w900)),
+                          subtitle: const Text('عرض المحظورين والمكتومين وإدارة فك الحظر وإلغاء الكتم'),
+                          trailing: const Icon(Icons.chevron_left_rounded),
+                          onTap: _showModerationAccounts,
+                        ),
+                      ),
                     Builder(builder: (context) {
                       final developerProfile = devId == null
                         ? developer
