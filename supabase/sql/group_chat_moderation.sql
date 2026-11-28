@@ -50,14 +50,32 @@ insert into public.chat_admins (user_id, role)
 values ('7244dd5e-1779-40b5-b995-809fcfcade7f'::uuid, 'owner')
 on conflict (user_id) do update set role = 'owner';
 
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated;
+
+create or replace function private.is_group_chat_admin()
+returns boolean language sql stable security definer
+set search_path = pg_catalog, public, auth
+as $
+  select auth.uid() is not null
+    and exists (select 1 from public.chat_admins a where a.user_id = auth.uid());
+$;
+revoke all on function private.is_group_chat_admin() from public, anon;
+grant execute on function private.is_group_chat_admin() to authenticated;
+
 create or replace function public.is_group_chat_admin()
 returns boolean language sql stable security invoker
-set search_path = public, pg_temp
-as $$
-  select exists (select 1 from public.chat_admins a where a.user_id = (select auth.uid()));
-$$;
+set search_path = public, private, pg_temp
+as $
+  select private.is_group_chat_admin();
+$;
 revoke all on function public.is_group_chat_admin() from public, anon;
 grant execute on function public.is_group_chat_admin() to authenticated;
+
+drop policy if exists chat_admins_read_admin on public.chat_admins;
+create policy chat_admins_read_admin on public.chat_admins
+  for select to authenticated using (private.is_group_chat_admin());
 
 drop policy if exists chat_mutes_read_admin on public.chat_user_mutes;
 create policy chat_mutes_read_admin on public.chat_user_mutes
