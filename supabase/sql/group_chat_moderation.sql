@@ -42,6 +42,32 @@ create policy chat_bans_read_self on public.chat_user_bans
 grant select on public.chat_admins, public.chat_user_mutes, public.chat_user_bans to authenticated;
 revoke insert, update, delete, truncate, references, trigger
   on public.chat_admins, public.chat_user_mutes, public.chat_user_bans from anon, authenticated;
+grant insert, update on public.chat_user_mutes, public.chat_user_bans to authenticated;
+
+drop policy if exists chat_mutes_read_admin on public.chat_user_mutes;
+create policy chat_mutes_read_admin on public.chat_user_mutes
+  for select to authenticated using (public.is_group_chat_admin());
+drop policy if exists chat_bans_read_admin on public.chat_user_bans;
+create policy chat_bans_read_admin on public.chat_user_bans
+  for select to authenticated using (public.is_group_chat_admin());
+drop policy if exists chat_mutes_admin_insert on public.chat_user_mutes;
+create policy chat_mutes_admin_insert on public.chat_user_mutes
+  for insert to authenticated with check (
+    public.is_group_chat_admin() and created_by = (select auth.uid())
+  );
+drop policy if exists chat_mutes_admin_update on public.chat_user_mutes;
+create policy chat_mutes_admin_update on public.chat_user_mutes
+  for update to authenticated using (public.is_group_chat_admin())
+  with check (public.is_group_chat_admin() and created_by = (select auth.uid()));
+drop policy if exists chat_bans_admin_insert on public.chat_user_bans;
+create policy chat_bans_admin_insert on public.chat_user_bans
+  for insert to authenticated with check (
+    public.is_group_chat_admin() and created_by = (select auth.uid())
+  );
+drop policy if exists chat_bans_admin_update on public.chat_user_bans;
+create policy chat_bans_admin_update on public.chat_user_bans
+  for update to authenticated using (public.is_group_chat_admin())
+  with check (public.is_group_chat_admin() and created_by = (select auth.uid()));
 
 insert into public.chat_admins (user_id, role)
 values ('7244dd5e-1779-40b5-b995-809fcfcade7f'::uuid, 'owner')
@@ -86,8 +112,13 @@ create policy chat_messages_moderation_read_guard on public.chat_messages as res
     not exists (select 1 from public.chat_user_bans b where b.user_id = (select auth.uid()))
   );
 
+drop policy if exists chat_messages_admin_update on public.chat_messages;
+create policy chat_messages_admin_update on public.chat_messages
+  for update to authenticated using (public.is_group_chat_admin())
+  with check (public.is_group_chat_admin());
+
 create or replace function public.admin_delete_group_chat_message(p_message_id uuid)
-returns void language plpgsql security definer
+returns void language plpgsql security invoker
 set search_path = pg_catalog, public
 as $$
 begin
@@ -102,7 +133,7 @@ $$;
 create or replace function public.admin_mute_group_chat_user(
   p_user_id uuid, p_duration_hours integer, p_reason text default ''
 )
-returns void language plpgsql security definer
+returns void language plpgsql security invoker
 set search_path = pg_catalog, public
 as $$
 declare v_admin_id uuid := auth.uid(); v_permanent boolean;
