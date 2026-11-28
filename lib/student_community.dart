@@ -1596,9 +1596,9 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
         appBar: AppBar(
           backgroundColor: dark ? const Color(0xFF142B46) : colors.surface,
           foregroundColor: dark ? Colors.white : colors.onSurface,
-          leading: _dmSelectionMode ? IconButton(onPressed:()=>setState(()=>_selectedDmIds.clear()),icon:const Icon(Icons.close_rounded)) : null,
-          actions: _dmSelectionMode ? [_dmSelectionToolbar(colors)] : null,
-          title: _dmSelectionMode ? Text('تم تحديد ${_selectedDmIds.length} رسالة') : Row(
+          leading: AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: ScaleTransition(scale: Tween<double>(begin: 0.94, end: 1).animate(animation), child: child)), child: _dmSelectionMode ? IconButton(key: const ValueKey('dm-selection-close'), onPressed: () => setState(() => _selectedDmIds.clear()), icon: const Icon(Icons.close_rounded)) : const SizedBox(key: ValueKey('dm-selection-leading-empty'), width: 48)),
+          actions: [AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero).animate(animation), child: child)), child: _dmSelectionMode ? KeyedSubtree(key: const ValueKey('dm-selection-toolbar'), child: _dmSelectionToolbar(colors)) : const SizedBox(key: ValueKey('dm-selection-actions-empty'), width: 1))],
+          title: AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(animation), child: child)), child: _dmSelectionMode ? Text('تم تحديد ${_selectedDmIds.length} رسالة', key: const ValueKey('dm-selection-title')) : Row(key: const ValueKey('dm-chat-title'),
             children: [
               InkWell(
                 customBorder: const CircleBorder(),
@@ -1864,8 +1864,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                 ],
                               ),
                                 ),
-                                if (_dmSelectionMode)
-                                  Positioned(
+                                Positioned(
                                     left: mine ? null : -28,
                                     right: mine ? -28 : null,
                                     top: 14,
@@ -1881,18 +1880,7 @@ class _StudentDirectMessageScreenState extends State<StudentDirectMessageScreen>
                                           child: child,
                                         ),
                                       ),
-                                      child: Icon(
-                                        _selectedDmIds.contains(row['id'].toString())
-                                            ? Icons.check_circle_rounded
-                                            : Icons.radio_button_unchecked_rounded,
-                                        key: ValueKey(
-                                          _selectedDmIds.contains(row['id'].toString()),
-                                        ),
-                                        color: _selectedDmIds.contains(row['id'].toString())
-                                            ? colors.primary
-                                            : colors.outline,
-                                        size: 21,
-                                      ),
+                                      child: _dmSelectionMode ? Icon(_selectedDmIds.contains(row['id'].toString()) ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, key: ValueKey('dm-check-${_selectedDmIds.contains(row['id'].toString())}'), color: _selectedDmIds.contains(row['id'].toString()) ? colors.primary : colors.outline, size: 21) : const SizedBox(key: ValueKey('dm-selection-circle-hidden'), width: 21, height: 21),
                                     ),
                                   ),
                               ],
@@ -3683,8 +3671,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
     child: Scaffold(
       backgroundColor: dark ? const Color(0xFF0C1B2D) : colors.surface,
       appBar: AppBar(backgroundColor: dark ? const Color(0xFF142B46) : colors.surface, foregroundColor: dark ? Colors.white : colors.onSurface, elevation: 0,
-        leading: _groupSelectionMode ? IconButton(onPressed:()=>setState(()=>_selectedGroupMessageIds.clear()),icon:const Icon(Icons.close_rounded)) : null,
-        title: _groupSelectionMode ? Text('تم تحديد ${_selectedGroupMessageIds.length} رسالة') : Row(children: [
+        leading: AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: ScaleTransition(scale: Tween<double>(begin: 0.94, end: 1).animate(animation), child: child)), child: _groupSelectionMode ? IconButton(key: const ValueKey('group-selection-close'), onPressed: () => setState(() => _selectedGroupMessageIds.clear()), icon: const Icon(Icons.close_rounded)) : const SizedBox(key: ValueKey('group-selection-leading-empty'), width: 48)),
+        title: AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(animation), child: child)), child: _groupSelectionMode ? Text('تم تحديد ${_selectedGroupMessageIds.length} رسالة', key: const ValueKey('group-selection-title')) : Row(key: const ValueKey('group-chat-title'), children: [
           const Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -3706,7 +3694,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             ),
           ),
         ]),
-        actions: _groupSelectionMode ? [_selectionToolbar(_selectedGroupMessageIds.length,onClear:()=>setState(()=>_selectedGroupMessageIds.clear()),onDelete:_deleteSelectedGroupMessages,onCopy:_copySelectedGroupMessages,onEdit:_editSelectedGroupMessage,canEdit:_selectedGroupMessages.length==1&&_selectedGroupMessages.first['user_id']==_db.auth.currentUser?.id&&_selectedGroupMessages.first['message_type']=='text',colors:colors)] : null,
+        actions: [AnimatedSwitcher(duration: const Duration(milliseconds: 240), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SlideTransition(position: Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero).animate(animation), child: child)), child: _groupSelectionMode ? KeyedSubtree(key: const ValueKey('group-selection-toolbar'), child: _selectionToolbar(_selectedGroupMessageIds.length,onClear:()=>setState(()=>_selectedGroupMessageIds.clear()),onDelete:_deleteSelectedGroupMessages,onCopy:_copySelectedGroupMessages,onEdit:_editSelectedGroupMessage,canEdit:_selectedGroupMessages.length==1&&_selectedGroupMessages.first['user_id']==_db.auth.currentUser?.id&&_selectedGroupMessages.first['message_type']=='text',colors:colors)) : const SizedBox(key: ValueKey('group-selection-actions-empty'), width: 1))],
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -3840,7 +3828,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          if (_groupSelectionMode && mine)
+                          if (mine)
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 5),
                               child: AnimatedSwitcher(
@@ -3851,15 +3839,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                   scale: animation,
                                   child: FadeTransition(opacity: animation, child: child),
                                 ),
-                                child: Icon(
-                                  _selectedGroupMessageIds.contains(row['id'].toString())
-                                    ? Icons.check_circle_rounded
-                                    : Icons.radio_button_unchecked_rounded,
-                                  key: ValueKey(_selectedGroupMessageIds.contains(row['id'].toString())),
-                                  color: _selectedGroupMessageIds.contains(row['id'].toString())
-                                    ? colors.primary : colors.outline,
-                                  size: 22,
-                                ),
+                                child: _groupSelectionMode ? Icon(_selectedGroupMessageIds.contains(row['id'].toString()) ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, key: ValueKey('group-check-${_selectedGroupMessageIds.contains(row['id'].toString())}'), color: _selectedGroupMessageIds.contains(row['id'].toString()) ? colors.primary : colors.outline, size: 22) : const SizedBox(key: ValueKey('group-selection-circle-hidden'), width: 22, height: 22),
                               ),
                             ),
                           if (mine) ...[
