@@ -3981,8 +3981,37 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                 controller: scroll,
                 reverse: false,
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-                itemCount: rows.length,
+                itemCount: rows.length + (_voiceUploading ? 1 : 0),
                 itemBuilder: (context, index) {
+                  if (_voiceUploading && index == rows.length) {
+                    return Align(
+                      alignment: Alignment.centerRight,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: dark ? colors.surfaceContainerHigh : colors.primary,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          SizedBox(width: 25, height: 25, child: CircularProgressIndicator(
+                            strokeWidth: 2.4, color: dark ? colors.primary : Colors.white)),
+                          const SizedBox(width: 9),
+                          SizedBox(width: 104, child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('جارٍ رفع التسجيل الصوتي…', style: TextStyle(
+                                color: dark ? colors.onSurface : Colors.white,
+                                fontSize: 11, fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 5),
+                              const LinearProgressIndicator(),
+                            ],
+                          )),
+                        ]),
+                      ),
+                    );
+                  }
                   final row = rows[index];
                   final mine = row['user_id']?.toString() == _db.auth.currentUser?.id;
                   final profile = profiles.data?[row['user_id'].toString()];
