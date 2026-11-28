@@ -519,9 +519,9 @@ class _StageCatalogScreenState extends State<StageCatalogScreen> {
                                     if (mounted) setState(() {});
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text(isSaved
+                                        SnackBar(content: BrandedNoticeContent(child: Text(isSaved
                                           ? 'أزيلت المادة من المحفوظات'
-                                          : 'تم حفظ المادة في محفوظات المرحلة')),
+                                          : 'تم حفظ المادة في محفوظات المرحلة'))),
                                       );
                                     }
                                   },
@@ -1062,7 +1062,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذر فتح المحادثة: $error')),
+          SnackBar(content: BrandedNoticeContent(child: Text('تعذر فتح المحادثة: $error'))),
         );
       }
     }
@@ -2541,7 +2541,7 @@ class Saved extends StatelessWidget {
                             } catch (_) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                 SnackBar(content: Text('تعذر حذف الورقة حالياً')),
+                                 SnackBar(content: BrandedNoticeContent(child: Text('تعذر حذف الورقة حالياً'))),
                               );
                             }
                           },
@@ -2724,7 +2724,7 @@ class PersonalizationScreen extends StatelessWidget {
                 await ThemeController.restoreDefaults();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar( SnackBar(
-                    content: Text('تمت استعادة المظهر الافتراضي.')));
+                    content: BrandedNoticeContent(child: Text('تمت استعادة المظهر الافتراضي.'))));
                 }
               },
               icon: const Icon(Icons.restart_alt_rounded),
@@ -3271,7 +3271,7 @@ class _StudyNoteDetailScreenState extends State<StudyNoteDetailScreen> {
                         final text = (_note['body'] ?? '').trim();
                         if (text.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                             SnackBar(content: Text('لا يوجد نص لنسخه')),
+                             SnackBar(content: BrandedNoticeContent(child: Text('لا يوجد نص لنسخه'))),
                           );
                           return;
                         }
@@ -3455,7 +3455,7 @@ class _NewsScreenState extends State<NewsScreen> {
     final pin = entered.trim();
     if (pin.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('أدخل رمز المطوّر أولاً.')),
+         SnackBar(content: BrandedNoticeContent(child: Text('أدخل رمز المطوّر أولاً.'))),
       );
       return;
     }
@@ -3497,11 +3497,11 @@ class _NewsScreenState extends State<NewsScreen> {
       if (mounted) {
         final details = error.toString().replaceFirst('Exception: ', '').trim();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(
+          SnackBar(content: BrandedNoticeContent(child: Text(
             details.isEmpty
               ? 'تعذر فتح غرفة المطوّر. تحقق من اتصال الخادم وإعداداته.'
               : 'تعذر فتح غرفة المطوّر: $details',
-          )),
+          ))),
         );
       }
     }
@@ -3511,7 +3511,7 @@ class _NewsScreenState extends State<NewsScreen> {
     try { await Share.share(text, subject: post.title); }
     catch (_) {
       await Clipboard.setData(ClipboardData(text:text));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:Text('تم نسخ نص الخبر للمشاركة.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:BrandedNoticeContent(child: Text('تم نسخ نص الخبر للمشاركة.'))));
     }
   }
   @override Widget build(BuildContext context) {
@@ -3737,7 +3737,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
   Future<void> _save() async {
     final title=_title.text.trim(), body=_body.text.trim();
     if(title.isEmpty||body.isEmpty){
-      ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:Text('اكتب عنوان الخبر ونصه أولاً.')));return;
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:BrandedNoticeContent(child: Text('اكتب عنوان الخبر ونصه أولاً.'))));return;
     }
     setState(()=>_working=true);
     try{
@@ -3762,9 +3762,9 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
       }
       _clearEditor();await _loadExisting();
       if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content:Text(editing?'تم تعديل الخبر بنجاح.':'تم نشر الخبر بنجاح.')));}
+        SnackBar(content:BrandedNoticeContent(child: Text(editing?'تم تعديل الخبر بنجاح.':'تم نشر الخبر بنجاح.'))));}
     }catch(error){
-      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حفظ الخبر: $error')));
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:BrandedNoticeContent(child: Text('تعذر حفظ الخبر: $error'))));
     }finally{if(mounted)setState(()=>_working=false);}
   }
   Future<void> _togglePin(Map<String,dynamic> post) async {
@@ -3782,9 +3782,9 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
       if(mounted){
         setState((){});
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content:Text(post['pinned']==true?'تم إلغاء تثبيت الخبر.':'تم تثبيت الخبر بنجاح.')));
+          content:BrandedNoticeContent(child: Text(post['pinned']==true?'تم إلغاء تثبيت الخبر.':'تم تثبيت الخبر بنجاح.'))));
       }
-    }catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تغيير التثبيت: $error')));}
+    }catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:BrandedNoticeContent(child: Text('تعذر تغيير التثبيت: $error'))));}
     finally{if(mounted)setState(()=>_working=false);}
   }
   Future<void> _sharePost(Map<String,dynamic> post) async {
@@ -3792,7 +3792,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     final text='$title\n\n$body\n\nمن تطبيق دليلك للنجاح — الثالث متوسط • العراق';
     try{await Share.share(text,subject:title);}catch(_){
       await Clipboard.setData(ClipboardData(text:text));
-      if(mounted)ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:Text('تم نسخ الخبر للمشاركة.')));
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:BrandedNoticeContent(child: Text('تم نسخ الخبر للمشاركة.'))));
     }
   }
   Future<void> _delete(Map<String,dynamic> post) async {
@@ -3819,9 +3819,9 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
       if(mounted){
         setState((){});
         ScaffoldMessenger.of(context).showSnackBar( SnackBar(
-          content:Text('تم حذف الخبر بنجاح.')));
+          content:BrandedNoticeContent(child: Text('تم حذف الخبر بنجاح.'))));
       }
-    }catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حذف الخبر: $error')));}
+    }catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:BrandedNoticeContent(child: Text('تعذر حذف الخبر: $error'))));}
     finally{if(mounted)setState(()=>_working=false);}
   }
   @override void dispose(){_title.dispose();_body.dispose();super.dispose();}
@@ -4698,7 +4698,7 @@ class _SolutionsHubScreenState extends State<SolutionsHubScreen> {
     final question = questionController.text.trim();
     if (question.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('اكتب السؤال أولاً حتى نقدر نشرحه.')));
+         SnackBar(content: BrandedNoticeContent(child: Text('اكتب السؤال أولاً حتى نقدر نشرحه.'))));
       return;
     }
     final prompt = 'أريد حلاً نموذجياً تعليمياً لسؤال من مادة ${selected.name} للمرحلة ${widget.stageLabel} في العراق. '
