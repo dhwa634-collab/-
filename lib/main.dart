@@ -1123,7 +1123,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
 
   void open(Subject s)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SubjectScreen(subject:s)));
   @override Widget build(BuildContext context){
-    final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const NewsScreen(),const PomodoroScreen(),const MoreScreen()];
+    final pages=[Home(onOpen:open,onAll:()=>setState(()=>tab=1)),Catalog(onOpen:open),const NewsScreen(),const PomodoroScreen(),MoreScreen(onSwitchComplete:()=>setState(()=>tab=0))];
     return Directionality(textDirection:TextDirection.rtl,child:PopScope(
       canPop: false,
       onPopInvoked: (didPop) {
@@ -3966,7 +3966,8 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
 }
 
 class MoreScreen extends StatelessWidget {
-  const MoreScreen({super.key});
+  final VoidCallback? onSwitchComplete;
+  const MoreScreen({super.key, this.onSwitchComplete});
 
   static const String _appName = 'وزاريات الثالث متوسط';
   static const String _packageName = 'com.fitna.game';
@@ -4254,7 +4255,7 @@ class MoreScreen extends StatelessWidget {
           ),
 
           _sectionTitle(context, 'الحساب', Icons.manage_accounts_outlined),
-          const MoreAccountSection(),
+          MoreAccountSection(onSwitchComplete: onSwitchComplete),
 
           _actionTile(
             context: context,
@@ -4385,7 +4386,8 @@ class MoreScreen extends StatelessWidget {
 
 
 class MoreAccountSection extends StatefulWidget {
-  const MoreAccountSection({super.key});
+  final VoidCallback? onSwitchComplete;
+  const MoreAccountSection({super.key, this.onSwitchComplete});
 
   @override
   State<MoreAccountSection> createState() => _MoreAccountSectionState();
@@ -4509,6 +4511,7 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
       final accountName = (selected['name'] ?? selectedEmail.split('@').first).trim();
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).popUntil((route) => route.isFirst);
+      widget.onSwitchComplete?.call();
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
