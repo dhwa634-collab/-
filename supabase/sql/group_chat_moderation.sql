@@ -44,6 +44,21 @@ revoke insert, update, delete, truncate, references, trigger
   on public.chat_admins, public.chat_user_mutes, public.chat_user_bans from anon, authenticated;
 grant insert, update on public.chat_user_mutes, public.chat_user_bans to authenticated;
 
+
+
+insert into public.chat_admins (user_id, role)
+values ('7244dd5e-1779-40b5-b995-809fcfcade7f'::uuid, 'owner')
+on conflict (user_id) do update set role = 'owner';
+
+create or replace function public.is_group_chat_admin()
+returns boolean language sql stable security invoker
+set search_path = public, pg_temp
+as $$
+  select exists (select 1 from public.chat_admins a where a.user_id = (select auth.uid()));
+$$;
+revoke all on function public.is_group_chat_admin() from public, anon;
+grant execute on function public.is_group_chat_admin() to authenticated;
+
 drop policy if exists chat_mutes_read_admin on public.chat_user_mutes;
 create policy chat_mutes_read_admin on public.chat_user_mutes
   for select to authenticated using (public.is_group_chat_admin());
@@ -68,19 +83,6 @@ drop policy if exists chat_bans_admin_update on public.chat_user_bans;
 create policy chat_bans_admin_update on public.chat_user_bans
   for update to authenticated using (public.is_group_chat_admin())
   with check (public.is_group_chat_admin() and created_by = (select auth.uid()));
-
-insert into public.chat_admins (user_id, role)
-values ('7244dd5e-1779-40b5-b995-809fcfcade7f'::uuid, 'owner')
-on conflict (user_id) do update set role = 'owner';
-
-create or replace function public.is_group_chat_admin()
-returns boolean language sql stable security invoker
-set search_path = public, pg_temp
-as $$
-  select exists (select 1 from public.chat_admins a where a.user_id = (select auth.uid()));
-$$;
-revoke all on function public.is_group_chat_admin() from public, anon;
-grant execute on function public.is_group_chat_admin() to authenticated;
 
 create or replace function public.get_my_group_chat_status()
 returns jsonb language sql stable security invoker
