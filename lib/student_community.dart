@@ -3716,31 +3716,31 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: mine
-                                        ? colors.onPrimary.withValues(alpha: 0.13)
-                                        : colors.primary.withValues(alpha: 0.10),
-                                    borderRadius: BorderRadius.circular(9),
-                                    border: Border.all(
-                                      color: mine
-                                          ? colors.onPrimary.withValues(alpha: 0.22)
-                                          : colors.primary.withValues(alpha: 0.20),
-                                    ),
-                                  ),
-                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
                                     Flexible(
                                       child: Text(
                                         name,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          fontSize: 11,
-                                          height: 1.15,
-                                          letterSpacing: 0.15,
+                                          fontSize: 13,
+                                          height: 1.2,
+                                          letterSpacing: 0.1,
                                           fontWeight: FontWeight.w900,
-                                          color: bubbleNameColor,
+                                          color: Color.lerp(
+                                            studentNameColor(name),
+                                            Colors.white,
+                                            mine ? 0.30 : 0.18,
+                                          )!,
+                                          shadows: const [
+                                            Shadow(
+                                              color: Color(0x55000000),
+                                              blurRadius: 3,
+                                              offset: Offset(0, 1),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -3748,7 +3748,7 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                       const SizedBox(width: 5),
                                       _DeveloperBadge(compact: true, onPrimary: mine),
                                     ],
-                                  ]),
+                                  ],
                                 ),
                                 const SizedBox(height: 7),
                                 if (type == 'image' || type == 'custom_sticker')
