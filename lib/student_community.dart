@@ -2829,12 +2829,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         toast('الفيديو بعد المعالجة تجاوز 30 ثانية، لذلك لم يُرسل.');
         return;
       }
-      if (!await _checkGroupChatPostingPermission()) return;
+      if (!await _checkGroupChatPostingPermission()) {
+        return;
+      }
       uploadedPath = '${user.id}/video_${DateTime.now().millisecondsSinceEpoch}.mp4';
-      if (mounted) setState(() {
-        _videoProgress = 0;
-        _videoStatus = 'جارٍ رفع الفيديو…';
-      });
+      if (mounted) {
+        setState(() {
+          _videoProgress = 0;
+          _videoStatus = 'جارٍ رفع الفيديو…';
+        });
+      }
       await _uploadGroupVideo(compressedFile, uploadedPath);
       await _db.from('chat_messages').insert({
         'user_id': user.id,
