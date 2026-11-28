@@ -2747,8 +2747,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
         'body': null,
         'sticker_id': null,
         'storage_path': uploadedPath,
+        'reply_to_id': _replyToMessage?['id'],
       });
       messageSaved = true;
+      if (mounted) setState(() => _replyToMessage = null);
       toast('تم إرسال الصورة.');
     } on StorageException catch (e) {
       toast('فشل رفع الصورة (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
@@ -2968,8 +2970,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
       await _db.from('chat_messages').insert({
         'user_id': user.id, 'message_type': 'voice',
         'body': null, 'sticker_id': null, 'storage_path': uploadedPath,
+        'reply_to_id': _replyToMessage?['id'],
       });
       messageSaved = true;
+      if (mounted) setState(() => _replyToMessage = null);
       toast('تم إرسال الرسالة الصوتية.');
     } on StorageException catch (e) {
       toast('فشل رفع التسجيل الصوتي (HTTP ${e.statusCode ?? 'Storage'}): ${e.message}');
