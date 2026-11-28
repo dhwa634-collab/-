@@ -3830,8 +3830,10 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           if (mine)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 5),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 190),
+                              curve: Curves.easeOutCubic,
+                              width: _groupSelectionMode ? 32 : 0,
                               child: AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 190),
                                 switchInCurve: Curves.easeOutCubic,
@@ -3840,7 +3842,18 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                   scale: animation,
                                   child: FadeTransition(opacity: animation, child: child),
                                 ),
-                                child: _groupSelectionMode ? Icon(_selectedGroupMessageIds.contains(row['id'].toString()) ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, key: ValueKey('group-check-${_selectedGroupMessageIds.contains(row['id'].toString())}'), color: _selectedGroupMessageIds.contains(row['id'].toString()) ? colors.primary : colors.outline, size: 22) : const SizedBox(key: ValueKey('group-selection-circle-hidden'), width: 22, height: 22),
+                                child: _groupSelectionMode
+                                    ? Icon(
+                                        _selectedGroupMessageIds.contains(row['id'].toString())
+                                            ? Icons.check_circle_rounded
+                                            : Icons.radio_button_unchecked_rounded,
+                                        key: ValueKey('group-check-${_selectedGroupMessageIds.contains(row['id'].toString())}'),
+                                        color: _selectedGroupMessageIds.contains(row['id'].toString())
+                                            ? colors.primary
+                                            : colors.outline,
+                                        size: 22,
+                                      )
+                                    : const SizedBox.shrink(key: ValueKey('group-selection-circle-hidden')),
                               ),
                             ),
                           if (mine) ...[
