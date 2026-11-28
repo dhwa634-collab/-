@@ -4400,6 +4400,21 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                     ),
                 ],
               ),
+              if (_replyToMessage != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 7),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: colors.primaryContainer.withValues(alpha: .55), borderRadius: BorderRadius.circular(12), border: Border(right: BorderSide(color: colors.primary, width: 3))),
+                  child: Row(children: [
+                    const Icon(Icons.reply_rounded, size: 18),
+                    const SizedBox(width: 7),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('الرد على رسالة', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                      Text(_replyToMessage!['message_type'] == 'video' ? 'مقطع فيديو' : _replyToMessage!['message_type'] == 'voice' ? 'رسالة صوتية' : _replyToMessage!['message_type'] == 'image' ? 'صورة' : (_replyToMessage!['body']?.toString() ?? 'رسالة'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
+                    ])),
+                    IconButton(tooltip: 'إلغاء الرد', onPressed: () => setState(() => _replyToMessage = null), icon: const Icon(Icons.close_rounded, size: 18)),
+                  ]),
+                ),
               if (_editingGroupMessageId != null)
                 Row(children: [
                   Expanded(child: Text('تعديل الرسالة', style: TextStyle(
@@ -4412,6 +4427,12 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   Text(_videoStatus, style: TextStyle(fontSize: 11, color: colors.primary, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 5),
                   LinearProgressIndicator(value: _videoProgress > 0 ? _videoProgress : null),
+                ]),
+              if (_voiceUploading)
+                Row(children: [
+                  const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(width: 8),
+                  const Expanded(child: Text('جارٍ رفع الرسالة الصوتية…', style: TextStyle(fontSize: 11))),
                 ]),
               if (_recording)
                 Text('جارٍ التسجيل • $_recordSeconds ثانية',
