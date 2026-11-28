@@ -4500,6 +4500,30 @@ class _GroupChatVideoPlayerState extends State<_GroupChatVideoPlayer> {
         aspectRatio: _controller.value.aspectRatio,
         child: Stack(alignment: Alignment.center, children: [
           VideoPlayer(_controller),
+          Positioned(
+            left: 8,
+            right: 8,
+            bottom: 7,
+            child: Row(children: [
+              Expanded(
+                child: VideoProgressIndicator(
+                  _controller,
+                  allowScrubbing: true,
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  colors: const VideoProgressColors(
+                    playedColor: Colors.white,
+                    bufferedColor: Colors.white38,
+                    backgroundColor: Colors.white24,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${_controller.value.position.inMinutes.toString().padLeft(2, '0')}:${_controller.value.position.inSeconds.remainder(60).toString().padLeft(2, '0')} / ${_controller.value.duration.inMinutes.toString().padLeft(2, '0')}:${_controller.value.duration.inSeconds.remainder(60).toString().padLeft(2, '0')}',
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+              ),
+            ]),
+          ),
           Material(
             color: Colors.black38,
             shape: const CircleBorder(),
