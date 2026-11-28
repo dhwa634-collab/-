@@ -2199,15 +2199,15 @@ class _SubjectScreenState extends State<SubjectScreen> {
                                   if (!mounted || !messenger.mounted) return;
                                   setState(() {});
                                   messenger.showSnackBar(SnackBar(
-                                    content: Text(saved
+                                    content: BrandedNoticeContent(child: Text(saved
                                       ? 'انحفظت الورقة بالمحفوظات'
-                                      : 'انحذفت الورقة من المحفوظات'),
+                                      : 'انحذفت الورقة من المحفوظات')),
                                     duration: const Duration(seconds: 2),
                                   ));
                                 } catch (_) {
                                   if (!messenger.mounted) return;
-                                  messenger.showSnackBar(const SnackBar(
-                                    content: Text('تعذر حفظ الورقة على الجهاز'),
+                                  messenger.showSnackBar( SnackBar(
+                                    content: BrandedNoticeContent(child: Text('تعذر حفظ الورقة على الجهاز')),
                                   ));
                                 }
                               },
@@ -2541,7 +2541,7 @@ class Saved extends StatelessWidget {
                             } catch (_) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('تعذر حذف الورقة حالياً')),
+                                 SnackBar(content: Text('تعذر حذف الورقة حالياً')),
                               );
                             }
                           },
@@ -2723,7 +2723,7 @@ class PersonalizationScreen extends StatelessWidget {
               onPressed: () async {
                 await ThemeController.restoreDefaults();
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  ScaffoldMessenger.of(context).showSnackBar( SnackBar(
                     content: Text('تمت استعادة المظهر الافتراضي.')));
                 }
               },
@@ -3035,8 +3035,8 @@ class _StudyNoteEditorScreenState extends State<StudyNoteEditorScreen> {
     final title = _title.text.trim();
     final body = _body.text.trim();
     if (title.isEmpty || body.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('اكتب عنوان الملاحظة ونصها الكامل أولاً.'),
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+        content: BrandedNoticeContent(child: Text('اكتب عنوان الملاحظة ونصها الكامل أولاً.')),
       ));
       return;
     }
@@ -3271,15 +3271,15 @@ class _StudyNoteDetailScreenState extends State<StudyNoteDetailScreen> {
                         final text = (_note['body'] ?? '').trim();
                         if (text.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('لا يوجد نص لنسخه')),
+                             SnackBar(content: Text('لا يوجد نص لنسخه')),
                           );
                           return;
                         }
                         await Clipboard.setData(ClipboardData(text: text));
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('تم نسخ نص الملاحظة بنجاح'),
+                           SnackBar(
+                            content: BrandedNoticeContent(child: Text('تم نسخ نص الملاحظة بنجاح')),
                             duration: Duration(seconds: 2),
                           ),
                         );
@@ -3455,7 +3455,7 @@ class _NewsScreenState extends State<NewsScreen> {
     final pin = entered.trim();
     if (pin.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أدخل رمز المطوّر أولاً.')),
+         SnackBar(content: Text('أدخل رمز المطوّر أولاً.')),
       );
       return;
     }
@@ -3511,7 +3511,7 @@ class _NewsScreenState extends State<NewsScreen> {
     try { await Share.share(text, subject: post.title); }
     catch (_) {
       await Clipboard.setData(ClipboardData(text:text));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم نسخ نص الخبر للمشاركة.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:Text('تم نسخ نص الخبر للمشاركة.')));
     }
   }
   @override Widget build(BuildContext context) {
@@ -3737,7 +3737,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
   Future<void> _save() async {
     final title=_title.text.trim(), body=_body.text.trim();
     if(title.isEmpty||body.isEmpty){
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اكتب عنوان الخبر ونصه أولاً.')));return;
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:Text('اكتب عنوان الخبر ونصه أولاً.')));return;
     }
     setState(()=>_working=true);
     try{
@@ -3792,7 +3792,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
     final text='$title\n\n$body\n\nمن تطبيق دليلك للنجاح — الثالث متوسط • العراق';
     try{await Share.share(text,subject:title);}catch(_){
       await Clipboard.setData(ClipboardData(text:text));
-      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم نسخ الخبر للمشاركة.')));
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar( SnackBar(content:Text('تم نسخ الخبر للمشاركة.')));
     }
   }
   Future<void> _delete(Map<String,dynamic> post) async {
@@ -3818,7 +3818,7 @@ class _NewsAdminScreenState extends State<NewsAdminScreen> {
       if(_editingId==id)_clearEditor();
       if(mounted){
         setState((){});
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar( SnackBar(
           content:Text('تم حذف الخبر بنجاح.')));
       }
     }catch(error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حذف الخبر: $error')));}
@@ -3987,17 +3987,17 @@ class MoreScreen extends StatelessWidget {
     try {
       final opened = await launchUrl(emailUri);
       if (!opened && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
+        ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+          content: BrandedNoticeContent(child: Text(
             'لم نعثر على تطبيق بريد. يمكنك مراسلتنا على '
-            'dhwalfqar666@gmail.com'),
+            'dhwalfqar666@gmail.com')),
         ));
       }
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('تعذر فتح تطبيق البريد. راسلنا على '
-              'dhwalfqar666@gmail.com'),
+        ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+          content: BrandedNoticeContent(child: Text('تعذر فتح تطبيق البريد. راسلنا على '
+              'dhwalfqar666@gmail.com')),
         ));
       }
     }
@@ -4012,8 +4012,8 @@ class MoreScreen extends StatelessWidget {
     } catch (_) {
       await Clipboard.setData(const ClipboardData(text: shareText));
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('تعذرت المشاركة المباشرة؛ نُسخ رابط التطبيق لتتمكن من إرساله.'),
+        ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+          content: BrandedNoticeContent(child: Text('تعذرت المشاركة المباشرة؛ نُسخ رابط التطبيق لتتمكن من إرساله.')),
         ));
       }
     }
@@ -4028,8 +4028,8 @@ class MoreScreen extends StatelessWidget {
         final webOpened = await launchUrl(
           webUri, mode: LaunchMode.externalApplication);
         if (!webOpened && context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('سيظهر خيار التقييم بعد نشر التطبيق على Google Play.'),
+          ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+            content: BrandedNoticeContent(child: Text('سيظهر خيار التقييم بعد نشر التطبيق على Google Play.')),
           ));
         }
       }
@@ -4038,8 +4038,8 @@ class MoreScreen extends StatelessWidget {
         await launchUrl(webUri, mode: LaunchMode.externalApplication);
       } catch (_) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('تعذر فتح صفحة Google Play حالياً.'),
+          ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+            content: BrandedNoticeContent(child: Text('تعذر فتح صفحة Google Play حالياً.')),
           ));
         }
       }
@@ -4049,8 +4049,8 @@ class MoreScreen extends StatelessWidget {
   Future<void> _clearSaved(BuildContext context) async {
     final count = SavedExamsStore.items.value.length;
     if (count == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('لا توجد محفوظات لمسحها.'),
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+        content: BrandedNoticeContent(child: Text('لا توجد محفوظات لمسحها.')),
       ));
       return;
     }
@@ -4084,8 +4084,8 @@ class MoreScreen extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
     await SavedExamsStore.clearAll();
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('تم مسح جميع المحفوظات بنجاح.'),
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+        content: BrandedNoticeContent(child: Text('تم مسح جميع المحفوظات بنجاح.')),
       ));
     }
   }
@@ -4269,7 +4269,7 @@ class MoreScreen extends StatelessWidget {
                   onTap: () {
                     // The bottom navigation's Saved tab remains the full manager.
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('عدد العناصر المحفوظة: ${saved.length}'),
+                      content: BrandedNoticeContent(child: Text('عدد العناصر المحفوظة: ${saved.length}')),
                     ));
                   },
                 ),
@@ -4365,7 +4365,7 @@ class _MoreAccountSectionState extends State<MoreAccountSection> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
-        content: Text(message),
+        content: BrandedNoticeContent(child: Text(message)),
         backgroundColor: isError ? Colors.redAccent : null,
       ));
   }
@@ -4521,14 +4521,14 @@ class PrivacyScreen extends StatelessWidget {
         mode: LaunchMode.externalApplication,
       );
       if (!opened && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('تعذر فتح صفحة سياسة الخصوصية. تحقق من اتصال الإنترنت.'),
+        ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+          content: BrandedNoticeContent(child: Text('تعذر فتح صفحة سياسة الخصوصية. تحقق من اتصال الإنترنت.')),
         ));
       }
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('تعذر فتح صفحة سياسة الخصوصية. حاول مرة ثانية.'),
+        ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+          content: BrandedNoticeContent(child: Text('تعذر فتح صفحة سياسة الخصوصية. حاول مرة ثانية.')),
         ));
       }
     }
@@ -4698,7 +4698,7 @@ class _SolutionsHubScreenState extends State<SolutionsHubScreen> {
     final question = questionController.text.trim();
     if (question.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('اكتب السؤال أولاً حتى نقدر نشرحه.')));
+         SnackBar(content: Text('اكتب السؤال أولاً حتى نقدر نشرحه.')));
       return;
     }
     final prompt = 'أريد حلاً نموذجياً تعليمياً لسؤال من مادة ${selected.name} للمرحلة ${widget.stageLabel} في العراق. '
@@ -5033,19 +5033,19 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         note: result['note'] ?? '',
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('وصل بلاغك إلى المطوّر بنجاح. شكراً لمساعدتنا على تحسين التطبيق.'),
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+        content: BrandedNoticeContent(child: Text('وصل بلاغك إلى المطوّر بنجاح. شكراً لمساعدتنا على تحسين التطبيق.')),
       ));
     } catch (error) {
       if (!mounted) return;
       final details = error.toString().replaceFirst('Exception: ', '').trim();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         duration: const Duration(seconds: 8),
-        content: Text(
+        content: BrandedNoticeContent(child: Text(
           details.isEmpty
               ? 'تعذر إرسال البلاغ. تحقق من إعدادات الخادم وحاول مرة ثانية.'
               : 'فشل إرسال البلاغ: $details',
-        ),
+        )),
       ));
     }
   }
@@ -5055,8 +5055,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     if (enteredQuestion.isEmpty || loading) return;
     final question = _sanitizeStudentText(enteredQuestion);
     if (question != enteredQuestion) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('حذفنا رقم هاتف أو بريداً إلكترونياً واضحاً قبل إرسال السؤال.'),
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+        content: BrandedNoticeContent(child: Text('حذفنا رقم هاتف أو بريداً إلكترونياً واضحاً قبل إرسال السؤال.')),
       ));
     }
     controller.clear();
@@ -5270,8 +5270,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                                     Clipboard.setData(ClipboardData(text: messageText));
                                     ScaffoldMessenger.of(context)
                                       ..hideCurrentSnackBar()
-                                      ..showSnackBar(const SnackBar(
-                                        content: Text('تم نسخ الإجابة'),
+                                      ..showSnackBar( SnackBar(
+                                        content: BrandedNoticeContent(child: Text('تم نسخ الإجابة')),
                                         duration: Duration(seconds: 2),
                                       ));
                                   },
