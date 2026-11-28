@@ -4032,7 +4032,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final type = row['message_type']?.toString() ?? 'text';
                   final sticker = type == 'builtin_sticker' || type == 'custom_sticker';
                   final mediaPath = row['storage_path']?.toString() ?? '';
-                  final colors = Theme.of(context).colorScheme;
                   final avatar = profile?['avatar_url']?.toString();
                   final fallbackAvatar = mine
                       ? currentUserMetadata['picture']?.toString()
