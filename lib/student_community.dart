@@ -3238,7 +3238,16 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                                           color: bubbleMetaColor,
                                         ),
                                       ),
-                                      if (mine) ...[
+                                      if (mine && row['_local_status'] == 'queued') ...[
+                                        const SizedBox(width: 4),
+                                        Text('بانتظار الإرسال',
+                                          style: TextStyle(fontSize: 9,
+                                            color: bubbleMetaColor,
+                                            fontWeight: FontWeight.w700)),
+                                        const SizedBox(width: 3),
+                                        Icon(Icons.schedule_rounded, size: 12,
+                                          color: bubbleMetaColor),
+                                      ] else if (mine) ...[
                                         const SizedBox(width: 3),
                                         Icon(Icons.done_rounded, size: 12,
                                           color: colors.onSurfaceVariant),
