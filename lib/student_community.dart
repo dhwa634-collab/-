@@ -3596,9 +3596,6 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
                   final bubbleTextColor = mine
                       ? colors.onPrimary
                       : colors.onSurface;
-                  final bubbleNameColor = mine
-                      ? colors.onPrimary
-                      : colors.primary;
                   final bubbleMetaColor = mine
                       ? colors.onPrimary.withValues(alpha: 0.78)
                       : colors.onSurfaceVariant;
