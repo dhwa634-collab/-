@@ -3352,6 +3352,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
   @override
   void dispose() {
     _recordTimer?.cancel();
+    _moderationStatusTimer?.cancel();
+    _moderationCountdownTimer?.cancel();
     _groupReactionsSubscription?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();
@@ -3758,6 +3760,8 @@ class _StudentChatScreenState extends State<StudentChatScreen> {
             child: FilledButton(onPressed: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const StudentGoogleLoginScreen())),
               child: const Text('سجّل الدخول للمشاركة في الدردشة')))
+        else if (_groupChatPostingBlocked)
+          _buildGroupChatRestrictionNotice(colors, dark)
         else
           SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
             child: Column(children: [
