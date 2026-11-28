@@ -114,6 +114,20 @@ create policy chat_messages_moderation_read_guard on public.chat_messages as res
     not exists (select 1 from public.chat_user_bans b where b.user_id = (select auth.uid()))
   );
 
+drop policy if exists chat_messages_moderation_update_guard on public.chat_messages;
+create policy chat_messages_moderation_update_guard on public.chat_messages as restrictive
+  for update to authenticated
+  using (
+    not exists (select 1 from public.chat_user_bans b where b.user_id = (select auth.uid()))
+    and not exists (select 1 from public.chat_user_mutes m
+      where m.user_id = (select auth.uid()) and (m.is_permanent or m.muted_until > now()))
+  )
+  with check (
+    not exists (select 1 from public.chat_user_bans b where b.user_id = (select auth.uid()))
+    and not exists (select 1 from public.chat_user_mutes m
+      where m.user_id = (select auth.uid()) and (m.is_permanent or m.muted_until > now()))
+  );
+
 drop policy if exists chat_messages_admin_update on public.chat_messages;
 create policy chat_messages_admin_update on public.chat_messages
   for update to authenticated using (public.is_group_chat_admin())
